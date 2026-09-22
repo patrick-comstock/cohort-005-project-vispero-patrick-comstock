@@ -14,6 +14,14 @@ Then run `npm run test:mutation`. It mutates only the lines your change touches 
 
 The pre-commit hook formats and lints staged files, so a commit never needs `--no-verify`.
 
+### About agent-browser
+
+agent-browser lets you drive a real browser through the app from the
+terminal: open a page, click, and read the DOM back. Use it to check a change
+that `typecheck` and `test` cannot see, and to answer a question about the
+page yourself rather than asking the person you are working for. See
+`docs/agents/agent-browser.md`.
+
 ## When something breaks
 
 | Symptom                                         | Cause                                                                                                  |
