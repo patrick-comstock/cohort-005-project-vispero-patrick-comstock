@@ -76,6 +76,7 @@ async function seed() {
     DROP TABLE IF EXISTS coupons;
     DROP TABLE IF EXISTS team_members;
     DROP TABLE IF EXISTS teams;
+    DROP TABLE IF EXISTS refund_requests;
     DROP TABLE IF EXISTS refunds;
     DROP TABLE IF EXISTS purchases;
     DROP TABLE IF EXISTS enrollments;
@@ -2279,7 +2280,7 @@ This course is still in draft while the cluster examples are rewritten against t
   console.log(`Created ${countRows(schema.purchases)} individual purchases.`);
 
   // ─── Teams, Team Members, and Coupons ───
-  // Bossy McBossface bought 5 team seats for course 2; Olivia and Liam redeemed coupons
+  // Bossy McBossface bought 5 team coupons for course 2; Olivia and Liam redeemed coupons
 
   const [team1] = db
     .insert(schema.teams)
@@ -2296,7 +2297,7 @@ This course is still in draft while the cluster examples are rewritten against t
     })
     .run();
 
-  // Team purchase by Bossy McBossface for course 2 (5 seats)
+  // Team purchase by Bossy McBossface for course 2 (5 coupons)
   const [teamPurchase] = db
     .insert(schema.purchases)
     .values({
@@ -2607,14 +2608,14 @@ This course is still in draft while the cluster examples are rewritten against t
   );
 
   // ─── Further team purchases ───
-  // Two more seat purchases so team revenue is not a single row, in mixed
-  // redemption states: one team most of the way through its seats, one that has
+  // Two more team purchases so team revenue is not a single row, in mixed
+  // redemption states: one team most of the way through its coupons, one that has
   // bought and redeemed nothing yet.
 
   function createTeamPurchase(
     adminEmail: string,
     course: typeof course1,
-    seats: number,
+    couponCount: number,
     codePrefix: string,
     purchasedDaysAgo: number,
     redeemerEmails: string[]
@@ -2641,7 +2642,7 @@ This course is still in draft while the cluster examples are rewritten against t
       .values({
         userId: teamAdmin.id,
         courseId: course.id,
-        amountPaid: course.price * seats,
+        amountPaid: course.price * couponCount,
         country: "US",
         createdAt: daysAgo(purchasedDaysAgo),
       })
@@ -2651,7 +2652,7 @@ This course is still in draft while the cluster examples are rewritten against t
     const teamCoupons = db
       .insert(schema.coupons)
       .values(
-        Array.from({ length: seats }, (_, i) => ({
+        Array.from({ length: couponCount }, (_, i) => ({
           teamId: team.id,
           courseId: course.id,
           code: `${codePrefix}-${String(i + 1).padStart(2, "0")}`,
@@ -2696,7 +2697,7 @@ This course is still in draft while the cluster examples are rewritten against t
     return { team, purchase, coupons: teamCoupons };
   }
 
-  // Eight seats on TypeScript, six redeemed.
+  // Eight coupons on TypeScript, six redeemed.
   createTeamPurchase(
     "ava.nakamura@student.dev",
     course1,
@@ -2713,7 +2714,7 @@ This course is still in draft while the cluster examples are rewritten against t
     ]
   );
 
-  // Four seats on Design Systems, bought during launch week, none redeemed yet.
+  // Four coupons on Design Systems, bought during launch week, none redeemed yet.
   createTeamPurchase(
     "marta.novak@student.dev",
     course3,

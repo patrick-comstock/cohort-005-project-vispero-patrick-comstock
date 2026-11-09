@@ -50,8 +50,8 @@ interface CourseStats {
   courseId: number;
   courseTitle: string;
   courseSlug: string;
-  totalSeats: number;
-  claimedSeats: number;
+  totalCoupons: number;
+  redeemedCoupons: number;
 }
 
 interface CouponRow {
@@ -66,7 +66,7 @@ interface CouponRow {
 export function meta() {
   return [
     { title: "Team — Cadence" },
-    { name: "description", content: "Manage your team's course seats" },
+    { name: "description", content: "Manage your team's course coupons" },
   ];
 }
 
@@ -80,7 +80,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const team = getTeamForAdmin(currentUserId);
 
   if (!team) {
-    throw data("You don't have a team. Purchase team seats to create one.", {
+    throw data("You don't have a team. Make a team purchase to create one.", {
       status: 403,
     });
   }
@@ -95,7 +95,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       courseTitle: string;
       courseSlug: string;
       total: number;
-      claimed: number;
+      redeemed: number;
     }
   >();
 
@@ -107,13 +107,13 @@ export async function loader({ request }: Route.LoaderArgs) {
         courseTitle: course?.title ?? "Unknown Course",
         courseSlug: course?.slug ?? "",
         total: 0,
-        claimed: 0,
+        redeemed: 0,
       });
     }
     const entry = courseMap.get(coupon.courseId)!;
     entry.total++;
     if (coupon.redeemedByUserId !== null) {
-      entry.claimed++;
+      entry.redeemed++;
     }
   }
 
@@ -122,8 +122,8 @@ export async function loader({ request }: Route.LoaderArgs) {
       courseId: e.courseId,
       courseTitle: e.courseTitle,
       courseSlug: e.courseSlug,
-      totalSeats: e.total,
-      claimedSeats: e.claimed,
+      totalCoupons: e.total,
+      redeemedCoupons: e.redeemed,
     })
   );
 
@@ -202,7 +202,7 @@ export default function Team({ loaderData }: Route.ComponentProps) {
       <div className="mb-8">
         <h1 className="text-3xl font-bold">Team Management</h1>
         <p className="mt-1 text-muted-foreground">
-          Manage your team&apos;s course seats and coupon codes
+          Manage your team&apos;s course coupons
         </p>
       </div>
 
@@ -221,14 +221,14 @@ export default function Team({ loaderData }: Route.ComponentProps) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-2xl font-bold">
-                      {stat.claimedSeats}
+                      {stat.redeemedCoupons}
                       <span className="text-base font-normal text-muted-foreground">
                         {" "}
-                        / {stat.totalSeats}
+                        / {stat.totalCoupons}
                       </span>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      seats claimed
+                      coupons redeemed
                     </p>
                   </div>
                   <Link to={`/courses/${stat.courseSlug}/purchase?mode=team`}>
@@ -294,11 +294,11 @@ export default function Team({ loaderData }: Route.ComponentProps) {
                     <td className="px-4 py-3">
                       {coupon.redeemedByEmail ? (
                         <span className="text-muted-foreground">
-                          Claimed by {coupon.redeemedByEmail}
+                          Redeemed by {coupon.redeemedByEmail}
                         </span>
                       ) : (
                         <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                          Unclaimed
+                          Unredeemed
                         </span>
                       )}
                     </td>
