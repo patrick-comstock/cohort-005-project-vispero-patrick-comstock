@@ -1,3 +1,7 @@
+## Domain language
+
+Read `GLOSSARY.md` before naming anything (code, UI copy, routes, DB schema). When a term is settled, add or update it there.
+
 ## Verification checks
 
 Do these checks in this order before you report a change to `app/` as complete:
