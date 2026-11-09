@@ -62,6 +62,7 @@ import {
 import { parseFormData } from "~/lib/validation";
 import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
 import { StarRating, StarRatingInput } from "~/components/star-rating";
+import { getTeamPurchaseButtonLabel } from "~/lib/team-purchase";
 
 function getCourseBySlug(slug: string) {
   return db.select().from(courses).where(eq(courses.slug, slug)).get();
@@ -381,6 +382,17 @@ function getPurchaseForCourse(userId: number, courseId: number) {
     .get();
 }
 
+/** Whether the user bought this course as a Team Purchase (a Purchase with Coupons). */
+function hasTeamPurchaseForCourse(userId: number, courseId: number) {
+  const teamCoupon = db
+    .select({ id: coupons.id })
+    .from(coupons)
+    .innerJoin(purchases, eq(coupons.purchaseId, purchases.id))
+    .where(and(eq(purchases.userId, userId), eq(purchases.courseId, courseId)))
+    .get();
+  return !!teamCoupon;
+}
+
 function getCompletedLessonCount(userId: number, lessonIds: number[]) {
   if (lessonIds.length === 0) return 0;
 
@@ -500,6 +512,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const currentUserId = await getCurrentUserId(request);
 
   let enrolled = false;
+  let hasTeamPurchase = false;
   let progress = 0;
   let lessonProgressMap: Record<number, string> = {};
   let nextLessonId: number | null = null;
@@ -510,6 +523,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   if (currentUserId) {
     enrolled = isUserEnrolled(currentUserId, course.id);
+    hasTeamPurchase = hasTeamPurchaseForCourse(currentUserId, course.id);
 
     if (enrolled) {
       refundRequestOffer = getRefundRequestOffer(currentUserId, {
@@ -551,6 +565,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     salesCopyHtml,
     lessonCount,
     enrolled,
+    hasTeamPurchase,
     progress,
     lessonProgressMap,
     nextLessonId,
@@ -652,6 +667,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     salesCopyHtml,
     lessonCount,
     enrolled,
+    hasTeamPurchase,
     progress,
     lessonProgressMap,
     nextLessonId,
@@ -663,6 +679,11 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     refundRequestOffer,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
+  const teamPurchaseButtonLabel = getTeamPurchaseButtonLabel({
+    isInstructor,
+    enrolled,
+    hasTeamPurchase,
+  });
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -694,6 +715,15 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
   const teamPurchaseLink = currentUserId
     ? `/courses/${course.slug}/purchase?mode=team`
     : `/signup?redirectTo=${encodeURIComponent(`/courses/${course.slug}/purchase?mode=team`)}`;
+
+  const teamPurchaseButton = teamPurchaseButtonLabel && (
+    <Link to={teamPurchaseLink}>
+      <Button variant="outline" className="w-full">
+        <Users className="mr-2 size-4" />
+        {teamPurchaseButtonLabel}
+      </Button>
+    </Link>
+  );
 
   const priceDisplay = (
     <div className="mb-3 text-center">
@@ -889,12 +919,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                         </Link>
                       ) : null;
                     })()}
-                  <Link to={teamPurchaseLink}>
-                    <Button variant="outline" className="w-full">
-                      <Users className="mr-2 size-4" />
-                      Buy More Seats
-                    </Button>
-                  </Link>
+                  {teamPurchaseButton}
                   <RateCourse userRating={userRating} />
                   {refundRequestOffer && (
                     <RefundRequestForm
@@ -904,7 +929,10 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                   )}
                 </>
               ) : (
-                enrollButton
+                <>
+                  {enrollButton}
+                  {teamPurchaseButton}
+                </>
               )}
               <div className="space-y-2 pt-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
