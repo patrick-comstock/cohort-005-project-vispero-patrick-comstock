@@ -774,6 +774,13 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     </Tabs>
   );
 
+  const purchaseOptions = (
+    <>
+      {enrollButton}
+      {teamPurchaseButton}
+    </>
+  );
+
   return (
     <div className="mx-auto max-w-7xl p-6 lg:p-8">
       {/* Breadcrumb */}
@@ -857,7 +864,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
               <p className="mb-4 text-sm text-muted-foreground">
                 Join this course and start learning today.
               </p>
-              {enrollButton}
+              <div className="space-y-4">{purchaseOptions}</div>
             </div>
           )}
 
@@ -929,10 +936,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                   )}
                 </>
               ) : (
-                <>
-                  {enrollButton}
-                  {teamPurchaseButton}
-                </>
+                purchaseOptions
               )}
               <div className="space-y-2 pt-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
