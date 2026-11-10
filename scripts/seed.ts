@@ -11,6 +11,7 @@ import {
   CourseStatus,
   LessonProgressStatus,
   QuestionType,
+  RefundRequestStatus,
   TeamMemberRole,
 } from "../app/db/schema";
 
@@ -2247,7 +2248,8 @@ This course is still in draft while the cluster examples are rewritten against t
     })
     .run();
 
-  db.insert(schema.purchases)
+  const [jamesPurchase] = db
+    .insert(schema.purchases)
     .values({
       userId: students[1].id, // James — bought course 1 with PPP discount (India)
       courseId: course1.id,
@@ -2255,7 +2257,8 @@ This course is still in draft while the cluster examples are rewritten against t
       country: "IN",
       createdAt: daysAgo(45),
     })
-    .run();
+    .returning()
+    .all();
 
   db.insert(schema.purchases)
     .values({
@@ -2267,7 +2270,8 @@ This course is still in draft while the cluster examples are rewritten against t
     })
     .run();
 
-  db.insert(schema.purchases)
+  const [sophiaPurchase] = db
+    .insert(schema.purchases)
     .values({
       userId: students[4].id, // Sophia — bought course 1 individually
       courseId: course1.id,
@@ -2275,7 +2279,8 @@ This course is still in draft while the cluster examples are rewritten against t
       country: "US",
       createdAt: daysAgo(15),
     })
-    .run();
+    .returning()
+    .all();
 
   console.log(`Created ${countRows(schema.purchases)} individual purchases.`);
 
@@ -2715,7 +2720,7 @@ This course is still in draft while the cluster examples are rewritten against t
   );
 
   // Four coupons on Design Systems, bought during launch week, none redeemed yet.
-  createTeamPurchase(
+  const novakTeam = createTeamPurchase(
     "marta.novak@student.dev",
     course3,
     4,
@@ -2723,6 +2728,41 @@ This course is still in draft while the cluster examples are rewritten against t
     4,
     []
   );
+
+  // ─── Refund Requests ───
+  // Two Pending (one a Team Purchase) for the Admin to Resolve, and one already
+  // Declined so the history and the Student's settings have a Resolution.
+
+  db.insert(schema.refundRequests)
+    .values([
+      {
+        purchaseId: sophiaPurchase.id,
+        status: RefundRequestStatus.Pending,
+        reason:
+          "The pace is too fast for me and I would rather start with a beginner course.",
+        requestedAt: daysAgo(3),
+      },
+      {
+        purchaseId: novakTeam.purchase.id,
+        status: RefundRequestStatus.Pending,
+        reason:
+          "Our team was reorganised and nobody will be taking this course now.",
+        requestedAt: daysAgo(1),
+      },
+      {
+        purchaseId: jamesPurchase.id,
+        status: RefundRequestStatus.Declined,
+        reason: "I found a free tutorial that covers the same material.",
+        requestedAt: daysAgo(40),
+        resolvedAt: daysAgo(38),
+        resolvedByUserId: admin.id,
+        resolutionNote:
+          "You had already completed most of the course when you asked.",
+      },
+    ])
+    .run();
+
+  console.log(`Created ${countRows(schema.refundRequests)} refund requests.`);
 
   // ─── Flush watch events ───
   // Batched: the heartbeat makes these by far the largest table, and one
@@ -2774,6 +2814,9 @@ This course is still in draft while the cluster examples are rewritten against t
   );
   console.log(
     `  Purchases: ${countRows(schema.purchases)} (${countRows(schema.purchases, gte(schema.purchases.createdAt, sevenDaysAgo))} in the last 7 days), spanning ${historyDays} days`
+  );
+  console.log(
+    `  Refund Requests: ${countRows(schema.refundRequests)} (${countRows(schema.refundRequests, eq(schema.refundRequests.status, RefundRequestStatus.Pending))} pending)`
   );
   console.log(
     `  Teams: ${countRows(schema.teams)}, coupons: ${countRows(schema.coupons)} (${countRows(schema.coupons, isNotNull(schema.coupons.redeemedByUserId))} redeemed)`
