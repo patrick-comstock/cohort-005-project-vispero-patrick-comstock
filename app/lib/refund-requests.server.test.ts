@@ -482,6 +482,77 @@ describe("listRefundRequests", () => {
     expect(pending).toMatchObject([{ id: latest.id, earlierApprovedCount: 2 }]);
   });
 
+  function buyForTeam() {
+    const team = testDb.insert(schema.teams).values({}).returning().get();
+    const purchase = testDb
+      .insert(schema.purchases)
+      .values({
+        userId: base.user.id,
+        courseId: base.course.id,
+        amountPaid: 4999 * 2,
+        country: "US",
+      })
+      .returning()
+      .get();
+    testDb
+      .insert(schema.coupons)
+      .values(
+        [0, 1].map((i) => ({
+          teamId: team.id,
+          courseId: base.course.id,
+          code: `TEAM-${purchase.id}-${i}`,
+          purchaseId: purchase.id,
+        }))
+      )
+      .run();
+    return purchase;
+  }
+
+  function approve(refundRequestId: number) {
+    resolveRefundRequest(testDb, {
+      refundRequestId,
+      adminUserId: admin.id,
+      resolution: RefundRequestStatus.Approved,
+    });
+  }
+
+  it("does not count an Approved Team Purchase Refund Request towards an individual one", () => {
+    approve(requestRefund(buyForTeam().id).id);
+    const individual = requestRefund(buyCourse(base.user.id).id);
+
+    expect(listRefundRequests(testDb).pending).toMatchObject([
+      { id: individual.id, earlierApprovedCount: 0 },
+    ]);
+  });
+
+  it("does not count an Approved individual Refund Request towards a Team Purchase one", () => {
+    refundAndBuyAgain("approve");
+    const teamPurchase = requestRefund(buyForTeam().id);
+
+    expect(listRefundRequests(testDb).pending).toMatchObject([
+      { id: teamPurchase.id, earlierApprovedCount: 0 },
+    ]);
+  });
+
+  it("counts earlier Approved Team Purchase Refund Requests towards a Team Purchase one", () => {
+    approve(requestRefund(buyForTeam().id).id);
+    const teamPurchase = requestRefund(buyForTeam().id);
+
+    expect(listRefundRequests(testDb).pending).toMatchObject([
+      { id: teamPurchase.id, earlierApprovedCount: 1 },
+    ]);
+  });
+
+  it("counts an earlier Refund Request Approved after this one was made", () => {
+    const earlier = requestRefund(buyCourse(base.user.id).id);
+    const latest = requestRefund(buyCourse(base.user.id).id);
+    approve(earlier.id);
+
+    expect(listRefundRequests(testDb).pending).toMatchObject([
+      { id: latest.id, earlierApprovedCount: 1 },
+    ]);
+  });
+
   it("does not count a Student's first Refund Request as a Repeat Refund Request", () => {
     requestRefund(buyCourse(base.user.id).id);
 
