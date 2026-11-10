@@ -13,6 +13,7 @@ import {
   refusalReasonForStudent,
   refusalReasonForTeamPurchaseBuyer,
   getRefundRequestPurchase,
+  getStudentRefundRequest,
   hasRefundRequest,
   listRefundRequests,
   listStudentRefundRequests,
@@ -1070,6 +1071,52 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
       { purchaseId: teamPurchase.id, isTeamPurchase: true },
       { purchaseId: teamPurchase.id + 1, isTeamPurchase: false },
     ]);
+  });
+});
+
+describe("getStudentRefundRequest", () => {
+  const course = () => ({ userId: base.user.id, courseId: base.course.id });
+
+  it("shows nothing before the Student makes a Refund Request", () => {
+    buyCourse(base.user.id);
+
+    expect(getStudentRefundRequest(testDb, course())).toBeNull();
+  });
+
+  it("shows a Pending Refund Request for the Student's Purchase", () => {
+    requestRefund(buyCourse(base.user.id).id);
+
+    expect(getStudentRefundRequest(testDb, course())).toEqual({
+      status: RefundRequestStatus.Pending,
+      resolutionNote: null,
+    });
+  });
+
+  it("still shows an Approved Refund Request and its Resolution Note after the Enrollment ends", () => {
+    const purchase = buyCourse(base.user.id);
+    resolveRefundRequest(testDb, {
+      refundRequestId: requestRefund(purchase.id).id,
+      adminUserId: admin.id,
+      resolution: RefundRequestStatus.Approved,
+      resolutionNote: "Sorry it wasn't a fit.",
+    });
+
+    expect(getStudentRefundRequest(testDb, course())).toEqual({
+      status: RefundRequestStatus.Approved,
+      resolutionNote: "Sorry it wasn't a fit.",
+    });
+  });
+
+  it("shows nothing once the Student buys the course again after a Refund", () => {
+    const first = buyCourse(base.user.id);
+    resolveRefundRequest(testDb, {
+      refundRequestId: requestRefund(first.id).id,
+      adminUserId: admin.id,
+      resolution: RefundRequestStatus.Approved,
+    });
+    buyCourse(base.user.id);
+
+    expect(getStudentRefundRequest(testDb, course())).toBeNull();
   });
 });
 
