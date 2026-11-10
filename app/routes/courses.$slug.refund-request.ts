@@ -31,6 +31,7 @@ function getCourseBySlug(slug: string) {
 
 const refusalStatus: Record<RefundRequestRefusalCode, number> = {
   "not-enrolled": 403,
+  "joined-with-coupon": 403,
   "no-purchase": 403,
   "already-requested": 409,
   "outside-refund-window": 403,

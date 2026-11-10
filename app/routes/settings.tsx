@@ -57,6 +57,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       courseTitle: refundRequest.courseTitle,
       courseSlug: refundRequest.courseSlug,
       amountPaid: refundRequest.amountPaid,
+      isTeamPurchase: refundRequest.isTeamPurchase,
       refundAmount: refundRequest.refundAmount,
       reason: refundRequest.reason,
       resolutionNote: refundRequest.resolutionNote,
@@ -227,6 +228,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
                   <RefundRequestStatusBadge status={refundRequest.status} />
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
+                  {refundRequest.isTeamPurchase && "Team Purchase · "}
                   {formatPrice(refundRequest.amountPaid)} · raised{" "}
                   {new Date(refundRequest.requestedAt).toLocaleDateString()}
                   {refundRequest.resolvedAt &&

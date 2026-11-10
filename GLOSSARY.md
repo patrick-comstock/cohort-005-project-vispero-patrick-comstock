@@ -21,7 +21,7 @@ The code from a Team Purchase that grants one person the course. "Seat" is accep
 _Avoid_: Seat
 
 **Redeem**:
-When a person uses a Coupon to get the course.
+When a person uses a Coupon to get the course. A Coupon can't be Redeemed while its Team Purchase has a Pending Refund Request.
 _Avoid_: Claimed
 
 **Voided**:
@@ -41,7 +41,7 @@ _Avoid_: Staff, moderator
 ### Refunds
 
 **Refund Request**:
-A Student's ask to get their money back for a Purchase; its status is Pending, Approved, or Declined. "Cancel" is reserved for generic UI dismissal and is never used for refunds.
+A Student's or Team Purchase buyer's ask to get their money back for a Purchase; its status is Pending, Approved, or Declined. "Cancel" is reserved for generic UI dismissal and is never used for refunds.
 _Avoid_: Cancel, cancellation (of a purchase), reversal, chargeback, money back, give back
 
 **Refund**:
@@ -75,7 +75,7 @@ A Refund Request from someone who has already had a Refund Request Approved for 
 ### Refund Eligibility
 
 **Refund Eligibility**:
-Whether a Student may make a Refund Request for a Purchase, made up of the Refund Window, Watch-Time Limit, and Completion Limit.
+Whether a Refund Request may be made for a Purchase. For a Student's own Purchase it is the Refund Window, Watch-Time Limit, and Completion Limit; for a Team Purchase, whose buyer has no Enrollment, it is the Refund Window and none of its Coupons having been Redeemed.
 
 **Refund Window**:
 The 14-day period after a Purchase during which a Refund Request may be made.
