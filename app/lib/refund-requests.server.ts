@@ -547,7 +547,7 @@ export function listStudentRefundRequests(database: Db, userId: number) {
 }
 
 /**
- * The email that tells the Student how their Refund Request was Resolved.
+ * The email that tells the Requester how their Refund Request was Resolved.
  * There is no mail transport wired up yet, so callers log the message.
  */
 export function buildRefundRequestResolvedEmail(input: {
@@ -568,9 +568,14 @@ export function buildRefundRequestResolvedEmail(input: {
           ? "Its Coupons have been voided and can no longer be redeemed. Anyone who already redeemed one keeps the course."
           : "Your access to the course has ended.",
       ]
-    : [
-        `Your Refund Request for "${input.courseTitle}" has been declined, and you keep your access to the course.`,
-      ];
+    : input.isTeamPurchase
+      ? [
+          `Your Refund Request for "${input.courseTitle}" has been declined, so there is no Refund.`,
+          "Its Coupons stay valid and can be Redeemed again.",
+        ]
+      : [
+          `Your Refund Request for "${input.courseTitle}" has been declined, and you keep your access to the course.`,
+        ];
 
   return {
     to: input.studentEmail,

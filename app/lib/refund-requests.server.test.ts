@@ -607,6 +607,36 @@ describe("buildRefundRequestResolvedEmail", () => {
     expect(email.body).not.toContain("access");
   });
 
+  it("tells a Team Purchase buyer their Coupons can be Redeemed again when Declined, not that they keep Access", () => {
+    const email = buildRefundRequestResolvedEmail({
+      ...student,
+      status: RefundRequestStatus.Declined,
+      isTeamPurchase: true,
+      refundAmount: null,
+      resolutionNote: "Outside our policy.",
+    });
+
+    expect(email.subject).toContain("declined");
+    expect(email.body).toContain("Coupons");
+    expect(email.body).toContain("Redeemed again");
+    expect(email.body).not.toContain("access");
+  });
+
+  it("tells a Student they keep their access to the course when Declined", () => {
+    const email = buildRefundRequestResolvedEmail({
+      ...student,
+      status: RefundRequestStatus.Declined,
+      isTeamPurchase: false,
+      refundAmount: null,
+      resolutionNote: "Outside our policy.",
+    });
+
+    expect(email.body).toContain(
+      'Your Refund Request for "Test Course" has been declined, and you keep your access to the course.'
+    );
+    expect(email.body).not.toContain("Coupon");
+  });
+
   it("includes the Resolution Note when Declined", () => {
     const email = buildRefundRequestResolvedEmail({
       ...student,
