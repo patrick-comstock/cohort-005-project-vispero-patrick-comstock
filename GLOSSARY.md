@@ -10,6 +10,9 @@ The shared domain language for this course platform. Agents and human developers
 A user who buys and takes courses.
 _Avoid_: Learner
 
+**Instructor**:
+A user who creates and teaches courses.
+
 **Purchase**:
 A Student's, or a Team Purchase buyer's, payment for a course.
 
@@ -45,7 +48,7 @@ A Student's or Team Purchase buyer's ask to get their money back for a Purchase;
 _Avoid_: Cancel, cancellation (of a purchase), reversal, chargeback, money back, give back
 
 **Refund**:
-The money actually returned to the Student once a Refund Request is Approved. Distinct from the Refund Request itself.
+The money actually returned to whoever made the Purchase once a Refund Request is Approved. Distinct from the Refund Request itself.
 
 **Pending**:
 The status of a Refund Request that has not yet been Resolved.
