@@ -22,7 +22,7 @@ import {
   formatCalendarDay,
   listTeamPurchasesForBuyer,
   refusalReasonForTeamPurchaseBuyer,
-} from "~/lib/refund-requests.server";
+} from "~/lib/refund-eligibility.server";
 import { formatPrice } from "~/lib/utils";
 import { Textarea } from "~/components/ui/textarea";
 import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";

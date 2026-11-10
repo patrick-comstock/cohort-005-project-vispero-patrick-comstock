@@ -27,7 +27,7 @@ import {
   type AnalyticsScope,
 } from "~/lib/analytics-scope.server";
 import { getDiscountForCountry } from "~/lib/ppp";
-import type { Db } from "~/lib/refund-requests.server";
+import type { Db } from "~/db";
 
 // ─── Revenue ───
 // What an instructor's sales brought in, and what they kept. Gross Sales is

@@ -24,7 +24,7 @@ import {
   getRefundRequestOffer,
   getStudentRefundRequest,
   refusalReasonForStudent,
-} from "~/lib/refund-requests.server";
+} from "~/lib/refund-eligibility.server";
 import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";

@@ -5,11 +5,14 @@ import { z } from "zod";
 import type { Route } from "./+types/admin.refund-requests.$refundRequestId";
 import { requireAdmin } from "~/lib/access.server";
 import {
-  buildRefundRequestResolvedEmail,
   getRefundRequestDetail,
   resolveRefundRequest,
   type ResolveErrorCode,
-} from "~/lib/refund-requests.server";
+} from "~/lib/refund-request-resolve.server";
+import {
+  buildRefundRequestResolvedEmail,
+  logEmail,
+} from "~/lib/refund-request-emails.server";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { db } from "~/db";
 import { RefundRequestStatus } from "~/db/schema";
@@ -101,9 +104,7 @@ export async function action({ params, request }: Route.ActionArgs) {
       refundAmount: result.refundRequest.refundAmount,
       resolutionNote: result.refundRequest.resolutionNote,
     });
-    console.log(
-      `[email] to=${email.to} subject=${email.subject}\n${email.body}`
-    );
+    logEmail(email);
   }
 
   return { success: true };
