@@ -32,8 +32,8 @@ export function listInstructorRefundRequests(
       requestedAt: refundRequests.requestedAt,
       resolvedAt: refundRequests.resolvedAt,
       purchasedAt: purchases.createdAt,
-      studentName: users.name,
-      studentEmail: users.email,
+      requesterName: users.name,
+      requesterEmail: users.email,
       courseTitle: courses.title,
       // A Team Purchase is a Purchase with Coupons; its buyer is shown.
       isTeamPurchase: exists(

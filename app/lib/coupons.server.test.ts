@@ -83,7 +83,7 @@ describe("redeemCoupon", () => {
     });
   });
 
-  it("lets a Coupon be Redeemed again once its Team Purchase's Refund Request is Declined", () => {
+  it("lets an unredeemed Coupon still be Redeemed once its Team Purchase's Refund Request is Declined", () => {
     const { purchase, coupons } = buyForTeam();
     const admin = testDb
       .insert(schema.users)
