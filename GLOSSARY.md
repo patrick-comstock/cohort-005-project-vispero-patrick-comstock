@@ -24,11 +24,19 @@ _Avoid_: Seat
 When a person uses a Coupon to get the course.
 _Avoid_: Claimed
 
+**Voided**:
+A Coupon that can no longer be Redeemed because its Team Purchase was Refunded.
+_Avoid_: Revoked, Cancelled, Expired, Invalidated
+
 **Enrollment**:
 A Student's membership in a course, created by a Purchase or by Redeeming a Coupon.
 
 **Access**:
 Whether someone can currently view a course's content.
+
+**Admin**:
+A person who runs the platform and Resolves Refund Requests. Not the person managing a Team.
+_Avoid_: Staff, moderator
 
 ### Refunds
 
@@ -44,13 +52,25 @@ The status of a Refund Request that has not yet been Resolved.
 _Avoid_: Open, requested
 
 **Approved**:
-The status of a Refund Request that staff accepted, leading to a Refund.
+The status of a Refund Request that an Admin accepted, leading to a Refund.
 
 **Declined**:
-The status of a Refund Request that staff turned down.
+The status of a Refund Request that an Admin turned down.
+_Avoid_: Deny, Denied, Reject
 
 **Resolve**:
-Staff moving a Pending Refund Request to Approved or Declined; the outcome is its Resolution.
+An Admin moving a Pending Refund Request to Approved or Declined; the outcome is its Resolution. Only Admins Resolve.
+
+- A Resolution is final.
+- A Purchase can have at most one Refund Request, ever.
+- When a request is Approved, the Refund is the full amount paid for the Purchase, and the Student loses their Enrollment (and therefore Access).
+- Refund Eligibility is judged when the request is made, not when it is Resolved.
+
+**Resolution Note**:
+The Admin's explanation of a Resolution, which the Student sees. Required when Declining; optional when Approving.
+
+**Repeat Refund Request**:
+A Refund Request from someone who has already had a Refund Request Approved for the same course. It is information for the Admin and never blocks Resolving it.
 
 ### Refund Eligibility
 
