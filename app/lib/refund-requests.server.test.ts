@@ -7,6 +7,7 @@ import {
   buildRefundRequestResolvedEmail,
   findPurchaseForAccess,
   getRefundRequestDetail,
+  getRefundRequestOffer,
   getRefundRequestPurchase,
   hasRefundRequest,
   listRefundRequests,
@@ -611,5 +612,165 @@ describe("buildRefundRequestResolvedEmail", () => {
 
     expect(email.subject).toContain("declined");
     expect(email.body).toContain("Outside our policy.");
+  });
+});
+
+describe("getRefundRequestOffer", () => {
+  function offerOn(day: string) {
+    return getRefundRequestOffer(testDb, {
+      userId: base.user.id,
+      courseId: base.course.id,
+      now: new Date(`${day}T12:00:00`),
+    });
+  }
+
+  function buyCourseOn(day: string, amountPaid = 4999) {
+    const purchase = buyCourse(base.user.id, amountPaid);
+    testDb
+      .update(schema.purchases)
+      .set({ createdAt: new Date(`${day}T09:00:00`).toISOString() })
+      .where(eq(schema.purchases.id, purchase.id))
+      .run();
+    return purchase;
+  }
+
+  it("offers an enrolled Student a Refund Request for the amount paid within the Refund Window", () => {
+    buyCourseOn("2026-03-01", 2500);
+
+    expect(offerOn("2026-03-15")).toMatchObject({
+      ok: true,
+      amount: 2500,
+      lastDayInWindow: "2026-03-15",
+    });
+  });
+
+  it("makes no offer to someone without an Enrollment in the course", () => {
+    const purchase = buyCourseOn("2026-03-01");
+    testDb
+      .delete(schema.enrollments)
+      .where(eq(schema.enrollments.userId, purchase.userId))
+      .run();
+
+    expect(offerOn("2026-03-02")).toMatchObject({
+      ok: false,
+      code: "not-enrolled",
+    });
+  });
+
+  it("makes no offer to an enrolled Student with no Purchase of their own", () => {
+    testDb
+      .insert(schema.enrollments)
+      .values({ userId: base.user.id, courseId: base.course.id })
+      .run();
+
+    expect(offerOn("2026-03-02")).toMatchObject({
+      ok: false,
+      code: "no-purchase",
+    });
+  });
+
+  it("makes no offer for a Purchase that already has a Refund Request", () => {
+    requestRefund(buyCourseOn("2026-03-01").id);
+
+    expect(offerOn("2026-03-02")).toMatchObject({
+      ok: false,
+      code: "already-requested",
+    });
+  });
+
+  it("makes no offer after the last day of the Refund Window", () => {
+    buyCourseOn("2026-03-01");
+
+    expect(offerOn("2026-03-16")).toMatchObject({
+      ok: false,
+      code: "outside-refund-window",
+    });
+  });
+
+  it("makes no offer before the day of the Purchase", () => {
+    buyCourseOn("2026-03-01");
+
+    expect(offerOn("2026-02-28")).toMatchObject({
+      ok: false,
+      code: "outside-refund-window",
+    });
+  });
+
+  function addLessons(count: number) {
+    const module = testDb
+      .insert(schema.modules)
+      .values({ courseId: base.course.id, title: "Basics", position: 1 })
+      .returning()
+      .get();
+    return testDb
+      .insert(schema.lessons)
+      .values(
+        Array.from({ length: count }, (_, i) => ({
+          moduleId: module.id,
+          title: `Lesson ${i + 1}`,
+          position: i + 1,
+        }))
+      )
+      .returning()
+      .all();
+  }
+
+  function complete(lessons: { id: number }[]) {
+    testDb
+      .insert(schema.lessonProgress)
+      .values(
+        lessons.map((lesson) => ({
+          userId: base.user.id,
+          lessonId: lesson.id,
+          status: schema.LessonProgressStatus.Completed,
+        }))
+      )
+      .run();
+  }
+
+  it("makes no offer once the Student has completed half the lessons", () => {
+    const lessons = addLessons(4);
+    complete(lessons.slice(0, 2));
+    buyCourseOn("2026-03-01");
+
+    expect(offerOn("2026-03-02")).toMatchObject({
+      ok: false,
+      code: "completion-limit",
+    });
+  });
+
+  it("still offers while the Student has completed under half the lessons", () => {
+    const lessons = addLessons(4);
+    complete(lessons.slice(0, 1));
+    buyCourseOn("2026-03-01");
+
+    expect(offerOn("2026-03-02")).toMatchObject({ ok: true });
+  });
+
+  it("makes no offer once the Student has watched 2 hours of the course", () => {
+    const [lessonA, lessonB] = addLessons(2);
+    testDb
+      .insert(schema.videoWatchEvents)
+      .values([
+        {
+          userId: base.user.id,
+          lessonId: lessonA.id,
+          eventType: "progress",
+          positionSeconds: 3600,
+        },
+        {
+          userId: base.user.id,
+          lessonId: lessonB.id,
+          eventType: "progress",
+          positionSeconds: 3600,
+        },
+      ])
+      .run();
+    buyCourseOn("2026-03-01");
+
+    expect(offerOn("2026-03-02")).toMatchObject({
+      ok: false,
+      code: "watch-time-limit",
+    });
   });
 });

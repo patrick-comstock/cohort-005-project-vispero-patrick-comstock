@@ -3,24 +3,14 @@ import { z } from "zod";
 import type { Route } from "./+types/courses.$slug.refund-request";
 import { getCurrentUserId } from "~/lib/session";
 import { db } from "~/db";
-import {
-  courses,
-  lessons,
-  modules,
-  users,
-  videoWatchEvents,
-} from "~/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { courses, users } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { formatPrice } from "~/lib/utils";
 import {
-  REFUND_WINDOW_DAYS,
-  WATCH_TIME_LIMIT_SECONDS,
-  getRefundRequestPurchase,
-  hasRefundRequest,
-  lastDayOfRefundWindow,
+  getRefundRequestOffer,
   makeRefundRequest,
-  toCalendarDay,
+  type RefundRequestRefusalCode,
 } from "~/lib/refund-requests.server";
 
 const refundRequestParamsSchema = z.object({
@@ -39,16 +29,14 @@ function getCourseBySlug(slug: string) {
   return db.select().from(courses).where(eq(courses.slug, slug)).get();
 }
 
-function getLessonIdsForCourse(courseId: number): number[] {
-  const rows = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .innerJoin(modules, eq(lessons.moduleId, modules.id))
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  return rows.map((row) => row.id);
-}
+const refusalStatus: Record<RefundRequestRefusalCode, number> = {
+  "not-enrolled": 403,
+  "no-purchase": 403,
+  "already-requested": 409,
+  "outside-refund-window": 403,
+  "completion-limit": 403,
+  "watch-time-limit": 403,
+};
 
 /**
  * The confirmation the Student gets in their inbox. There is no mail
@@ -100,61 +88,15 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("User not found", { status: 404 });
   }
 
-  const purchase = getRefundRequestPurchase(db, currentUserId, course.id);
+  // The action enforces exactly the Refund Eligibility the course page offers.
+  const offer = getRefundRequestOffer(db, {
+    userId: currentUserId,
+    courseId: course.id,
+  });
 
-  if (!purchase) {
-    throw data("You have not bought this course.", { status: 403 });
+  if (!offer.ok) {
+    throw data(offer.error, { status: refusalStatus[offer.code] });
   }
-
-  // A Purchase can have at most one Refund Request, ever — Pending or Resolved.
-  if (hasRefundRequest(db, purchase.id)) {
-    throw data("You have already made a Refund Request for this Purchase.", {
-      status: 409,
-    });
-  }
-
-  const today = toCalendarDay(new Date());
-  const withinRefundWindow = today <= lastDayOfRefundWindow(purchase.createdAt);
-
-  if (!withinRefundWindow) {
-    throw data(`The ${REFUND_WINDOW_DAYS}-day Refund Window has closed.`, {
-      status: 403,
-    });
-  }
-
-  const courseLessonIds = getLessonIdsForCourse(course.id);
-
-  let watchedSeconds = 0;
-  if (courseLessonIds.length > 0) {
-    const furthestPerLesson = db
-      .select({
-        furthest: sql<number>`max(${videoWatchEvents.positionSeconds})`,
-      })
-      .from(videoWatchEvents)
-      .where(
-        and(
-          eq(videoWatchEvents.userId, currentUserId),
-          inArray(videoWatchEvents.lessonId, courseLessonIds)
-        )
-      )
-      .groupBy(videoWatchEvents.lessonId)
-      .all();
-
-    watchedSeconds = furthestPerLesson.reduce(
-      (total, row) => total + row.furthest,
-      0
-    );
-  }
-
-  if (watchedSeconds >= WATCH_TIME_LIMIT_SECONDS) {
-    throw data(
-      "You have watched too much of this course to request a refund.",
-      { status: 403 }
-    );
-  }
-
-  // The Refund is always the full amount paid for the Purchase.
-  const refundableAmount = purchase.amountPaid;
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, refundRequestSchema);
@@ -164,7 +106,7 @@ export async function action({ params, request }: Route.ActionArgs) {
   }
 
   const made = makeRefundRequest(db, {
-    purchaseId: purchase.id,
+    purchaseId: offer.purchase.id,
     reason: parsed.data.reason,
   });
 
@@ -176,12 +118,10 @@ export async function action({ params, request }: Route.ActionArgs) {
     studentName: student.name,
     studentEmail: student.email,
     courseTitle: course.title,
-    refundAmount: refundableAmount,
+    refundAmount: offer.amount,
   });
 
-  console.log(
-    `[email] to=${email.to} subject=${email.subject}\n${email.body}`
-  );
+  console.log(`[email] to=${email.to} subject=${email.subject}\n${email.body}`);
 
   return redirect("/settings");
 }
