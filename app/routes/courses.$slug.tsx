@@ -20,6 +20,7 @@ import {
 } from "~/db/schema";
 import { eq, and, or, sql } from "drizzle-orm";
 import {
+  formatCalendarDay,
   getRefundRequestOffer,
   refusalReasonForStudent,
 } from "~/lib/refund-requests.server";
@@ -428,7 +429,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
         courseId: course.id,
       });
       refundRequestOffer = offer.ok
-        ? { amount: offer.amount, lastDayInWindow: offer.lastDayInWindow }
+        ? {
+            amount: offer.amount,
+            lastDayInWindow: formatCalendarDay(offer.lastDayInWindow),
+          }
         : null;
       refundRequestRefusal = offer.ok ? null : refusalReasonForStudent(offer);
 
@@ -835,6 +839,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                     <RefundRequestForm
                       slug={course.slug}
                       amount={refundRequestOffer.amount}
+                      lastDayInWindow={refundRequestOffer.lastDayInWindow}
                     />
                   ) : refundRequestRefusal ? (
                     <p className="text-sm text-muted-foreground">
@@ -912,7 +917,15 @@ function RateCourse({ userRating }: { userRating: number | null }) {
   );
 }
 
-function RefundRequestForm({ slug, amount }: { slug: string; amount: number }) {
+function RefundRequestForm({
+  slug,
+  amount,
+  lastDayInWindow,
+}: {
+  slug: string;
+  amount: number;
+  lastDayInWindow: string;
+}) {
   const fetcher = useFetcher<{ errors?: Record<string, string> }>();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const isSubmitting = fetcher.state !== "idle";
@@ -944,7 +957,7 @@ function RefundRequestForm({ slug, amount }: { slug: string; amount: number }) {
       <p className="mb-2 text-sm font-medium">Request a refund</p>
       <p className="mb-3 text-xs text-muted-foreground">
         If your Refund Request is approved, we will refund {formatPrice(amount)}{" "}
-        to the card you paid with.
+        to the card you paid with. Available until {lastDayInWindow}.
       </p>
       <fetcher.Form
         method="post"
