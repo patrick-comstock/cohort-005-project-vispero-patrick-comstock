@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useFetcher } from "react-router";
+import { toast } from "sonner";
 import type { Route } from "./+types/team";
 import { getCurrentUserId } from "~/lib/session";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -14,8 +15,13 @@ import {
   courses,
   users,
   TeamMemberRole,
+  RefundRequestStatus,
 } from "~/db/schema";
 import { eq, and } from "drizzle-orm";
+import { listTeamPurchasesForBuyer } from "~/lib/refund-requests.server";
+import { formatPrice } from "~/lib/utils";
+import { Textarea } from "~/components/ui/textarea";
+import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
 
 function getTeamForAdmin(userId: number) {
   const membership = db
@@ -147,7 +153,168 @@ export async function loader({ request }: Route.LoaderArgs) {
     };
   });
 
-  return { courseStats, couponRows };
+  // Only the buyer of a Team Purchase sees it here, with its Refund Request
+  // offer. These offers are separate from the buyer's own course-page offer.
+  const teamPurchases = listTeamPurchasesForBuyer(db, {
+    userId: currentUserId,
+  }).map((teamPurchase) => ({
+    purchaseId: teamPurchase.purchaseId,
+    purchasedAt: teamPurchase.purchasedAt,
+    amountPaid: teamPurchase.amountPaid,
+    courseTitle: teamPurchase.courseTitle,
+    couponCount: teamPurchase.couponCount,
+    redeemedCouponCount: teamPurchase.redeemedCouponCount,
+    refundRequest: teamPurchase.refundRequest,
+    offer: teamPurchase.offer.ok
+      ? {
+          amount: teamPurchase.offer.amount,
+          lastDayInWindow: teamPurchase.offer.lastDayInWindow,
+        }
+      : null,
+    // Say why there is no offer only when a Coupon was Redeemed.
+    refusal:
+      !teamPurchase.offer.ok && teamPurchase.offer.code === "coupon-redeemed"
+        ? teamPurchase.offer.error
+        : null,
+  }));
+
+  return { courseStats, couponRows, teamPurchases };
+}
+
+type TeamPurchaseRow = Awaited<
+  ReturnType<typeof loader>
+>["teamPurchases"][number];
+
+function TeamPurchaseRefundRequestForm({
+  purchaseId,
+  amount,
+  couponCount,
+  lastDayInWindow,
+}: {
+  purchaseId: number;
+  amount: number;
+  couponCount: number;
+  lastDayInWindow: string;
+}) {
+  const fetcher = useFetcher<{ errors?: Record<string, string> }>();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const isSubmitting = fetcher.state !== "idle";
+
+  useEffect(() => {
+    const firstError = Object.values(fetcher.data?.errors ?? {})[0];
+    if (fetcher.state === "idle" && firstError) {
+      toast.error(firstError);
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  const lastDay = new Date(`${lastDayInWindow}T00:00:00`).toLocaleDateString();
+
+  return (
+    <div className="mt-3 border-t pt-3">
+      <p className="text-sm text-muted-foreground">
+        Request a refund for this Team Purchase. If approved, we&apos;ll refund{" "}
+        {formatPrice(amount)} and all {couponCount} Coupons will be Voided.
+        Available until {lastDay} while no Coupon has been redeemed.
+      </p>
+      {isFormOpen ? (
+        <fetcher.Form
+          method="post"
+          action={`/team/purchases/${purchaseId}/refund-request`}
+          className="mt-2 space-y-2"
+        >
+          <Textarea
+            name="reason"
+            rows={3}
+            required
+            placeholder="What went wrong?"
+          />
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={isSubmitting}>
+              {isSubmitting ? "Sending..." : "Request a refund"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsFormOpen(false)}
+            >
+              Keep it
+            </Button>
+          </div>
+        </fetcher.Form>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          onClick={() => setIsFormOpen(true)}
+        >
+          Request a refund
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function TeamPurchaseCard({ teamPurchase }: { teamPurchase: TeamPurchaseRow }) {
+  const { refundRequest } = teamPurchase;
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold">{teamPurchase.courseTitle}</h3>
+            <p className="text-sm text-muted-foreground">
+              Bought {new Date(teamPurchase.purchasedAt).toLocaleDateString()} ·{" "}
+              {formatPrice(teamPurchase.amountPaid)} ·{" "}
+              {teamPurchase.redeemedCouponCount} / {teamPurchase.couponCount}{" "}
+              Coupons redeemed
+            </p>
+          </div>
+          {refundRequest && (
+            <RefundRequestStatusBadge status={refundRequest.status} />
+          )}
+        </div>
+
+        {refundRequest ? (
+          <div className="mt-3 border-t pt-3 text-sm text-muted-foreground">
+            {refundRequest.status === RefundRequestStatus.Pending && (
+              <p>
+                Its Coupons can&apos;t be redeemed while we review your Refund
+                Request.
+              </p>
+            )}
+            {refundRequest.status === RefundRequestStatus.Approved && (
+              <p>
+                Refund: {formatPrice(refundRequest.refundAmount)}. Its Coupons
+                have been voided.
+              </p>
+            )}
+            {refundRequest.status === RefundRequestStatus.Declined && (
+              <p>No Refund. Its Coupons can be redeemed again.</p>
+            )}
+            {refundRequest.resolutionNote && (
+              <p className="mt-1 text-foreground">
+                {refundRequest.resolutionNote}
+              </p>
+            )}
+          </div>
+        ) : teamPurchase.offer ? (
+          <TeamPurchaseRefundRequestForm
+            purchaseId={teamPurchase.purchaseId}
+            amount={teamPurchase.offer.amount}
+            couponCount={teamPurchase.couponCount}
+            lastDayInWindow={teamPurchase.offer.lastDayInWindow}
+          />
+        ) : teamPurchase.refusal ? (
+          <p className="mt-3 border-t pt-3 text-sm text-muted-foreground">
+            {teamPurchase.refusal}
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
 }
 
 function CopyButton({ code }: { code: string }) {
@@ -183,7 +350,7 @@ function CopyButton({ code }: { code: string }) {
 }
 
 export default function Team({ loaderData }: Route.ComponentProps) {
-  const { courseStats, couponRows } = loaderData;
+  const { courseStats, couponRows, teamPurchases } = loaderData;
   const [courseFilter, setCourseFilter] = useState<number | "all">("all");
 
   const filteredCoupons =
@@ -242,6 +409,21 @@ export default function Team({ loaderData }: Route.ComponentProps) {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* The buyer's own Team Purchases, with their Refund Requests */}
+      {teamPurchases.length > 0 && (
+        <div className="mb-8">
+          <h2 className="mb-4 text-lg font-semibold">Your Team Purchases</h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {teamPurchases.map((teamPurchase) => (
+              <TeamPurchaseCard
+                key={teamPurchase.purchaseId}
+                teamPurchase={teamPurchase}
+              />
+            ))}
+          </div>
         </div>
       )}
 

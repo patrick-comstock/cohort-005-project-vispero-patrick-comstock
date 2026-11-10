@@ -8,11 +8,14 @@ import {
   findPurchaseForAccess,
   getRefundRequestDetail,
   getRefundRequestOffer,
+  getTeamPurchaseRefundRequestOffer,
   getRefundRequestPurchase,
   hasRefundRequest,
   listRefundRequests,
   listStudentRefundRequests,
+  listTeamPurchasesForBuyer,
   makeRefundRequest,
+  makeTeamPurchaseRefundRequest,
   resolveRefundRequest,
 } from "./refund-requests.server";
 
@@ -669,6 +672,42 @@ describe("getRefundRequestOffer", () => {
     });
   });
 
+  it("makes no offer to a Student who joined by Redeeming a Coupon, and says why", () => {
+    const team = testDb.insert(schema.teams).values({}).returning().get();
+    const teamPurchase = testDb
+      .insert(schema.purchases)
+      .values({
+        userId: admin.id,
+        courseId: base.course.id,
+        amountPaid: 9998,
+        country: "US",
+      })
+      .returning()
+      .get();
+    testDb
+      .insert(schema.coupons)
+      .values({
+        teamId: team.id,
+        courseId: base.course.id,
+        code: "TEAM-JOINED",
+        purchaseId: teamPurchase.id,
+        redeemedByUserId: base.user.id,
+        redeemedAt: new Date().toISOString(),
+      })
+      .run();
+    testDb
+      .insert(schema.enrollments)
+      .values({ userId: base.user.id, courseId: base.course.id })
+      .run();
+
+    expect(offerOn("2026-03-02")).toMatchObject({
+      ok: false,
+      code: "joined-with-coupon",
+      error:
+        "You joined this course with a Coupon from a Team Purchase. Only the person who bought it can make a Refund Request.",
+    });
+  });
+
   it("makes no offer for a Purchase that already has a Refund Request", () => {
     requestRefund(buyCourseOn("2026-03-01").id);
 
@@ -772,5 +811,250 @@ describe("getRefundRequestOffer", () => {
       ok: false,
       code: "watch-time-limit",
     });
+  });
+});
+
+describe("getTeamPurchaseRefundRequestOffer", () => {
+  function buyForTeamOn(day: string, couponCount = 3, amountPaid = 15000) {
+    const team = testDb.insert(schema.teams).values({}).returning().get();
+    const purchase = testDb
+      .insert(schema.purchases)
+      .values({
+        userId: base.user.id,
+        courseId: base.course.id,
+        amountPaid,
+        country: "US",
+        createdAt: new Date(`${day}T09:00:00`).toISOString(),
+      })
+      .returning()
+      .get();
+    testDb
+      .insert(schema.coupons)
+      .values(
+        Array.from({ length: couponCount }, (_, i) => ({
+          teamId: team.id,
+          courseId: base.course.id,
+          code: `TEAM-${purchase.id}-${i}`,
+          purchaseId: purchase.id,
+        }))
+      )
+      .run();
+    return purchase;
+  }
+
+  function offerOn(purchaseId: number, day: string, userId = base.user.id) {
+    return getTeamPurchaseRefundRequestOffer(testDb, {
+      userId,
+      purchaseId,
+      now: new Date(`${day}T12:00:00`),
+    });
+  }
+
+  it("offers the buyer a Refund Request for the amount paid within the Refund Window", () => {
+    const purchase = buyForTeamOn("2026-03-01", 3, 15000);
+
+    expect(offerOn(purchase.id, "2026-03-15")).toMatchObject({
+      ok: true,
+      amount: 15000,
+      lastDayInWindow: "2026-03-15",
+    });
+  });
+
+  it("makes no offer to anyone but the buyer", () => {
+    const purchase = buyForTeamOn("2026-03-01");
+
+    expect(offerOn(purchase.id, "2026-03-02", admin.id)).toMatchObject({
+      ok: false,
+      code: "not-buyer",
+    });
+  });
+
+  it("makes no offer for a Purchase that is not a Team Purchase", () => {
+    const purchase = buyCourse(base.user.id);
+
+    expect(offerOn(purchase.id, "2026-03-02")).toMatchObject({
+      ok: false,
+      code: "not-team-purchase",
+    });
+  });
+
+  it("makes no offer for a Team Purchase that already has a Refund Request", () => {
+    const purchase = buyForTeamOn("2026-03-01");
+    requestRefund(purchase.id);
+
+    expect(offerOn(purchase.id, "2026-03-02")).toMatchObject({
+      ok: false,
+      code: "already-requested",
+    });
+  });
+
+  it("makes no offer outside the Refund Window, at either end", () => {
+    const purchase = buyForTeamOn("2026-03-01");
+
+    expect(offerOn(purchase.id, "2026-02-28")).toMatchObject({
+      ok: false,
+      code: "outside-refund-window",
+    });
+    expect(offerOn(purchase.id, "2026-03-16")).toMatchObject({
+      ok: false,
+      code: "outside-refund-window",
+    });
+  });
+
+  it("makes no offer once any of its Coupons is Redeemed", () => {
+    const purchase = buyForTeamOn("2026-03-01");
+    const [coupon] = testDb
+      .select()
+      .from(schema.coupons)
+      .where(eq(schema.coupons.purchaseId, purchase.id))
+      .all();
+    testDb
+      .update(schema.coupons)
+      .set({ redeemedByUserId: admin.id, redeemedAt: new Date().toISOString() })
+      .where(eq(schema.coupons.id, coupon.id))
+      .run();
+
+    expect(offerOn(purchase.id, "2026-03-02")).toMatchObject({
+      ok: false,
+      code: "coupon-redeemed",
+      error: "Refunds aren't available once a Coupon has been redeemed.",
+    });
+  });
+
+  it("has no Watch-Time or Completion Limit, since the buyer has no Enrollment", () => {
+    const module = testDb
+      .insert(schema.modules)
+      .values({ courseId: base.course.id, title: "Basics", position: 1 })
+      .returning()
+      .get();
+    const lesson = testDb
+      .insert(schema.lessons)
+      .values({ moduleId: module.id, title: "A", position: 1 })
+      .returning()
+      .get();
+    testDb
+      .insert(schema.lessonProgress)
+      .values({
+        userId: base.user.id,
+        lessonId: lesson.id,
+        status: schema.LessonProgressStatus.Completed,
+      })
+      .run();
+    testDb
+      .insert(schema.videoWatchEvents)
+      .values({
+        userId: base.user.id,
+        lessonId: lesson.id,
+        eventType: "progress",
+        positionSeconds: 3 * 60 * 60,
+      })
+      .run();
+    const purchase = buyForTeamOn("2026-03-01");
+
+    expect(offerOn(purchase.id, "2026-03-02")).toMatchObject({ ok: true });
+  });
+
+  describe("makeTeamPurchaseRefundRequest", () => {
+    it("records a Pending Refund Request for the Team Purchase", () => {
+      const purchase = buyForTeamOn("2026-03-01");
+
+      const result = makeTeamPurchaseRefundRequest(testDb, {
+        userId: base.user.id,
+        purchaseId: purchase.id,
+        reason: "The team changed direction.",
+        now: new Date("2026-03-02T12:00:00"),
+      });
+
+      expect(result).toMatchObject({
+        ok: true,
+        refundRequest: {
+          purchaseId: purchase.id,
+          status: RefundRequestStatus.Pending,
+        },
+      });
+    });
+
+    it("refuses once any of its Coupons is Redeemed and records nothing", () => {
+      const purchase = buyForTeamOn("2026-03-01");
+      testDb
+        .update(schema.coupons)
+        .set({
+          redeemedByUserId: admin.id,
+          redeemedAt: new Date().toISOString(),
+        })
+        .where(eq(schema.coupons.purchaseId, purchase.id))
+        .run();
+
+      const result = makeTeamPurchaseRefundRequest(testDb, {
+        userId: base.user.id,
+        purchaseId: purchase.id,
+        reason: "The team changed direction.",
+        now: new Date("2026-03-02T12:00:00"),
+      });
+
+      expect(result).toMatchObject({ ok: false, code: "coupon-redeemed" });
+      expect(hasRefundRequest(testDb, purchase.id)).toBe(false);
+    });
+  });
+
+  describe("listTeamPurchasesForBuyer", () => {
+    it("lists only the buyer's Team Purchases, each with its Coupons, Refund Request and offer", () => {
+      const offered = buyForTeamOn("2026-03-01", 3, 15000);
+      const requested = buyForTeamOn("2026-03-01", 2, 10000);
+      requestRefund(requested.id);
+      buyCourse(base.user.id);
+
+      const listed = listTeamPurchasesForBuyer(testDb, {
+        userId: base.user.id,
+        now: new Date("2026-03-02T12:00:00"),
+      });
+
+      expect(listed).toMatchObject([
+        {
+          purchaseId: requested.id,
+          courseTitle: "Test Course",
+          amountPaid: 10000,
+          couponCount: 2,
+          redeemedCouponCount: 0,
+          refundRequest: { status: RefundRequestStatus.Pending },
+          offer: { ok: false, code: "already-requested" },
+        },
+        {
+          purchaseId: offered.id,
+          amountPaid: 15000,
+          couponCount: 3,
+          refundRequest: null,
+          offer: { ok: true, amount: 15000, lastDayInWindow: "2026-03-15" },
+        },
+      ]);
+    });
+
+    it("lists no Team Purchases for someone who bought none", () => {
+      buyForTeamOn("2026-03-01");
+
+      expect(listTeamPurchasesForBuyer(testDb, { userId: admin.id })).toEqual(
+        []
+      );
+    });
+  });
+
+  it("shows the buyer their Team Purchase's Refund Request in their own list, marked as a Team Purchase", () => {
+    const teamPurchase = buyForTeamOn("2026-03-01");
+    requestRefund(teamPurchase.id);
+    requestRefund(buyCourse(base.user.id).id);
+
+    const listed = listStudentRefundRequests(testDb, base.user.id);
+
+    expect(
+      listed
+        .map((row) => ({
+          purchaseId: row.purchaseId,
+          isTeamPurchase: row.isTeamPurchase,
+        }))
+        .sort((a, b) => a.purchaseId - b.purchaseId)
+    ).toEqual([
+      { purchaseId: teamPurchase.id, isTeamPurchase: true },
+      { purchaseId: teamPurchase.id + 1, isTeamPurchase: false },
+    ]);
   });
 });

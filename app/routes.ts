@@ -57,6 +57,10 @@ export default [
     ),
     route("settings", "routes/settings.tsx"),
     route("team", "routes/team.tsx"),
+    route(
+      "team/purchases/:purchaseId/refund-request",
+      "routes/team.purchases.$purchaseId.refund-request.ts"
+    ),
     route("redeem/:code", "routes/redeem.$code.tsx"),
   ]),
   route("signup", "routes/signup.tsx"),
