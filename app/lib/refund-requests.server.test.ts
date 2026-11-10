@@ -9,6 +9,7 @@ import {
   getRefundRequestDetail,
   getRefundRequestOffer,
   getTeamPurchaseRefundRequestOffer,
+  formatCalendarDay,
   refusalReasonForStudent,
   refusalReasonForTeamPurchaseBuyer,
   getRefundRequestPurchase,
@@ -821,7 +822,7 @@ describe("getRefundRequestOffer", () => {
       ok: false,
       code: "watch-time-limit",
       error:
-        "Refunds aren't available once you've watched more than 2 hours of this course.",
+        "Refunds aren't available once you've watched 2 hours or more of this course.",
     });
   });
 });
@@ -1130,5 +1131,11 @@ describe("refusalReasonForTeamPurchaseBuyer", () => {
         error,
       })
     ).toBeNull();
+  });
+});
+
+describe("formatCalendarDay", () => {
+  it("writes a calendar day the way refund copy shows it", () => {
+    expect(formatCalendarDay("2026-03-15")).toBe("March 15, 2026");
   });
 });

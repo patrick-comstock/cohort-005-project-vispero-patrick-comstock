@@ -43,7 +43,7 @@ export function lastDayOfRefundWindow(purchasedAtIso: string): string {
 }
 
 /** A calendar day (YYYY-MM-DD) as it reads in a refusal, e.g. "March 15, 2026". */
-function formatCalendarDay(day: string) {
+export function formatCalendarDay(day: string) {
   return new Date(`${day}T00:00:00`).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -704,7 +704,7 @@ export function getRefundRequestOffer(
     return {
       ok: false,
       code: "watch-time-limit",
-      error: `Refunds aren't available once you've watched more than ${describeWatchTimeLimit()} of this course.`,
+      error: `Refunds aren't available once you've watched ${describeWatchTimeLimit()} or more of this course.`,
     };
   }
 
