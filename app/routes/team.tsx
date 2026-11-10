@@ -216,7 +216,7 @@ function TeamPurchaseRefundRequestForm({
       <p className="text-sm text-muted-foreground">
         Request a refund for this Team Purchase. If approved, we&apos;ll refund{" "}
         {formatPrice(amount)} and all {couponCount} Coupons will be Voided.
-        Available until {lastDayInWindow} while no Coupon has been redeemed.
+        Available until {lastDayInWindow} while no Coupon has been Redeemed.
       </p>
       {isFormOpen ? (
         <fetcher.Form
@@ -271,7 +271,7 @@ function TeamPurchaseCard({ teamPurchase }: { teamPurchase: TeamPurchaseRow }) {
               Bought {new Date(teamPurchase.purchasedAt).toLocaleDateString()} ·{" "}
               {formatPrice(teamPurchase.amountPaid)} ·{" "}
               {teamPurchase.redeemedCouponCount} / {teamPurchase.couponCount}{" "}
-              Coupons redeemed
+              Coupons Redeemed
             </p>
           </div>
           {refundRequest && (
@@ -283,18 +283,18 @@ function TeamPurchaseCard({ teamPurchase }: { teamPurchase: TeamPurchaseRow }) {
           <div className="mt-3 border-t pt-3 text-sm text-muted-foreground">
             {refundRequest.status === RefundRequestStatus.Pending && (
               <p>
-                Its Coupons can&apos;t be redeemed while we review your Refund
+                Its Coupons can&apos;t be Redeemed while we review your Refund
                 Request.
               </p>
             )}
             {refundRequest.status === RefundRequestStatus.Approved && (
               <p>
                 Refund: {formatPrice(refundRequest.refundAmount)}. Its Coupons
-                have been voided.
+                have been Voided.
               </p>
             )}
             {refundRequest.status === RefundRequestStatus.Declined && (
-              <p>No Refund. Its Coupons can be redeemed again.</p>
+              <p>No Refund. Its Coupons can be Redeemed again.</p>
             )}
             {refundRequest.resolutionNote && (
               <p className="mt-1 text-foreground">
@@ -399,7 +399,7 @@ export default function Team({ loaderData }: Route.ComponentProps) {
                       </span>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      coupons redeemed
+                      Coupons Redeemed
                     </p>
                   </div>
                   <Link to={`/courses/${stat.courseSlug}/purchase?mode=team`}>

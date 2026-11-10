@@ -565,7 +565,7 @@ export function buildRefundRequestResolvedEmail(input: {
         `Your Refund Request for "${input.courseTitle}" has been approved.`,
         `We are refunding ${formatPrice(input.refundAmount)}, the amount you paid.`,
         input.isTeamPurchase
-          ? "Its Coupons have been voided and can no longer be redeemed. Anyone who already redeemed one keeps the course."
+          ? "Its Coupons have been Voided and can no longer be Redeemed. Anyone who already Redeemed one keeps the course."
           : "Your access to the course has ended.",
       ]
     : [
@@ -718,6 +718,37 @@ export function getRefundRequestOffer(
 }
 
 /**
+ * A Student makes a Refund Request for their Purchase of a course. The offer
+ * is rechecked in the same transaction as the insert, so Refund Eligibility
+ * is judged against the state the Refund Request is recorded in.
+ */
+export function makeStudentRefundRequest(
+  database: Db,
+  input: { userId: number; courseId: number; reason: string; now?: Date }
+):
+  | { ok: true; refundRequest: RefundRequest; amount: number }
+  | { ok: false; code: RefundRequestRefusalCode; error: string } {
+  return database.transaction((tx) => {
+    const offer = getRefundRequestOffer(tx, input);
+    if (!offer.ok) return offer;
+
+    const made = makeRefundRequest(tx, {
+      purchaseId: offer.purchase.id,
+      reason: input.reason,
+    });
+    if (!made.ok) {
+      return { ok: false, code: "already-requested", error: made.error };
+    }
+
+    return {
+      ok: true,
+      refundRequest: made.refundRequest,
+      amount: offer.amount,
+    };
+  });
+}
+
+/**
  * What the course page tells an enrolled Student who gets no Refund Request
  * offer, or null to show nothing: an existing Refund Request shows its status
  * instead, and without an Enrollment or a Purchase there is nothing to refund.
@@ -831,7 +862,7 @@ export function getTeamPurchaseRefundRequestOffer(
     return {
       ok: false,
       code: "coupon-redeemed",
-      error: "Refunds aren't available once a Coupon has been redeemed.",
+      error: "Refunds aren't available once a Coupon has been Redeemed.",
     };
   }
 
