@@ -12,6 +12,15 @@ if (!course) throw data("Course not found", { status: 404 });
 The route then has one success path. A returned error shape gives every
 component a second path to forget about.
 
+The one exception is a refusal the user can act on in the form they just
+submitted. The action may return it so the form can show it:
+
+```ts
+return data({ error: "Invalid input." }, { status: 400 });
+```
+
+Everything else throws.
+
 ## Parse untrusted input with a schema
 
 Form data, search parameters and request bodies get a zod schema before the
