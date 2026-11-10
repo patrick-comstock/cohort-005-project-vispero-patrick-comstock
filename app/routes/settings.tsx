@@ -16,7 +16,7 @@ import { data, isRouteErrorResponse, Link } from "react-router";
 import { db } from "~/db";
 import { eq } from "drizzle-orm";
 import { formatPrice } from "~/lib/utils";
-import { listStudentRefundRequests } from "~/lib/refund-requests.server";
+import { listRequesterRefundRequests } from "~/lib/refund-request-resolve.server";
 import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
 
 const settingsSchema = z.object({
@@ -50,7 +50,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     throw data("User not found.", { status: 404 });
   }
 
-  const refundRequests = listStudentRefundRequests(db, currentUserId).map(
+  const refundRequests = listRequesterRefundRequests(db, currentUserId).map(
     (refundRequest) => ({
       id: refundRequest.id,
       status: refundRequest.status,

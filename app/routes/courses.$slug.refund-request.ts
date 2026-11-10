@@ -6,63 +6,22 @@ import { db } from "~/db";
 import { courses, users } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { parseFormData, parseParams } from "~/lib/validation";
-import { formatPrice } from "~/lib/utils";
+import { makeStudentRefundRequest } from "~/lib/refund-eligibility.server";
 import {
-  makeStudentRefundRequest,
-  type RefundRequestRefusalCode,
-} from "~/lib/refund-requests.server";
+  buildRefundRequestEmail,
+  logEmail,
+} from "~/lib/refund-request-emails.server";
+import {
+  refundRequestSchema,
+  refusalStatus,
+} from "~/lib/refund-request-action.server";
 
 const refundRequestParamsSchema = z.object({
   slug: z.string().min(1),
 });
 
-const refundRequestSchema = z.object({
-  reason: z
-    .string()
-    .trim()
-    .min(10, "Tell us a little more about why you want a refund.")
-    .max(1000, "Please keep your reason under 1000 characters."),
-});
-
 function getCourseBySlug(slug: string) {
   return db.select().from(courses).where(eq(courses.slug, slug)).get();
-}
-
-const refusalStatus: Record<RefundRequestRefusalCode, number> = {
-  "not-enrolled": 403,
-  "joined-with-coupon": 403,
-  "joined-with-own-coupon": 403,
-  "no-purchase": 403,
-  "already-requested": 409,
-  "outside-refund-window": 403,
-  "completion-limit": 403,
-  "watch-time-limit": 403,
-};
-
-/**
- * The confirmation the Student gets in their inbox. There is no mail
- * transport wired up yet, so the built message goes to the server log.
- */
-function buildRefundRequestEmail(input: {
-  studentName: string;
-  studentEmail: string;
-  courseTitle: string;
-  refundAmount: number;
-}) {
-  return {
-    to: input.studentEmail,
-    subject: `Refund Request received — ${input.courseTitle}`,
-    body: [
-      `Hi ${input.studentName},`,
-      "",
-      `We have your Refund Request for "${input.courseTitle}".`,
-      `If it is approved, your Refund will be ${formatPrice(input.refundAmount)}, the amount you paid.`,
-      "",
-      "Our team reviews every Refund Request by hand. You do not need to do anything else — we will email you again when it is resolved.",
-      "",
-      "— The Cadence team",
-    ].join("\n"),
-  };
 }
 
 export async function action({ params, request }: Route.ActionArgs) {
@@ -115,7 +74,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     refundAmount: made.amount,
   });
 
-  console.log(`[email] to=${email.to} subject=${email.subject}\n${email.body}`);
+  logEmail(email);
 
   return redirect("/settings");
 }

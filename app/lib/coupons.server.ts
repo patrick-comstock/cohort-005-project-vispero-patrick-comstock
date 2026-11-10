@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { coupons, enrollments, purchases } from "~/db/schema";
-import { hasPendingRefundRequest, type Db } from "~/lib/refund-requests.server";
+import type { Db } from "~/db";
+import { hasPendingRefundRequest } from "~/lib/refund-eligibility.server";
 
 export type RedeemRefusalCode =
   | "not-found"

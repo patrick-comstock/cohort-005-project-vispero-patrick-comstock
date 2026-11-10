@@ -1,16 +1,51 @@
 import { data } from "react-router";
-import { eq, and } from "drizzle-orm";
-import { db } from "~/db";
+import { eq, and, desc, notExists } from "drizzle-orm";
+import { db, type Db } from "~/db";
 import {
   UserRole,
   users,
   courses,
   enrollments,
+  purchases,
+  refundRequests,
+  RefundRequestStatus,
 } from "~/db/schema";
 import { getCurrentUserId } from "~/lib/session";
 import { resolveCountry } from "~/lib/country.server";
 import { checkPppAccess } from "~/lib/ppp";
-import { findPurchaseForAccess } from "~/lib/refund-requests.server";
+
+/**
+ * The Purchase that the PPP check in Access looks at. A Purchase that was
+ * Refunded (its Refund Request was Approved) no longer counts.
+ */
+export function findPurchaseForAccess(
+  database: Db,
+  userId: number,
+  courseId: number
+) {
+  return database
+    .select()
+    .from(purchases)
+    .where(
+      and(
+        eq(purchases.userId, userId),
+        eq(purchases.courseId, courseId),
+        notExists(
+          database
+            .select({ id: refundRequests.id })
+            .from(refundRequests)
+            .where(
+              and(
+                eq(refundRequests.purchaseId, purchases.id),
+                eq(refundRequests.status, RefundRequestStatus.Approved)
+              )
+            )
+        )
+      )
+    )
+    .orderBy(desc(purchases.createdAt), desc(purchases.id))
+    .get();
+}
 
 function getUserById(id: number) {
   return db.select().from(users).where(eq(users.id, id)).get();

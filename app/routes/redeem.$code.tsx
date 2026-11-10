@@ -16,7 +16,7 @@ import {
   REFUND_REQUEST_PENDING_MESSAGE,
   redeemCoupon,
 } from "~/lib/coupons.server";
-import { hasPendingRefundRequest } from "~/lib/refund-requests.server";
+import { hasPendingRefundRequest } from "~/lib/refund-eligibility.server";
 import { eq, and } from "drizzle-orm";
 
 function getCourseById(id: number) {

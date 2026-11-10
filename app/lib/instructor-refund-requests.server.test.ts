@@ -2,10 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
 import { RefundRequestStatus, UserRole } from "~/db/schema";
-import {
-  makeRefundRequest,
-  resolveRefundRequest,
-} from "./refund-requests.server";
+import { makeRefundRequest } from "./refund-eligibility.server";
+import { resolveRefundRequest } from "./refund-request-resolve.server";
 import { listInstructorRefundRequests } from "./instructor-refund-requests.server";
 
 type TestDb = ReturnType<typeof createTestDb>;

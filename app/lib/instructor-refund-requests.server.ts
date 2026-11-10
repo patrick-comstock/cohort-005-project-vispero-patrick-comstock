@@ -7,7 +7,7 @@ import {
   refundRequests,
   RefundRequestStatus,
 } from "~/db/schema";
-import type { Db } from "~/lib/refund-requests.server";
+import type { Db } from "~/db";
 
 /**
  * The read-only view of Refund Requests for the people who teach a course.

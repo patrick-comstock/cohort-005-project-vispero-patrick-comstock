@@ -6,58 +6,19 @@ import { db } from "~/db";
 import { courses, purchases, users } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { parseFormData, parseParams } from "~/lib/validation";
-import { formatPrice } from "~/lib/utils";
+import { makeTeamPurchaseRefundRequest } from "~/lib/refund-eligibility.server";
 import {
-  makeTeamPurchaseRefundRequest,
-  type TeamPurchaseRefundRequestRefusalCode,
-} from "~/lib/refund-requests.server";
+  buildTeamPurchaseRefundRequestEmail,
+  logEmail,
+} from "~/lib/refund-request-emails.server";
+import {
+  refundRequestSchema,
+  refusalStatus,
+} from "~/lib/refund-request-action.server";
 
 const paramsSchema = z.object({
   purchaseId: z.coerce.number().int().positive(),
 });
-
-const refundRequestSchema = z.object({
-  reason: z
-    .string()
-    .trim()
-    .min(10, "Tell us a little more about why you want a refund.")
-    .max(1000, "Please keep your reason under 1000 characters."),
-});
-
-const refusalStatus: Record<TeamPurchaseRefundRequestRefusalCode, number> = {
-  "not-found": 404,
-  "not-buyer": 403,
-  "not-team-purchase": 400,
-  "already-requested": 409,
-  "outside-refund-window": 403,
-  "coupon-redeemed": 403,
-};
-
-/**
- * The confirmation the Team Purchase buyer gets in their inbox. There is no
- * mail transport wired up yet, so the built message goes to the server log.
- */
-function buildTeamPurchaseRefundRequestEmail(input: {
-  buyerName: string;
-  buyerEmail: string;
-  courseTitle: string;
-  refundAmount: number;
-}) {
-  return {
-    to: input.buyerEmail,
-    subject: `Refund Request received — ${input.courseTitle} (Team Purchase)`,
-    body: [
-      `Hi ${input.buyerName},`,
-      "",
-      `We have your Refund Request for your Team Purchase of "${input.courseTitle}".`,
-      `If it is approved, your Refund will be ${formatPrice(input.refundAmount)}, the amount you paid, and all of its Coupons will be Voided.`,
-      "",
-      "While we review it, its Coupons can't be Redeemed. We will email you again when it is resolved.",
-      "",
-      "— The Cadence team",
-    ].join("\n"),
-  };
-}
 
 export async function action({ params, request }: Route.ActionArgs) {
   const currentUserId = await getCurrentUserId(request);
@@ -110,7 +71,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     refundAmount: made.amount,
   });
 
-  console.log(`[email] to=${email.to} subject=${email.subject}\n${email.body}`);
+  logEmail(email);
 
   return redirect("/team");
 }
