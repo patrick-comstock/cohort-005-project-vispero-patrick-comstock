@@ -19,7 +19,10 @@ import {
   LessonProgressStatus,
 } from "~/db/schema";
 import { eq, and, or, sql } from "drizzle-orm";
-import { getRefundRequestOffer } from "~/lib/refund-requests.server";
+import {
+  getRefundRequestOffer,
+  refusalReasonForStudent,
+} from "~/lib/refund-requests.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -413,6 +416,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     amount: number;
     lastDayInWindow: string;
   } | null = null;
+  let refundRequestRefusal: string | null = null;
 
   if (currentUserId) {
     enrolled = isUserEnrolled(currentUserId, course.id);
@@ -426,6 +430,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       refundRequestOffer = offer.ok
         ? { amount: offer.amount, lastDayInWindow: offer.lastDayInWindow }
         : null;
+      refundRequestRefusal = offer.ok ? null : refusalReasonForStudent(offer);
 
       progress = calculateProgress(currentUserId, course.id, false);
 
@@ -471,6 +476,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     ratingSummary,
     userRating,
     refundRequestOffer,
+    refundRequestRefusal,
   };
 }
 
@@ -573,6 +579,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     ratingSummary,
     userRating,
     refundRequestOffer,
+    refundRequestRefusal,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const teamPurchaseButtonLabel = getTeamPurchaseButtonLabel({
@@ -824,12 +831,16 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                     })()}
                   {teamPurchaseButton}
                   <RateCourse userRating={userRating} />
-                  {refundRequestOffer && (
+                  {refundRequestOffer ? (
                     <RefundRequestForm
                       slug={course.slug}
                       amount={refundRequestOffer.amount}
                     />
-                  )}
+                  ) : refundRequestRefusal ? (
+                    <p className="text-sm text-muted-foreground">
+                      {refundRequestRefusal}
+                    </p>
+                  ) : null}
                 </>
               ) : (
                 purchaseOptions

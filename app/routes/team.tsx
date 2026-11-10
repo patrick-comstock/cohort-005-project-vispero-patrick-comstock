@@ -18,7 +18,10 @@ import {
   RefundRequestStatus,
 } from "~/db/schema";
 import { eq, and } from "drizzle-orm";
-import { listTeamPurchasesForBuyer } from "~/lib/refund-requests.server";
+import {
+  listTeamPurchasesForBuyer,
+  refusalReasonForTeamPurchaseBuyer,
+} from "~/lib/refund-requests.server";
 import { formatPrice } from "~/lib/utils";
 import { Textarea } from "~/components/ui/textarea";
 import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
@@ -171,11 +174,9 @@ export async function loader({ request }: Route.LoaderArgs) {
           lastDayInWindow: teamPurchase.offer.lastDayInWindow,
         }
       : null,
-    // Say why there is no offer only when a Coupon was Redeemed.
-    refusal:
-      !teamPurchase.offer.ok && teamPurchase.offer.code === "coupon-redeemed"
-        ? teamPurchase.offer.error
-        : null,
+    refusal: teamPurchase.offer.ok
+      ? null
+      : refusalReasonForTeamPurchaseBuyer(teamPurchase.offer),
   }));
 
   return { courseStats, couponRows, teamPurchases };
