@@ -1789,6 +1789,7 @@ This course is still in draft while the cluster examples are rewritten against t
   // - Olivia: enrolled in both courses (just started course 1, mid-way in course 2)
   // - Liam: enrolled in course 2 only (just started, abandoned)
   // - Sophia: enrolled in course 1 only (recently enrolled, barely started)
+  // - Liam: also enrolled in course 1 again, after a Refund of his first Purchase
 
   db.insert(schema.enrollments)
     .values([
@@ -1804,6 +1805,7 @@ This course is still in draft while the cluster examples are rewritten against t
       { userId: students[2].id, courseId: course2.id, enrolledAt: daysAgo(30) },
       { userId: students[3].id, courseId: course2.id, enrolledAt: daysAgo(25) },
       { userId: students[4].id, courseId: course1.id, enrolledAt: daysAgo(15) },
+      { userId: students[3].id, courseId: course1.id, enrolledAt: daysAgo(5) },
     ])
     .run();
 
@@ -2282,6 +2284,29 @@ This course is still in draft while the cluster examples are rewritten against t
     .returning()
     .all();
 
+  // Liam bought course 1, was Refunded (his Enrollment went with it), then
+  // bought it again: his second Refund Request is a Repeat Refund Request.
+  const [liamRefundedPurchase, liamRepeatPurchase] = db
+    .insert(schema.purchases)
+    .values([
+      {
+        userId: students[3].id,
+        courseId: course1.id,
+        amountPaid: 4999,
+        country: "US",
+        createdAt: daysAgo(60),
+      },
+      {
+        userId: students[3].id,
+        courseId: course1.id,
+        amountPaid: 4999,
+        country: "US",
+        createdAt: daysAgo(5),
+      },
+    ])
+    .returning()
+    .all();
+
   console.log(`Created ${countRows(schema.purchases)} individual purchases.`);
 
   // ─── Teams, Team Members, and Coupons ───
@@ -2730,8 +2755,10 @@ This course is still in draft while the cluster examples are rewritten against t
   );
 
   // ─── Refund Requests ───
-  // Two Pending (one a Team Purchase) for the Admin to Resolve, and one already
-  // Declined so the history and the Student's settings have a Resolution.
+  // Three Pending (one a Team Purchase, one a Repeat Refund Request) for the
+  // Admin to Resolve, one already Declined so the history and the Student's
+  // settings have a Resolution, and the Approved one that makes Liam's second
+  // Refund Request a Repeat Refund Request.
 
   db.insert(schema.refundRequests)
     .values([
@@ -2758,6 +2785,21 @@ This course is still in draft while the cluster examples are rewritten against t
         resolvedByUserId: admin.id,
         resolutionNote:
           "You had already completed most of the course when you asked.",
+      },
+      {
+        purchaseId: liamRefundedPurchase.id,
+        status: RefundRequestStatus.Approved,
+        reason: "I bought this by mistake; I meant to buy a different course.",
+        refundAmount: liamRefundedPurchase.amountPaid,
+        requestedAt: daysAgo(58),
+        resolvedAt: daysAgo(57),
+        resolvedByUserId: admin.id,
+      },
+      {
+        purchaseId: liamRepeatPurchase.id,
+        status: RefundRequestStatus.Pending,
+        reason: "I don't have time to take the course after all.",
+        requestedAt: daysAgo(2),
       },
     ])
     .run();

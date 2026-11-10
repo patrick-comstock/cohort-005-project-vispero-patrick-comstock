@@ -333,9 +333,9 @@ function isEarlier(a: RefundRequestRow, b: RefundRequestRow) {
  * The same person's earlier Refund Requests for the same course, oldest
  * first. Information for the Admin; it never blocks Resolving.
  */
-function earlierRefundRequests(
-  all: RefundRequestRow[],
-  refundRequest: RefundRequestRow
+function earlierRefundRequests<Row extends RefundRequestRow>(
+  all: Row[],
+  refundRequest: Row
 ) {
   return all
     .filter(
@@ -350,8 +350,9 @@ function earlierRefundRequests(
 /**
  * Every Refund Request for the Admin: Pending ones oldest first, and Resolved
  * ones as a separate history, most recently Resolved first. Each carries how
- * many earlier Refund Requests from the same person for the same course were
- * Approved, which makes it a Repeat Refund Request when above zero.
+ * many earlier Refund Requests of the same kind from the same Requester for
+ * the same course are now Approved, which makes it a Repeat Refund Request
+ * when above zero.
  */
 export function listRefundRequests(database: Db) {
   const all = selectRefundRequestRows(database).all();
@@ -363,11 +364,17 @@ export function listRefundRequests(database: Db) {
       .map((row) => row.purchaseId)
   );
 
-  const rows = all.map((refundRequest) => ({
+  const withKind = all.map((refundRequest) => ({
     ...refundRequest,
     isTeamPurchase: teamPurchaseIds.has(refundRequest.purchaseId),
-    earlierApprovedCount: earlierRefundRequests(all, refundRequest).filter(
-      (earlier) => earlier.status === RefundRequestStatus.Approved
+  }));
+
+  const rows = withKind.map((refundRequest) => ({
+    ...refundRequest,
+    earlierApprovedCount: earlierRefundRequests(withKind, refundRequest).filter(
+      (earlier) =>
+        earlier.isTeamPurchase === refundRequest.isTeamPurchase &&
+        earlier.status === RefundRequestStatus.Approved
     ).length,
   }));
 
