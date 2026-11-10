@@ -509,24 +509,27 @@ function getWatchTimeAndCompletion(
 /**
  * Everything the Admin sees before Resolving one Refund Request. Watch time
  * and completion are context only: Refund Eligibility was judged when the
- * Refund Request was made.
+ * Refund Request was made. They are null for a Team Purchase, whose Refund
+ * Eligibility has no Watch-Time Limit or Completion Limit and whose buyer's
+ * own viewing is unrelated to it.
  */
 export function getRefundRequestDetail(database: Db, refundRequestId: number) {
   const all = selectRefundRequestRows(database).all();
   const refundRequest = all.find((row) => row.id === refundRequestId);
   if (!refundRequest) return null;
 
-  const { watchedSeconds, completion } = getWatchTimeAndCompletion(
-    database,
-    refundRequest.userId,
-    refundRequest.courseId
-  );
+  const teamPurchase = isTeamPurchase(database, refundRequest.purchaseId);
 
   return {
     ...refundRequest,
-    isTeamPurchase: isTeamPurchase(database, refundRequest.purchaseId),
-    watchedSeconds,
-    completion,
+    isTeamPurchase: teamPurchase,
+    watchTimeAndCompletion: teamPurchase
+      ? null
+      : getWatchTimeAndCompletion(
+          database,
+          refundRequest.userId,
+          refundRequest.courseId
+        ),
     earlierRefundRequests: earlierRefundRequests(all, refundRequest),
   };
 }

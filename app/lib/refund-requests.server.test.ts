@@ -560,7 +560,67 @@ describe("getRefundRequestDetail", () => {
 
     const detail = getRefundRequestDetail(testDb, refundRequest.id);
 
-    expect(detail).toMatchObject({ watchedSeconds: 360, completion: 0.5 });
+    expect(detail?.watchTimeAndCompletion).toEqual({
+      watchedSeconds: 360,
+      completion: 0.5,
+    });
+  });
+
+  it("leaves out watch time and completion for a Team Purchase, even when the buyer is separately enrolled", () => {
+    const module = testDb
+      .insert(schema.modules)
+      .values({ courseId: base.course.id, title: "Basics", position: 1 })
+      .returning()
+      .get();
+    const lesson = testDb
+      .insert(schema.lessons)
+      .values({ moduleId: module.id, title: "A", position: 1 })
+      .returning()
+      .get();
+    testDb
+      .insert(schema.videoWatchEvents)
+      .values({
+        userId: base.user.id,
+        lessonId: lesson.id,
+        eventType: "progress",
+        positionSeconds: 300,
+      })
+      .run();
+    buyCourse(base.user.id);
+    const team = testDb.insert(schema.teams).values({}).returning().get();
+    const teamPurchase = testDb
+      .insert(schema.purchases)
+      .values({
+        userId: base.user.id,
+        courseId: base.course.id,
+        amountPaid: 4999 * 2,
+        country: "US",
+      })
+      .returning()
+      .get();
+    testDb
+      .insert(schema.coupons)
+      .values({
+        teamId: team.id,
+        courseId: base.course.id,
+        code: "TEAM-DETAIL-1",
+        purchaseId: teamPurchase.id,
+      })
+      .run();
+    const result = makeTeamPurchaseRefundRequest(testDb, {
+      userId: base.user.id,
+      purchaseId: teamPurchase.id,
+      reason: "The team changed direction.",
+      now: new Date(),
+    });
+    if (!result.ok) throw new Error(result.error);
+
+    const detail = getRefundRequestDetail(testDb, result.refundRequest.id);
+
+    expect(detail).toMatchObject({
+      isTeamPurchase: true,
+      watchTimeAndCompletion: null,
+    });
   });
 });
 
