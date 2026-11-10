@@ -138,6 +138,28 @@ export function getRevenueByCourse(
     .sort((a, b) => b.revenueCents - a.revenueCents);
 }
 
+/**
+ * The courses that had Purchases in the range but kept none: every one was
+ * Refunded. `getRevenueByCourse` leaves these out, so this tells "all sales
+ * Refunded" apart from "no sales at all".
+ */
+export function getFullyRefundedCourseIds(
+  database: Db,
+  { instructorId, range }: AnalyticsScope
+): number[] {
+  return database
+    .select({ courseId: courses.id })
+    .from(purchases)
+    .innerJoin(courses, eq(purchases.courseId, courses.id))
+    .leftJoin(refundRequests, approvedRefundRequest)
+    .where(scopeOn(purchases.createdAt, instructorId, range))
+    .groupBy(courses.id)
+    .having(sql`${keptPurchaseCount} = 0`)
+    .orderBy(courses.id)
+    .all()
+    .map((row) => row.courseId);
+}
+
 export type RevenuePoint = {
   bucket: string;
   revenueCents: number;

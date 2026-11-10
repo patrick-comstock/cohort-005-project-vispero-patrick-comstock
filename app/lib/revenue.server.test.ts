@@ -9,6 +9,7 @@ import {
 import {
   getBuyerCount,
   getCourseRevenueByCountry,
+  getFullyRefundedCourseIds,
   getRevenueByCourse,
   getRevenueOverTime,
   getRevenueSummary,
@@ -147,6 +148,16 @@ describe("getRevenueSummary", () => {
     });
   });
 
+  it("counts a period whose every Purchase was Refunded as no Purchases kept, with its Refunds", () => {
+    refund(buyCourse(base.user.id, 5000).id);
+
+    expect(getRevenueSummary(testDb, allTime)).toMatchObject({
+      refundCount: 1,
+      revenueCents: 0,
+      purchaseCount: 0,
+    });
+  });
+
   it("counts Purchases with a Pending or Declined Refund Request in full", () => {
     buyCourse(base.user.id, 4000);
     makeRefundRequest(testDb, {
@@ -210,6 +221,26 @@ describe("getRevenueByCourse", () => {
         purchaseCount: 1,
       },
     ]);
+  });
+});
+
+describe("getFullyRefundedCourseIds", () => {
+  it("lists the courses whose every Purchase in the range was Refunded, and no course that kept a sale or had none", () => {
+    const refundedOnly = addCourse("Refunded Course");
+    addCourse("Unsold Course");
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 86_400_000).toISOString();
+    buyCourse(base.user.id, 10000);
+    refund(buyCourse(addStudent("Rory Refunded").id, 10000).id);
+    refund(buyCourse(base.user.id, 9000, { courseId: refundedOnly.id }).id);
+    buyCourse(base.user.id, 9000, {
+      courseId: refundedOnly.id,
+      createdAt: sixtyDaysAgo,
+    });
+
+    expect(
+      getFullyRefundedCourseIds(testDb, { instructorId: null, range: "30d" })
+    ).toEqual([refundedOnly.id]);
+    expect(getFullyRefundedCourseIds(testDb, allTime)).toEqual([]);
   });
 });
 
