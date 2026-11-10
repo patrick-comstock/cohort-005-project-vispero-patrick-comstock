@@ -38,14 +38,17 @@ A Student's membership in a course, created by a Purchase or by Redeeming a Coup
 Whether someone can currently view a course's content.
 
 **Admin**:
-A person who runs the platform and Resolves Refund Requests. Not the person managing a Team.
+A person who runs the platform and Resolves Refund Requests. Not a Team Purchase buyer.
 _Avoid_: Staff, moderator
 
 ### Refunds
 
 **Refund Request**:
-A Student's or Team Purchase buyer's ask to get their money back for a Purchase; its status is Pending, Approved, or Declined. "Cancel" is reserved for generic UI dismissal and is never used for refunds.
+A Requester's ask to get their money back for a Purchase, which can have at most one; its status is Pending, Approved, or Declined. "Cancel" is reserved for generic UI dismissal and is never used for refunds.
 _Avoid_: Cancel, cancellation (of a purchase), reversal, chargeback, money back, give back
+
+**Requester**:
+Whoever made a Refund Request: a Student, or a Team Purchase buyer.
 
 **Refund**:
 The money actually returned to whoever made the Purchase once a Refund Request is Approved. Distinct from the Refund Request itself.
@@ -62,23 +65,18 @@ The status of a Refund Request that an Admin turned down.
 _Avoid_: Deny, Denied, Reject
 
 **Resolve**:
-An Admin moving a Pending Refund Request to Approved or Declined; the outcome is its Resolution. Only Admins Resolve.
-
-- A Resolution is final.
-- A Purchase can have at most one Refund Request, ever.
-- When a request is Approved, the Refund is the full amount paid for the Purchase, and the Student loses their Enrollment (and therefore Access).
-- Refund Eligibility is judged when the request is made, not when it is Resolved.
+An Admin moving a Pending Refund Request to Approved or Declined; the outcome is its Resolution, which is final. An Approval Refunds the full amount paid and ends the Access the Purchase gave: the Enrollment for an individual Purchase, or for a Team Purchase its unredeemed Coupons, which are Voided.
 
 **Resolution Note**:
-The Admin's explanation of a Resolution, which the Student sees. Required when Declining; optional when Approving.
+The Admin's explanation of a Resolution, which the Requester sees. Required when Declining; optional when Approving.
 
 **Repeat Refund Request**:
-A Refund Request from someone who has already had a Refund Request Approved for the same course. It is information for the Admin and never blocks Resolving it.
+A Refund Request whose Requester made an earlier Refund Request of the same kind (individual or Team Purchase) for the same course that is now Approved, whenever it was Approved. It is information for the Admin and never blocks Resolving it.
 
 ### Refund Eligibility
 
 **Refund Eligibility**:
-Whether a Refund Request may be made for a Purchase. For a Student's own Purchase it is the Refund Window, Watch-Time Limit, and Completion Limit; for a Team Purchase, whose buyer has no Enrollment, it is the Refund Window and none of its Coupons having been Redeemed.
+Whether a Refund Request may be made for a Purchase, judged when the request is made. It is the Refund Window plus the Watch-Time Limit and Completion Limit for an individual Purchase, or plus none of its Coupons being Redeemed for a Team Purchase.
 
 **Refund Window**:
 The 14-day period after a Purchase during which a Refund Request may be made.
