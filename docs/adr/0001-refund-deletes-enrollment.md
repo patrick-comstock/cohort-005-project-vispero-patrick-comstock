@@ -15,3 +15,5 @@ Access (`app/lib/access.server.ts`) and other readers treat a Student as enrolle
 - The original enrollment date is lost and can't be recovered. This is acceptable because nothing in the domain uses it: the Purchase and the Refund Request still record who bought, when, and the Resolution.
 - Buying again simply creates a new Enrollment.
 - If Enrollment history is ever needed, revisit this decision.
+- An Enrollment has no link to the Purchase that created it, so the refunded Purchase is inferred: a Student's Refund Request targets their latest Purchase of the course that isn't a Team Purchase (`getRefundRequestPurchase` in `app/lib/refund-requests.server.ts`), and a Team Purchase is recognised by the Purchase having Coupons (`isTeamPurchase`). Adding an explicit link from Enrollment to Purchase would change this.
+- Approving a Refund Request for a Team Purchase Voids its Coupons and doesn't touch any Enrollment, because a Team Purchase never enrolls its buyer.
