@@ -4,6 +4,7 @@ import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
 import { RefundRequestStatus, UserRole } from "~/db/schema";
 import {
+  buildRefundRequestResolvedEmail,
   findPurchaseForAccess,
   getRefundRequestDetail,
   getRefundRequestPurchase,
@@ -575,5 +576,40 @@ describe("listStudentRefundRequests", () => {
         resolutionNote: "Sorry it was not a fit.",
       },
     ]);
+  });
+});
+
+describe("buildRefundRequestResolvedEmail", () => {
+  const student = {
+    studentName: "Sam",
+    studentEmail: "sam@example.com",
+    courseTitle: "Test Course",
+  };
+
+  it("tells a Team Purchase buyer their Coupons were Voided, not that they lost Access", () => {
+    const email = buildRefundRequestResolvedEmail({
+      ...student,
+      status: RefundRequestStatus.Approved,
+      isTeamPurchase: true,
+      refundAmount: 9998,
+      resolutionNote: null,
+    });
+
+    expect(email.body).toContain("$99.98");
+    expect(email.body).toContain("Coupons");
+    expect(email.body).not.toContain("access");
+  });
+
+  it("includes the Resolution Note when Declined", () => {
+    const email = buildRefundRequestResolvedEmail({
+      ...student,
+      status: RefundRequestStatus.Declined,
+      isTeamPurchase: false,
+      refundAmount: null,
+      resolutionNote: "Outside our policy.",
+    });
+
+    expect(email.subject).toContain("declined");
+    expect(email.body).toContain("Outside our policy.");
   });
 });

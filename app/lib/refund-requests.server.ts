@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, notExists, sql } from "drizzle-orm";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { formatPrice } from "~/lib/utils";
 import * as schema from "~/db/schema";
 import {
   coupons,
@@ -432,4 +433,44 @@ export function listStudentRefundRequests(database: Db, userId: number) {
     .where(eq(purchases.userId, userId))
     .orderBy(desc(refundRequests.requestedAt), desc(refundRequests.id))
     .all();
+}
+
+/**
+ * The email that tells the Student how their Refund Request was Resolved.
+ * There is no mail transport wired up yet, so callers log the message.
+ */
+export function buildRefundRequestResolvedEmail(input: {
+  studentName: string;
+  studentEmail: string;
+  courseTitle: string;
+  status: Resolution;
+  isTeamPurchase: boolean;
+  refundAmount: number | null;
+  resolutionNote: string | null;
+}) {
+  const isApproved = input.status === RefundRequestStatus.Approved;
+  const outcome = isApproved
+    ? [
+        `Your Refund Request for "${input.courseTitle}" has been approved.`,
+        `We are refunding ${formatPrice(input.refundAmount)}, the amount you paid.`,
+        input.isTeamPurchase
+          ? "Its Coupons have been voided and can no longer be redeemed. Anyone who already redeemed one keeps the course."
+          : "Your access to the course has ended.",
+      ]
+    : [
+        `Your Refund Request for "${input.courseTitle}" has been declined, and you keep your access to the course.`,
+      ];
+
+  return {
+    to: input.studentEmail,
+    subject: `Refund Request ${isApproved ? "approved" : "declined"} — ${input.courseTitle}`,
+    body: [
+      `Hi ${input.studentName},`,
+      "",
+      ...outcome,
+      ...(input.resolutionNote ? ["", input.resolutionNote] : []),
+      "",
+      "— The Cadence team",
+    ].join("\n"),
+  };
 }

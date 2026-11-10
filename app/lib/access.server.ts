@@ -193,3 +193,18 @@ export async function requireInstructorOrAdmin(request: Request) {
 
   return { userId, user, isAdmin: user.role === UserRole.Admin };
 }
+
+/**
+ * Throws unless the user is an Admin — for pages that run the platform, such
+ * as Resolving Refund Requests.
+ */
+export async function requireAdmin(request: Request) {
+  const userId = await requireUserId(request);
+  const user = getUserById(userId);
+
+  if (!user || user.role !== UserRole.Admin) {
+    throw data("Only admins can access this page.", { status: 403 });
+  }
+
+  return { userId, user };
+}
