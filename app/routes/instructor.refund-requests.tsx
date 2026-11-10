@@ -42,7 +42,7 @@ function RefundRequestTable({
   showResolution: boolean;
 }) {
   const headings = [
-    "Student",
+    "Requester",
     "Course",
     "Purchased",
     "Requested",
@@ -74,9 +74,9 @@ function RefundRequestTable({
               className="border-b border-border align-top last:border-0"
             >
               <td className="px-4 py-3">
-                <div className="font-medium">{refundRequest.studentName}</div>
+                <div className="font-medium">{refundRequest.requesterName}</div>
                 <div className="text-xs text-muted-foreground">
-                  {refundRequest.studentEmail}
+                  {refundRequest.requesterEmail}
                 </div>
                 {refundRequest.isTeamPurchase && (
                   <span className="mt-1 inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">

@@ -46,7 +46,7 @@ function RefundRequestTable({
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/50">
-            {["Student", "Course", "Amount paid", dateLabel, "Status"].map(
+            {["Requester", "Course", "Amount paid", dateLabel, "Status"].map(
               (heading) => (
                 <th
                   key={heading}

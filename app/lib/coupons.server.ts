@@ -54,7 +54,7 @@ export function redeemCoupon(
 
     // Approval would Void this Coupon but not end an Enrollment it created, so
     // no Coupon is Redeemed while its Team Purchase has a Pending Refund
-    // Request. After a Decline, the Coupons can be Redeemed again.
+    // Request. After a Decline, its unredeemed Coupons can still be Redeemed.
     if (hasPendingRefundRequest(tx, coupon.purchaseId)) {
       return {
         ok: false,

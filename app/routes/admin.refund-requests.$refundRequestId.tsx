@@ -93,8 +93,8 @@ export async function action({ params, request }: Route.ActionArgs) {
   const detail = getRefundRequestDetail(db, refundRequestId);
   if (detail) {
     const email = buildRefundRequestResolvedEmail({
-      studentName: detail.userName,
-      studentEmail: detail.userEmail,
+      requesterName: detail.userName,
+      requesterEmail: detail.userEmail,
       courseTitle: detail.courseTitle,
       status: parsed.data.resolution,
       isTeamPurchase: detail.isTeamPurchase,
@@ -128,7 +128,7 @@ function consequences(
 ) {
   if (resolution === RefundRequestStatus.Declined) {
     if (refundRequest.isTeamPurchase) {
-      return `Decline this Refund Request. ${refundRequest.userName} gets no Refund, and the Coupons of this Team Purchase for ${refundRequest.courseTitle} stay valid and can be Redeemed again. This cannot be undone.`;
+      return `Decline this Refund Request. ${refundRequest.userName} gets no Refund, and the unredeemed Coupons of this Team Purchase for ${refundRequest.courseTitle} can still be Redeemed. This cannot be undone.`;
     }
     return `Decline this Refund Request. ${refundRequest.userName} gets no Refund and keeps their Access to ${refundRequest.courseTitle}. This cannot be undone.`;
   }
@@ -170,7 +170,7 @@ function ResolveForm({
           rows={3}
           value={resolutionNote}
           onChange={(event) => setResolutionNote(event.target.value)}
-          placeholder="The Student sees this. Required to Decline."
+          placeholder="The Requester sees this. Required to Decline."
         />
       </div>
 
@@ -277,10 +277,17 @@ export default function AdminRefundRequest({
         <CardContent className="pt-6">
           <dl className="grid gap-4 sm:grid-cols-2">
             <Fact
-              label={
-                refundRequest.isTeamPurchase ? "Team Purchase buyer" : "Student"
+              label="Requester"
+              value={
+                <>
+                  {`${refundRequest.userName} (${refundRequest.userEmail})`}
+                  {refundRequest.isTeamPurchase && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                      Team Purchase
+                    </span>
+                  )}
+                </>
               }
-              value={`${refundRequest.userName} (${refundRequest.userEmail})`}
             />
             <Fact
               label="Course"

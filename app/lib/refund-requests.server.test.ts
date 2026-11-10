@@ -721,8 +721,8 @@ describe("listStudentRefundRequests", () => {
 
 describe("buildRefundRequestResolvedEmail", () => {
   const student = {
-    studentName: "Sam",
-    studentEmail: "sam@example.com",
+    requesterName: "Sam",
+    requesterEmail: "sam@example.com",
     courseTitle: "Test Course",
   };
 
@@ -740,7 +740,7 @@ describe("buildRefundRequestResolvedEmail", () => {
     expect(email.body).not.toContain("access");
   });
 
-  it("tells a Team Purchase buyer their Coupons can be Redeemed again when Declined, not that they keep Access", () => {
+  it("tells a Team Purchase buyer their unredeemed Coupons can still be Redeemed when Declined, not that they keep Access", () => {
     const email = buildRefundRequestResolvedEmail({
       ...student,
       status: RefundRequestStatus.Declined,
@@ -751,7 +751,7 @@ describe("buildRefundRequestResolvedEmail", () => {
 
     expect(email.subject).toContain("declined");
     expect(email.body).toContain("Coupons");
-    expect(email.body).toContain("Redeemed again");
+    expect(email.body).toContain("Its unredeemed Coupons can still be Redeemed.");
     expect(email.body).not.toContain("access");
   });
 

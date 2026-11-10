@@ -294,7 +294,7 @@ function TeamPurchaseCard({ teamPurchase }: { teamPurchase: TeamPurchaseRow }) {
               </p>
             )}
             {refundRequest.status === RefundRequestStatus.Declined && (
-              <p>No Refund. Its Coupons can be Redeemed again.</p>
+              <p>No Refund. Its unredeemed Coupons can still be Redeemed.</p>
             )}
             {refundRequest.resolutionNote && (
               <p className="mt-1 text-foreground">

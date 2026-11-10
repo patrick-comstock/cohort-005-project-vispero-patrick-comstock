@@ -120,7 +120,7 @@ describe("listInstructorRefundRequests", () => {
           status: RefundRequestStatus.Approved,
           reason: "Too basic.",
           resolutionNote: "Refunded as a courtesy.",
-          studentName: "Test User",
+          requesterName: "Test User",
         }),
         expect.objectContaining({
           id: declined.id,
@@ -165,8 +165,8 @@ describe("listInstructorRefundRequests", () => {
     );
 
     expect(pending).toMatchObject([
-      { studentName: "Test User", isTeamPurchase: true },
-      { studentName: "Test User", isTeamPurchase: false },
+      { requesterName: "Test User", isTeamPurchase: true },
+      { requesterName: "Test User", isTeamPurchase: false },
     ]);
   });
 });

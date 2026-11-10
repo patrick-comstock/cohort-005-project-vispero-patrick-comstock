@@ -250,7 +250,7 @@ export const refundRequests = sqliteTable(
       .$defaultFn(() => new Date().toISOString()),
     resolvedAt: text("resolved_at"),
     resolvedByUserId: integer("resolved_by_user_id").references(() => users.id),
-    // The Admin's explanation of the Resolution, which the Student sees.
+    // The Admin's explanation of the Resolution, which the Requester sees.
     // Required when Declining; optional when Approving. Null while Pending.
     resolutionNote: text("resolution_note"),
   },
