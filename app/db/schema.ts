@@ -250,8 +250,14 @@ export const refundRequests = sqliteTable(
       .$defaultFn(() => new Date().toISOString()),
     resolvedAt: text("resolved_at"),
     resolvedByUserId: integer("resolved_by_user_id").references(() => users.id),
+    // The Admin's explanation of the Resolution, which the Student sees.
+    // Required when Declining; optional when Approving. Null while Pending.
+    resolutionNote: text("resolution_note"),
   },
-  (table) => [index("refund_requests_purchase_idx").on(table.purchaseId)]
+  // A Purchase can have at most one Refund Request, ever.
+  (table) => [
+    uniqueIndex("refund_requests_purchase_unique").on(table.purchaseId),
+  ]
 );
 
 export const teams = sqliteTable("teams", {
@@ -289,6 +295,9 @@ export const coupons = sqliteTable("coupons", {
     .references(() => purchases.id),
   redeemedByUserId: integer("redeemed_by_user_id").references(() => users.id),
   redeemedAt: text("redeemed_at"),
+  // Set when the Coupon's Team Purchase is Refunded. A Voided Coupon can no
+  // longer be Redeemed.
+  voidedAt: text("voided_at"),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
