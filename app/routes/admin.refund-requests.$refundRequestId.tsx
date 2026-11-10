@@ -305,10 +305,12 @@ export default function AdminRefundRequest({
               label="Refund Request made"
               value={formatDate(refundRequest.requestedAt)}
             />
-            <Fact
-              label="Watch time and completion (context only)"
-              value={`${formatWatchTime(refundRequest.watchedSeconds)} watched · ${Math.round(refundRequest.completion * 100)}% of lessons completed`}
-            />
+            {refundRequest.watchTimeAndCompletion && (
+              <Fact
+                label="Watch time and completion (context only)"
+                value={`${formatWatchTime(refundRequest.watchTimeAndCompletion.watchedSeconds)} watched · ${Math.round(refundRequest.watchTimeAndCompletion.completion * 100)}% of lessons completed`}
+              />
+            )}
           </dl>
           <div className="mt-6">
             <Fact
