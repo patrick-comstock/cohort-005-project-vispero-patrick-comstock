@@ -160,14 +160,18 @@ function hasRedeemedCoupon(database: Db, purchaseId: number) {
   return !!redeemed;
 }
 
-/** Whether a user got a course by Redeeming one of its Coupons. */
-function hasRedeemedCouponForCourse(
+/**
+ * The buyer of the Team Purchase whose Coupon a user Redeemed to get a course,
+ * or null if they did not get it by Redeeming a Coupon.
+ */
+function findRedeemedCouponBuyerId(
   database: Db,
   input: { userId: number; courseId: number }
 ) {
   const redeemed = database
-    .select({ id: coupons.id })
+    .select({ buyerId: purchases.userId })
     .from(coupons)
+    .innerJoin(purchases, eq(coupons.purchaseId, purchases.id))
     .where(
       and(
         eq(coupons.courseId, input.courseId),
@@ -175,7 +179,7 @@ function hasRedeemedCouponForCourse(
       )
     )
     .get();
-  return !!redeemed;
+  return redeemed ? redeemed.buyerId : null;
 }
 
 export type Resolution =
@@ -608,6 +612,7 @@ export type RefundRequestOffer =
 export type RefundRequestRefusalCode =
   | "not-enrolled"
   | "joined-with-coupon"
+  | "joined-with-own-coupon"
   | "no-purchase"
   | "already-requested"
   | "outside-refund-window"
@@ -649,7 +654,22 @@ export function getRefundRequestOffer(
     input.courseId
   );
 
-  if (!purchase && hasRedeemedCouponForCourse(database, input)) {
+  const couponBuyerId = purchase
+    ? null
+    : findRedeemedCouponBuyerId(database, input);
+
+  // Redeeming one of their own Coupons used up their Team Purchase's Refund
+  // Eligibility, so "ask the buyer" would point them at themselves.
+  if (couponBuyerId === input.userId) {
+    return {
+      ok: false,
+      code: "joined-with-own-coupon",
+      error:
+        "You joined this course with a Coupon from your own Team Purchase. A Team Purchase can't be Refunded once one of its Coupons has been Redeemed.",
+    };
+  }
+
+  if (couponBuyerId !== null) {
     return {
       ok: false,
       code: "joined-with-coupon",
@@ -730,6 +750,7 @@ export function refusalReasonForStudent(
     case "completion-limit":
     case "watch-time-limit":
     case "joined-with-coupon":
+    case "joined-with-own-coupon":
       return refusal.error;
     case "already-requested":
     case "not-enrolled":
