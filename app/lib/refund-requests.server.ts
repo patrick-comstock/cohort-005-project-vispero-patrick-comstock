@@ -420,6 +420,35 @@ export function getRefundRequestPurchase(
 }
 
 /**
+ * The status and Resolution Note of the Refund Request for a Student's
+ * Refund Request Purchase of a course, or null if it has none. The course
+ * page shows it in place of an offer, including after an Approval has ended
+ * the Enrollment.
+ */
+export function getStudentRefundRequest(
+  database: Db,
+  input: { userId: number; courseId: number }
+) {
+  const purchase = getRefundRequestPurchase(
+    database,
+    input.userId,
+    input.courseId
+  );
+  if (!purchase) return null;
+
+  return (
+    database
+      .select({
+        status: refundRequests.status,
+        resolutionNote: refundRequests.resolutionNote,
+      })
+      .from(refundRequests)
+      .where(eq(refundRequests.purchaseId, purchase.id))
+      .get() ?? null
+  );
+}
+
+/**
  * The Purchase that the PPP check in Access looks at. A Purchase that was
  * Refunded (its Refund Request was Approved) no longer counts.
  */

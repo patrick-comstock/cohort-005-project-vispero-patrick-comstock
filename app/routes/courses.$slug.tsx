@@ -22,8 +22,10 @@ import { eq, and, or, sql } from "drizzle-orm";
 import {
   formatCalendarDay,
   getRefundRequestOffer,
+  getStudentRefundRequest,
   refusalReasonForStudent,
 } from "~/lib/refund-requests.server";
+import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -418,10 +420,16 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     lastDayInWindow: string;
   } | null = null;
   let refundRequestRefusal: string | null = null;
+  let refundRequest: ReturnType<typeof getStudentRefundRequest> = null;
 
   if (currentUserId) {
     enrolled = isUserEnrolled(currentUserId, course.id);
     hasTeamPurchase = hasTeamPurchaseForCourse(currentUserId, course.id);
+    // Shown with or without an Enrollment: an Approval ends the Enrollment.
+    refundRequest = getStudentRefundRequest(db, {
+      userId: currentUserId,
+      courseId: course.id,
+    });
 
     if (enrolled) {
       const offer = getRefundRequestOffer(db, {
@@ -481,6 +489,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     userRating,
     refundRequestOffer,
     refundRequestRefusal,
+    refundRequest,
   };
 }
 
@@ -584,6 +593,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     userRating,
     refundRequestOffer,
     refundRequestRefusal,
+    refundRequest,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const teamPurchaseButtonLabel = getTeamPurchaseButtonLabel({
@@ -630,6 +640,20 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
         {teamPurchaseButtonLabel}
       </Button>
     </Link>
+  );
+
+  const refundRequestStatus = refundRequest && (
+    <div className="rounded-md border p-3">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="font-medium">Refund Request</span>
+        <RefundRequestStatusBadge status={refundRequest.status} />
+      </div>
+      {refundRequest.resolutionNote && (
+        <p className="mt-2 rounded bg-muted p-2 text-sm text-muted-foreground">
+          {refundRequest.resolutionNote}
+        </p>
+      )}
+    </div>
   );
 
   const priceDisplay = (
@@ -835,7 +859,9 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                     })()}
                   {teamPurchaseButton}
                   <RateCourse userRating={userRating} />
-                  {refundRequestOffer ? (
+                  {refundRequestStatus ? (
+                    refundRequestStatus
+                  ) : refundRequestOffer ? (
                     <RefundRequestForm
                       slug={course.slug}
                       amount={refundRequestOffer.amount}
@@ -848,7 +874,10 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                   ) : null}
                 </>
               ) : (
-                purchaseOptions
+                <>
+                  {refundRequestStatus}
+                  {purchaseOptions}
+                </>
               )}
               <div className="space-y-2 pt-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
