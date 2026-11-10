@@ -79,7 +79,7 @@ describe("redeemCoupon", () => {
       ok: false,
       code: "refund-request-pending",
       error:
-        "This Coupon can't be redeemed right now because its Team Purchase has a Pending Refund Request.",
+        "This Coupon can't be Redeemed right now because its Team Purchase has a Pending Refund Request.",
     });
   });
 

@@ -19,6 +19,7 @@ import {
   listStudentRefundRequests,
   listTeamPurchasesForBuyer,
   makeRefundRequest,
+  makeStudentRefundRequest,
   makeTeamPurchaseRefundRequest,
   resolveRefundRequest,
 } from "./refund-requests.server";
@@ -892,6 +893,50 @@ describe("getRefundRequestOffer", () => {
         "Refunds aren't available once you've watched 2 hours or more of this course.",
     });
   });
+
+  describe("makeStudentRefundRequest", () => {
+    function makeOn(day: string) {
+      return makeStudentRefundRequest(testDb, {
+        userId: base.user.id,
+        courseId: base.course.id,
+        reason: "The course was not what I expected.",
+        now: new Date(`${day}T12:00:00`),
+      });
+    }
+
+    it("records a Pending Refund Request for the Student's Purchase", () => {
+      const purchase = buyCourseOn("2026-03-01", 2500);
+
+      expect(makeOn("2026-03-02")).toMatchObject({
+        ok: true,
+        amount: 2500,
+        refundRequest: {
+          purchaseId: purchase.id,
+          status: RefundRequestStatus.Pending,
+        },
+      });
+    });
+
+    it("refuses outside the Refund Window and records nothing", () => {
+      const purchase = buyCourseOn("2026-03-01");
+
+      expect(makeOn("2026-03-16")).toMatchObject({
+        ok: false,
+        code: "outside-refund-window",
+      });
+      expect(hasRefundRequest(testDb, purchase.id)).toBe(false);
+    });
+
+    it("refuses a second Refund Request for the same Purchase", () => {
+      buyCourseOn("2026-03-01");
+      makeOn("2026-03-02");
+
+      expect(makeOn("2026-03-03")).toMatchObject({
+        ok: false,
+        code: "already-requested",
+      });
+    });
+  });
 });
 
 describe("getTeamPurchaseRefundRequestOffer", () => {
@@ -998,7 +1043,7 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
     expect(offerOn(purchase.id, "2026-03-02")).toMatchObject({
       ok: false,
       code: "coupon-redeemed",
-      error: "Refunds aren't available once a Coupon has been redeemed.",
+      error: "Refunds aren't available once a Coupon has been Redeemed.",
     });
   });
 

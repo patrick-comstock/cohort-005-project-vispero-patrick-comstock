@@ -11,7 +11,7 @@ export type RedeemRefusalCode =
   | "country-mismatch";
 
 export const REFUND_REQUEST_PENDING_MESSAGE =
-  "This Coupon can't be redeemed right now because its Team Purchase has a Pending Refund Request.";
+  "This Coupon can't be Redeemed right now because its Team Purchase has a Pending Refund Request.";
 
 export type RedeemResult =
   | { ok: true; enrollment: typeof enrollments.$inferSelect }
@@ -48,7 +48,7 @@ export function redeemCoupon(
       return {
         ok: false,
         code: "already-redeemed",
-        error: "Coupon has already been redeemed",
+        error: "Coupon has already been Redeemed",
       };
     }
 
@@ -93,7 +93,7 @@ export function redeemCoupon(
         ok: false,
         code: "country-mismatch",
         error:
-          "This coupon can only be redeemed from the same country as the purchaser",
+          "This Coupon can only be Redeemed from the same country as the purchaser",
       };
     }
 

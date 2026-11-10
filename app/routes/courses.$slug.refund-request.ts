@@ -8,8 +8,7 @@ import { eq } from "drizzle-orm";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { formatPrice } from "~/lib/utils";
 import {
-  getRefundRequestOffer,
-  makeRefundRequest,
+  makeStudentRefundRequest,
   type RefundRequestRefusalCode,
 } from "~/lib/refund-requests.server";
 
@@ -90,16 +89,6 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("User not found", { status: 404 });
   }
 
-  // The action enforces exactly the Refund Eligibility the course page offers.
-  const offer = getRefundRequestOffer(db, {
-    userId: currentUserId,
-    courseId: course.id,
-  });
-
-  if (!offer.ok) {
-    throw data(offer.error, { status: refusalStatus[offer.code] });
-  }
-
   const formData = await request.formData();
   const parsed = parseFormData(formData, refundRequestSchema);
 
@@ -107,20 +96,23 @@ export async function action({ params, request }: Route.ActionArgs) {
     return data({ errors: parsed.errors }, { status: 400 });
   }
 
-  const made = makeRefundRequest(db, {
-    purchaseId: offer.purchase.id,
+  // The action enforces exactly the Refund Eligibility the course page offers,
+  // rechecked in the same transaction that records the request.
+  const made = makeStudentRefundRequest(db, {
+    userId: currentUserId,
+    courseId: course.id,
     reason: parsed.data.reason,
   });
 
   if (!made.ok) {
-    throw data(made.error, { status: 409 });
+    throw data(made.error, { status: refusalStatus[made.code] });
   }
 
   const email = buildRefundRequestEmail({
     studentName: student.name,
     studentEmail: student.email,
     courseTitle: course.title,
-    refundAmount: offer.amount,
+    refundAmount: made.amount,
   });
 
   console.log(`[email] to=${email.to} subject=${email.subject}\n${email.body}`);
