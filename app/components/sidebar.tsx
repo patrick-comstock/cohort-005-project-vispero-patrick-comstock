@@ -82,6 +82,13 @@ const navItems: NavItem[] = [
     roles: [UserRole.Instructor, UserRole.Admin],
   },
   {
+    // Read-only. Admins Resolve from /admin/refund-requests instead.
+    label: "Refund Requests",
+    to: "/instructor/refund-requests",
+    icon: <ReceiptText className="size-4" />,
+    roles: [UserRole.Instructor],
+  },
+  {
     label: "Manage Users",
     to: "/admin/users",
     icon: <Users className="size-4" />,
