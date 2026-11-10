@@ -18,7 +18,11 @@ import {
   RefundRequestStatus,
 } from "~/db/schema";
 import { eq, and } from "drizzle-orm";
-import { listTeamPurchasesForBuyer } from "~/lib/refund-requests.server";
+import {
+  formatCalendarDay,
+  listTeamPurchasesForBuyer,
+  refusalReasonForTeamPurchaseBuyer,
+} from "~/lib/refund-requests.server";
 import { formatPrice } from "~/lib/utils";
 import { Textarea } from "~/components/ui/textarea";
 import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
@@ -168,14 +172,14 @@ export async function loader({ request }: Route.LoaderArgs) {
     offer: teamPurchase.offer.ok
       ? {
           amount: teamPurchase.offer.amount,
-          lastDayInWindow: teamPurchase.offer.lastDayInWindow,
+          lastDayInWindow: formatCalendarDay(
+            teamPurchase.offer.lastDayInWindow
+          ),
         }
       : null,
-    // Say why there is no offer only when a Coupon was Redeemed.
-    refusal:
-      !teamPurchase.offer.ok && teamPurchase.offer.code === "coupon-redeemed"
-        ? teamPurchase.offer.error
-        : null,
+    refusal: teamPurchase.offer.ok
+      ? null
+      : refusalReasonForTeamPurchaseBuyer(teamPurchase.offer),
   }));
 
   return { courseStats, couponRows, teamPurchases };
@@ -207,14 +211,12 @@ function TeamPurchaseRefundRequestForm({
     }
   }, [fetcher.state, fetcher.data]);
 
-  const lastDay = new Date(`${lastDayInWindow}T00:00:00`).toLocaleDateString();
-
   return (
     <div className="mt-3 border-t pt-3">
       <p className="text-sm text-muted-foreground">
         Request a refund for this Team Purchase. If approved, we&apos;ll refund{" "}
         {formatPrice(amount)} and all {couponCount} Coupons will be Voided.
-        Available until {lastDay} while no Coupon has been redeemed.
+        Available until {lastDayInWindow} while no Coupon has been redeemed.
       </p>
       {isFormOpen ? (
         <fetcher.Form

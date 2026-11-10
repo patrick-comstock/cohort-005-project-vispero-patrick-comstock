@@ -19,7 +19,11 @@ import {
   LessonProgressStatus,
 } from "~/db/schema";
 import { eq, and, or, sql } from "drizzle-orm";
-import { getRefundRequestOffer } from "~/lib/refund-requests.server";
+import {
+  formatCalendarDay,
+  getRefundRequestOffer,
+  refusalReasonForStudent,
+} from "~/lib/refund-requests.server";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -413,6 +417,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     amount: number;
     lastDayInWindow: string;
   } | null = null;
+  let refundRequestRefusal: string | null = null;
 
   if (currentUserId) {
     enrolled = isUserEnrolled(currentUserId, course.id);
@@ -424,8 +429,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
         courseId: course.id,
       });
       refundRequestOffer = offer.ok
-        ? { amount: offer.amount, lastDayInWindow: offer.lastDayInWindow }
+        ? {
+            amount: offer.amount,
+            lastDayInWindow: formatCalendarDay(offer.lastDayInWindow),
+          }
         : null;
+      refundRequestRefusal = offer.ok ? null : refusalReasonForStudent(offer);
 
       progress = calculateProgress(currentUserId, course.id, false);
 
@@ -471,6 +480,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     ratingSummary,
     userRating,
     refundRequestOffer,
+    refundRequestRefusal,
   };
 }
 
@@ -573,6 +583,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     ratingSummary,
     userRating,
     refundRequestOffer,
+    refundRequestRefusal,
   } = loaderData;
   const isInstructor = currentUserId === course.instructorId;
   const teamPurchaseButtonLabel = getTeamPurchaseButtonLabel({
@@ -824,12 +835,17 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                     })()}
                   {teamPurchaseButton}
                   <RateCourse userRating={userRating} />
-                  {refundRequestOffer && (
+                  {refundRequestOffer ? (
                     <RefundRequestForm
                       slug={course.slug}
                       amount={refundRequestOffer.amount}
+                      lastDayInWindow={refundRequestOffer.lastDayInWindow}
                     />
-                  )}
+                  ) : refundRequestRefusal ? (
+                    <p className="text-sm text-muted-foreground">
+                      {refundRequestRefusal}
+                    </p>
+                  ) : null}
                 </>
               ) : (
                 purchaseOptions
@@ -901,7 +917,15 @@ function RateCourse({ userRating }: { userRating: number | null }) {
   );
 }
 
-function RefundRequestForm({ slug, amount }: { slug: string; amount: number }) {
+function RefundRequestForm({
+  slug,
+  amount,
+  lastDayInWindow,
+}: {
+  slug: string;
+  amount: number;
+  lastDayInWindow: string;
+}) {
   const fetcher = useFetcher<{ errors?: Record<string, string> }>();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const isSubmitting = fetcher.state !== "idle";
@@ -933,7 +957,7 @@ function RefundRequestForm({ slug, amount }: { slug: string; amount: number }) {
       <p className="mb-2 text-sm font-medium">Request a refund</p>
       <p className="mb-3 text-xs text-muted-foreground">
         If your Refund Request is approved, we will refund {formatPrice(amount)}{" "}
-        to the card you paid with.
+        to the card you paid with. Available until {lastDayInWindow}.
       </p>
       <fetcher.Form
         method="post"

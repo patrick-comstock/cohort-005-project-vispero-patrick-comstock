@@ -42,6 +42,31 @@ export function lastDayOfRefundWindow(purchasedAtIso: string): string {
   return toCalendarDay(windowEnd);
 }
 
+/** A calendar day (YYYY-MM-DD) as it reads in a refusal, e.g. "March 15, 2026". */
+export function formatCalendarDay(day: string) {
+  return new Date(`${day}T00:00:00`).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** Why a Purchase outside its Refund Window, before or after it, gets no offer. */
+function refundWindowEndedError(purchaseName: string, lastDay: string) {
+  return `The ${REFUND_WINDOW_DAYS}-day Refund Window for this ${purchaseName} ended on ${formatCalendarDay(lastDay)}.`;
+}
+
+/** The Watch-Time Limit as it reads in a refusal, e.g. "2 hours". */
+function describeWatchTimeLimit() {
+  const hours = WATCH_TIME_LIMIT_SECONDS / 3600;
+  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+}
+
+/** The Completion Limit as it reads in a refusal, e.g. "half". */
+function describeCompletionLimit() {
+  return COMPLETION_LIMIT === 0.5 ? "half" : `${COMPLETION_LIMIT * 100}%`;
+}
+
 /** Whether today falls in a Purchase's Refund Window, counting both ends. */
 function isWithinRefundWindow(purchasedAtIso: string, now = new Date()) {
   const today = toCalendarDay(now);
@@ -568,7 +593,17 @@ export type RefundRequestOffer =
       amount: number;
       lastDayInWindow: string;
     }
-  | { ok: false; code: RefundRequestRefusalCode; error: string };
+  | {
+      ok: false;
+      code: "outside-refund-window";
+      error: string;
+      lastDay: string;
+    }
+  | {
+      ok: false;
+      code: Exclude<RefundRequestRefusalCode, "outside-refund-window">;
+      error: string;
+    };
 
 export type RefundRequestRefusalCode =
   | "not-enrolled"
@@ -646,7 +681,8 @@ export function getRefundRequestOffer(
     return {
       ok: false,
       code: "outside-refund-window",
-      error: `This Purchase is outside its ${REFUND_WINDOW_DAYS}-day Refund Window.`,
+      error: refundWindowEndedError("Purchase", lastDayInWindow),
+      lastDay: lastDayInWindow,
     };
   }
 
@@ -660,7 +696,7 @@ export function getRefundRequestOffer(
     return {
       ok: false,
       code: "completion-limit",
-      error: "You have completed too much of this course to request a refund.",
+      error: `Refunds aren't available once you've completed ${describeCompletionLimit()} of this course.`,
     };
   }
 
@@ -668,7 +704,7 @@ export function getRefundRequestOffer(
     return {
       ok: false,
       code: "watch-time-limit",
-      error: "You have watched too much of this course to request a refund.",
+      error: `Refunds aren't available once you've watched ${describeWatchTimeLimit()} or more of this course.`,
     };
   }
 
@@ -681,6 +717,27 @@ export function getRefundRequestOffer(
   };
 }
 
+/**
+ * What the course page tells an enrolled Student who gets no Refund Request
+ * offer, or null to show nothing: an existing Refund Request shows its status
+ * instead, and without an Enrollment or a Purchase there is nothing to refund.
+ */
+export function refusalReasonForStudent(
+  refusal: Extract<RefundRequestOffer, { ok: false }>
+): string | null {
+  switch (refusal.code) {
+    case "outside-refund-window":
+    case "completion-limit":
+    case "watch-time-limit":
+    case "joined-with-coupon":
+      return refusal.error;
+    case "already-requested":
+    case "not-enrolled":
+    case "no-purchase":
+      return null;
+  }
+}
+
 export type TeamPurchaseRefundRequestOffer =
   | {
       ok: true;
@@ -688,7 +745,20 @@ export type TeamPurchaseRefundRequestOffer =
       amount: number;
       lastDayInWindow: string;
     }
-  | { ok: false; code: TeamPurchaseRefundRequestRefusalCode; error: string };
+  | {
+      ok: false;
+      code: "outside-refund-window";
+      error: string;
+      lastDay: string;
+    }
+  | {
+      ok: false;
+      code: Exclude<
+        TeamPurchaseRefundRequestRefusalCode,
+        "outside-refund-window"
+      >;
+      error: string;
+    };
 
 export type TeamPurchaseRefundRequestRefusalCode =
   | "not-found"
@@ -744,11 +814,14 @@ export function getTeamPurchaseRefundRequestOffer(
     };
   }
 
+  const lastDayInWindow = lastDayOfRefundWindow(purchase.createdAt);
+
   if (!isWithinRefundWindow(purchase.createdAt, input.now)) {
     return {
       ok: false,
       code: "outside-refund-window",
-      error: `This Team Purchase is outside its ${REFUND_WINDOW_DAYS}-day Refund Window.`,
+      error: refundWindowEndedError("Team Purchase", lastDayInWindow),
+      lastDay: lastDayInWindow,
     };
   }
 
@@ -767,8 +840,29 @@ export function getTeamPurchaseRefundRequestOffer(
     purchase,
     // The Refund is always the full amount paid for the Purchase.
     amount: purchase.amountPaid,
-    lastDayInWindow: lastDayOfRefundWindow(purchase.createdAt),
+    lastDayInWindow,
   };
+}
+
+/**
+ * What a Team Purchase card on /team tells its buyer when there is no Refund
+ * Request offer, or null to show nothing. An existing Refund Request shows its
+ * status instead; the page lists only the buyer's own Team Purchases, so the
+ * remaining refusals can't occur there.
+ */
+export function refusalReasonForTeamPurchaseBuyer(
+  refusal: Extract<TeamPurchaseRefundRequestOffer, { ok: false }>
+): string | null {
+  switch (refusal.code) {
+    case "outside-refund-window":
+    case "coupon-redeemed":
+      return refusal.error;
+    case "already-requested":
+    case "not-found":
+    case "not-buyer":
+    case "not-team-purchase":
+      return null;
+  }
 }
 
 /**
@@ -857,7 +951,7 @@ export function listTeamPurchasesForBuyer(
             amount: offer.amount,
             lastDayInWindow: offer.lastDayInWindow,
           }
-        : { ok: false as const, code: offer.code, error: offer.error },
+        : offer,
     };
   });
 }

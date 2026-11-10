@@ -9,6 +9,9 @@ import {
   getRefundRequestDetail,
   getRefundRequestOffer,
   getTeamPurchaseRefundRequestOffer,
+  formatCalendarDay,
+  refusalReasonForStudent,
+  refusalReasonForTeamPurchaseBuyer,
   getRefundRequestPurchase,
   hasRefundRequest,
   listRefundRequests,
@@ -717,21 +720,27 @@ describe("getRefundRequestOffer", () => {
     });
   });
 
-  it("makes no offer after the last day of the Refund Window", () => {
+  it("makes no offer after the last day of the Refund Window, and says when it ended", () => {
     buyCourseOn("2026-03-01");
 
     expect(offerOn("2026-03-16")).toMatchObject({
       ok: false,
       code: "outside-refund-window",
+      lastDay: "2026-03-15",
+      error:
+        "The 14-day Refund Window for this Purchase ended on March 15, 2026.",
     });
   });
 
-  it("makes no offer before the day of the Purchase", () => {
+  it("makes no offer before the day of the Purchase, with the same reason", () => {
     buyCourseOn("2026-03-01");
 
     expect(offerOn("2026-02-28")).toMatchObject({
       ok: false,
       code: "outside-refund-window",
+      lastDay: "2026-03-15",
+      error:
+        "The 14-day Refund Window for this Purchase ended on March 15, 2026.",
     });
   });
 
@@ -775,6 +784,8 @@ describe("getRefundRequestOffer", () => {
     expect(offerOn("2026-03-02")).toMatchObject({
       ok: false,
       code: "completion-limit",
+      error:
+        "Refunds aren't available once you've completed half of this course.",
     });
   });
 
@@ -810,6 +821,8 @@ describe("getRefundRequestOffer", () => {
     expect(offerOn("2026-03-02")).toMatchObject({
       ok: false,
       code: "watch-time-limit",
+      error:
+        "Refunds aren't available once you've watched 2 hours or more of this course.",
     });
   });
 });
@@ -888,17 +901,18 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
     });
   });
 
-  it("makes no offer outside the Refund Window, at either end", () => {
+  it("makes no offer outside the Refund Window, at either end, and says when it ended", () => {
     const purchase = buyForTeamOn("2026-03-01");
+    const refusal = {
+      ok: false,
+      code: "outside-refund-window",
+      lastDay: "2026-03-15",
+      error:
+        "The 14-day Refund Window for this Team Purchase ended on March 15, 2026.",
+    };
 
-    expect(offerOn(purchase.id, "2026-02-28")).toMatchObject({
-      ok: false,
-      code: "outside-refund-window",
-    });
-    expect(offerOn(purchase.id, "2026-03-16")).toMatchObject({
-      ok: false,
-      code: "outside-refund-window",
-    });
+    expect(offerOn(purchase.id, "2026-02-28")).toMatchObject(refusal);
+    expect(offerOn(purchase.id, "2026-03-16")).toMatchObject(refusal);
   });
 
   it("makes no offer once any of its Coupons is Redeemed", () => {
@@ -1056,5 +1070,72 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
       { purchaseId: teamPurchase.id, isTeamPurchase: true },
       { purchaseId: teamPurchase.id + 1, isTeamPurchase: false },
     ]);
+  });
+});
+
+describe("refusalReasonForStudent", () => {
+  const error = "The reason.";
+
+  it.each([
+    "outside-refund-window",
+    "completion-limit",
+    "watch-time-limit",
+    "joined-with-coupon",
+  ] as const)("tells the Student why for %s", (code) => {
+    expect(
+      refusalReasonForStudent(
+        code === "outside-refund-window"
+          ? { ok: false, code, error, lastDay: "2026-03-15" }
+          : { ok: false, code, error }
+      )
+    ).toBe(error);
+  });
+
+  it.each(["already-requested", "not-enrolled", "no-purchase"] as const)(
+    "shows nothing for %s",
+    (code) => {
+      expect(refusalReasonForStudent({ ok: false, code, error })).toBeNull();
+    }
+  );
+});
+
+describe("refusalReasonForTeamPurchaseBuyer", () => {
+  const error = "The reason.";
+
+  it("tells the buyer why outside the Refund Window", () => {
+    expect(
+      refusalReasonForTeamPurchaseBuyer({
+        ok: false,
+        code: "outside-refund-window",
+        error,
+        lastDay: "2026-03-15",
+      })
+    ).toBe(error);
+  });
+
+  it("tells the buyer why once a Coupon has been Redeemed", () => {
+    expect(
+      refusalReasonForTeamPurchaseBuyer({
+        ok: false,
+        code: "coupon-redeemed",
+        error,
+      })
+    ).toBe(error);
+  });
+
+  it("shows nothing once a Refund Request has been made, since its status shows instead", () => {
+    expect(
+      refusalReasonForTeamPurchaseBuyer({
+        ok: false,
+        code: "already-requested",
+        error,
+      })
+    ).toBeNull();
+  });
+});
+
+describe("formatCalendarDay", () => {
+  it("writes a calendar day the way refund copy shows it", () => {
+    expect(formatCalendarDay("2026-03-15")).toBe("March 15, 2026");
   });
 });
