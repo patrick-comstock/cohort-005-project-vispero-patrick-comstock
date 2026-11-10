@@ -741,6 +741,42 @@ describe("getRefundRequestOffer", () => {
     });
   });
 
+  it("makes no offer to a buyer who Redeemed a Coupon from their own Team Purchase, and says why", () => {
+    const team = testDb.insert(schema.teams).values({}).returning().get();
+    const teamPurchase = testDb
+      .insert(schema.purchases)
+      .values({
+        userId: base.user.id,
+        courseId: base.course.id,
+        amountPaid: 9998,
+        country: "US",
+      })
+      .returning()
+      .get();
+    testDb
+      .insert(schema.coupons)
+      .values({
+        teamId: team.id,
+        courseId: base.course.id,
+        code: "TEAM-OWN",
+        purchaseId: teamPurchase.id,
+        redeemedByUserId: base.user.id,
+        redeemedAt: new Date().toISOString(),
+      })
+      .run();
+    testDb
+      .insert(schema.enrollments)
+      .values({ userId: base.user.id, courseId: base.course.id })
+      .run();
+
+    expect(offerOn("2026-03-02")).toMatchObject({
+      ok: false,
+      code: "joined-with-own-coupon",
+      error:
+        "You joined this course with a Coupon from your own Team Purchase. A Team Purchase can't be Refunded once one of its Coupons has been Redeemed.",
+    });
+  });
+
   it("makes no offer for a Purchase that already has a Refund Request", () => {
     requestRefund(buyCourseOn("2026-03-01").id);
 
@@ -1111,6 +1147,7 @@ describe("refusalReasonForStudent", () => {
     "completion-limit",
     "watch-time-limit",
     "joined-with-coupon",
+    "joined-with-own-coupon",
   ] as const)("tells the Student why for %s", (code) => {
     expect(
       refusalReasonForStudent(
