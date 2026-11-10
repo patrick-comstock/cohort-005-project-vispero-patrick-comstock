@@ -695,6 +695,67 @@ describe("getRefundRequestDetail", () => {
       watchTimeAndCompletion: null,
     });
   });
+
+  it("counts a Team Purchase's Coupons and how many were Redeemed", () => {
+    const team = testDb.insert(schema.teams).values({}).returning().get();
+    const teamPurchase = testDb
+      .insert(schema.purchases)
+      .values({
+        userId: base.user.id,
+        courseId: base.course.id,
+        amountPaid: 4999 * 3,
+        country: "US",
+      })
+      .returning()
+      .get();
+    const redeemer = testDb
+      .insert(schema.users)
+      .values({
+        name: "Rae Redeemer",
+        email: "rae@example.com",
+        role: UserRole.Student,
+      })
+      .returning()
+      .get();
+    testDb
+      .insert(schema.coupons)
+      .values([
+        {
+          teamId: team.id,
+          courseId: base.course.id,
+          code: "TEAM-COUNT-1",
+          purchaseId: teamPurchase.id,
+          redeemedByUserId: redeemer.id,
+          redeemedAt: new Date().toISOString(),
+        },
+        {
+          teamId: team.id,
+          courseId: base.course.id,
+          code: "TEAM-COUNT-2",
+          purchaseId: teamPurchase.id,
+        },
+        {
+          teamId: team.id,
+          courseId: base.course.id,
+          code: "TEAM-COUNT-3",
+          purchaseId: teamPurchase.id,
+        },
+      ])
+      .run();
+    const refundRequest = requestRefund(teamPurchase.id);
+
+    const detail = getRefundRequestDetail(testDb, refundRequest.id);
+
+    expect(detail?.couponCounts).toEqual({ coupons: 3, redeemed: 1 });
+  });
+
+  it("has no Coupon counts for an individual Purchase", () => {
+    const refundRequest = requestRefund(buyCourse(base.user.id).id);
+
+    const detail = getRefundRequestDetail(testDb, refundRequest.id);
+
+    expect(detail?.couponCounts).toBeNull();
+  });
 });
 
 describe("listStudentRefundRequests", () => {

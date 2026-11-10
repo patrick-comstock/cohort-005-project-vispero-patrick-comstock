@@ -546,12 +546,27 @@ function getWatchTimeAndCompletion(
   };
 }
 
+/** How many Coupons a Team Purchase has, and how many of them were Redeemed. */
+function getCouponCounts(database: Db, purchaseId: number) {
+  const row = database
+    .select({
+      coupons: sql<number>`count(*)`,
+      redeemed: sql<number>`count(${coupons.redeemedByUserId})`,
+    })
+    .from(coupons)
+    .where(eq(coupons.purchaseId, purchaseId))
+    .get();
+  return { coupons: row?.coupons ?? 0, redeemed: row?.redeemed ?? 0 };
+}
+
 /**
  * Everything the Admin sees before Resolving one Refund Request. Watch time
  * and completion are context only: Refund Eligibility was judged when the
  * Refund Request was made. They are null for a Team Purchase, whose Refund
  * Eligibility has no Watch-Time Limit or Completion Limit and whose buyer's
- * own viewing is unrelated to it.
+ * own viewing is unrelated to it. For a Team Purchase the Admin sees instead
+ * how many Coupons it has and how many were Redeemed; these are null for an
+ * individual Purchase.
  */
 export function getRefundRequestDetail(database: Db, refundRequestId: number) {
   const all = selectRefundRequestRows(database).all();
@@ -570,6 +585,9 @@ export function getRefundRequestDetail(database: Db, refundRequestId: number) {
           refundRequest.userId,
           refundRequest.courseId
         ),
+    couponCounts: teamPurchase
+      ? getCouponCounts(database, refundRequest.purchaseId)
+      : null,
     earlierRefundRequests: earlierRefundRequests(all, refundRequest),
   };
 }
