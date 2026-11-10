@@ -367,20 +367,20 @@ export function findPurchaseForAccess(
 }
 
 /**
- * Everything the Admin sees before Resolving one Refund Request. Watch time
- * and completion are context only: Refund Eligibility was judged when the
- * Refund Request was made.
+ * How much of a course a user has watched (the furthest point reached in each
+ * lesson's video, summed) and the share of its lessons they have completed:
+ * what the Watch-Time Limit and Completion Limit are judged on.
  */
-export function getRefundRequestDetail(database: Db, refundRequestId: number) {
-  const all = selectRefundRequestRows(database).all();
-  const refundRequest = all.find((row) => row.id === refundRequestId);
-  if (!refundRequest) return null;
-
+function getWatchTimeAndCompletion(
+  database: Db,
+  userId: number,
+  courseId: number
+) {
   const lessonIds = database
     .select({ id: lessons.id })
     .from(lessons)
     .innerJoin(modules, eq(lessons.moduleId, modules.id))
-    .where(eq(modules.courseId, refundRequest.courseId))
+    .where(eq(modules.courseId, courseId))
     .all()
     .map((row) => row.id);
 
@@ -396,7 +396,7 @@ export function getRefundRequestDetail(database: Db, refundRequestId: number) {
       .from(videoWatchEvents)
       .where(
         and(
-          eq(videoWatchEvents.userId, refundRequest.userId),
+          eq(videoWatchEvents.userId, userId),
           inArray(videoWatchEvents.lessonId, lessonIds)
         )
       )
@@ -410,7 +410,7 @@ export function getRefundRequestDetail(database: Db, refundRequestId: number) {
         .from(lessonProgress)
         .where(
           and(
-            eq(lessonProgress.userId, refundRequest.userId),
+            eq(lessonProgress.userId, userId),
             eq(lessonProgress.status, LessonProgressStatus.Completed),
             inArray(lessonProgress.lessonId, lessonIds)
           )
@@ -419,10 +419,32 @@ export function getRefundRequestDetail(database: Db, refundRequestId: number) {
   }
 
   return {
+    watchedSeconds,
+    completion: lessonIds.length > 0 ? completedLessons / lessonIds.length : 0,
+  };
+}
+
+/**
+ * Everything the Admin sees before Resolving one Refund Request. Watch time
+ * and completion are context only: Refund Eligibility was judged when the
+ * Refund Request was made.
+ */
+export function getRefundRequestDetail(database: Db, refundRequestId: number) {
+  const all = selectRefundRequestRows(database).all();
+  const refundRequest = all.find((row) => row.id === refundRequestId);
+  if (!refundRequest) return null;
+
+  const { watchedSeconds, completion } = getWatchTimeAndCompletion(
+    database,
+    refundRequest.userId,
+    refundRequest.courseId
+  );
+
+  return {
     ...refundRequest,
     isTeamPurchase: isTeamPurchase(database, refundRequest.purchaseId),
     watchedSeconds,
-    completion: lessonIds.length > 0 ? completedLessons / lessonIds.length : 0,
+    completion,
     earlierRefundRequests: earlierRefundRequests(all, refundRequest),
   };
 }
@@ -472,5 +494,117 @@ export function buildRefundRequestResolvedEmail(input: {
       "",
       "— The Cadence team",
     ].join("\n"),
+  };
+}
+
+export type RefundRequestOffer =
+  | {
+      ok: true;
+      purchase: typeof purchases.$inferSelect;
+      amount: number;
+      lastDayInWindow: string;
+    }
+  | { ok: false; code: RefundRequestRefusalCode; error: string };
+
+export type RefundRequestRefusalCode =
+  | "not-enrolled"
+  | "no-purchase"
+  | "already-requested"
+  | "outside-refund-window"
+  | "completion-limit"
+  | "watch-time-limit";
+
+function isEnrolled(database: Db, userId: number, courseId: number) {
+  const enrollment = database
+    .select({ id: enrollments.id })
+    .from(enrollments)
+    .where(
+      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
+    )
+    .get();
+  return !!enrollment;
+}
+
+/**
+ * The Refund Request a Student may make for a course: their Refund Request
+ * Purchase and the Refund amount, or why they may not make one. The course
+ * page offers it and the Refund Request action enforces it, so the two
+ * cannot drift apart.
+ */
+export function getRefundRequestOffer(
+  database: Db,
+  input: { userId: number; courseId: number; now?: Date }
+): RefundRequestOffer {
+  if (!isEnrolled(database, input.userId, input.courseId)) {
+    return {
+      ok: false,
+      code: "not-enrolled",
+      error: "You must be enrolled in this course to make a Refund Request.",
+    };
+  }
+
+  const purchase = getRefundRequestPurchase(
+    database,
+    input.userId,
+    input.courseId
+  );
+
+  if (!purchase) {
+    return {
+      ok: false,
+      code: "no-purchase",
+      error: "You have not bought this course.",
+    };
+  }
+
+  // A Purchase can have at most one Refund Request, ever (ADR 0002).
+  if (hasRefundRequest(database, purchase.id)) {
+    return {
+      ok: false,
+      code: "already-requested",
+      error: "You have already made a Refund Request for this Purchase.",
+    };
+  }
+
+  const today = toCalendarDay(input.now ?? new Date());
+  const purchasedDay = toCalendarDay(new Date(purchase.createdAt));
+  const lastDayInWindow = lastDayOfRefundWindow(purchase.createdAt);
+
+  if (today < purchasedDay || today > lastDayInWindow) {
+    return {
+      ok: false,
+      code: "outside-refund-window",
+      error: `This Purchase is outside its ${REFUND_WINDOW_DAYS}-day Refund Window.`,
+    };
+  }
+
+  const { watchedSeconds, completion } = getWatchTimeAndCompletion(
+    database,
+    input.userId,
+    input.courseId
+  );
+
+  if (completion >= COMPLETION_LIMIT) {
+    return {
+      ok: false,
+      code: "completion-limit",
+      error: "You have completed too much of this course to request a refund.",
+    };
+  }
+
+  if (watchedSeconds >= WATCH_TIME_LIMIT_SECONDS) {
+    return {
+      ok: false,
+      code: "watch-time-limit",
+      error: "You have watched too much of this course to request a refund.",
+    };
+  }
+
+  return {
+    ok: true,
+    purchase,
+    // The Refund is always the full amount paid for the Purchase.
+    amount: purchase.amountPaid,
+    lastDayInWindow,
   };
 }
