@@ -52,28 +52,28 @@ describe("analytics config", () => {
   });
 
   describe("splitRevenue", () => {
-    it("splits a round amount into fee and net", () => {
+    it("splits a round amount into fee and Net Earnings", () => {
       expect(splitRevenue(10000)).toEqual({
-        grossCents: 10000,
+        revenueCents: 10000,
         feeCents: 2000,
-        netCents: 8000,
+        netEarningsCents: 8000,
       });
     });
 
-    it("keeps fee and net adding up to gross when the split is fractional", () => {
+    it("keeps fee and Net Earnings adding up to Revenue when the split is fractional", () => {
       // Half a cent each way — the amounts where rounding both figures
       // independently leaves the page a cent short.
-      for (const gross of [1, 3, 7, 3333, 99_999]) {
-        const { feeCents, netCents } = splitRevenue(gross);
-        expect(feeCents + netCents).toBe(gross);
+      for (const revenue of [1, 3, 7, 3333, 99_999]) {
+        const { feeCents, netEarningsCents } = splitRevenue(revenue);
+        expect(feeCents + netEarningsCents).toBe(revenue);
       }
     });
 
     it("splits zero into zeroes", () => {
       expect(splitRevenue(0)).toEqual({
-        grossCents: 0,
+        revenueCents: 0,
         feeCents: 0,
-        netCents: 0,
+        netEarningsCents: 0,
       });
     });
   });

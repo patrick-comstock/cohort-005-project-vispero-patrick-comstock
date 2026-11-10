@@ -86,6 +86,20 @@ The maximum video watched (under 2 hours) for a Refund Request to be allowed.
 **Completion Limit**:
 The maximum share of lessons completed (under 50%) for a Refund Request to be allowed.
 
+### Earnings
+
+**Gross Sales**:
+What was paid for Purchases, before any Refunds.
+_Avoid_: Gross revenue, gross
+
+**Revenue**:
+Gross Sales minus Refunds: the money from Purchases that was kept.
+_Avoid_: Net revenue, sales, income
+
+**Net Earnings**:
+The instructor's share of Revenue, after the platform fee.
+_Avoid_: Net, payout, profit, take-home
+
 ### Outside this system
 
 **Chargeback**:
