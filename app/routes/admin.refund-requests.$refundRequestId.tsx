@@ -318,6 +318,12 @@ export default function AdminRefundRequest({
                 value={`${formatWatchTime(refundRequest.watchTimeAndCompletion.watchedSeconds)} watched · ${Math.round(refundRequest.watchTimeAndCompletion.completion * 100)}% of lessons completed`}
               />
             )}
+            {refundRequest.couponCounts && (
+              <Fact
+                label="Coupons (context only)"
+                value={`${refundRequest.couponCounts.coupons} ${refundRequest.couponCounts.coupons === 1 ? "Coupon" : "Coupons"} · ${refundRequest.couponCounts.redeemed} Redeemed`}
+              />
+            )}
           </dl>
           <div className="mt-6">
             <Fact
