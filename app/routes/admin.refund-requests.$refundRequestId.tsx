@@ -127,6 +127,9 @@ function consequences(
   resolution: RefundRequestStatus.Approved | RefundRequestStatus.Declined
 ) {
   if (resolution === RefundRequestStatus.Declined) {
+    if (refundRequest.isTeamPurchase) {
+      return `Decline this Refund Request. ${refundRequest.userName} gets no Refund, and the Coupons of this Team Purchase for ${refundRequest.courseTitle} stay valid and can be Redeemed again. This cannot be undone.`;
+    }
     return `Decline this Refund Request. ${refundRequest.userName} gets no Refund and keeps their Access to ${refundRequest.courseTitle}. This cannot be undone.`;
   }
 
