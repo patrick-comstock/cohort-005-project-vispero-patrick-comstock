@@ -6,8 +6,8 @@
 // database or the request.
 
 /**
- * The platform's cut of gross revenue. One constant, named once — the page
- * shows gross, fee and net side by side, and they must agree.
+ * The platform's cut of Revenue. One constant, named once — the page shows
+ * Revenue, fee and Net Earnings side by side, and they must agree.
  */
 export const PLATFORM_FEE_RATE = 0.2;
 
@@ -92,12 +92,12 @@ export function formatBucket(bucket: string): string {
 }
 
 /**
- * Splits gross revenue into the platform's fee and the instructor's net.
+ * Splits Revenue into the platform's fee and the instructor's Net Earnings.
  *
- * Net is gross minus the rounded fee rather than a second independent
- * rounding, so the three figures always add up on screen.
+ * Net Earnings are Revenue minus the rounded fee rather than a second
+ * independent rounding, so the three figures always add up on screen.
  */
-export function splitRevenue(grossCents: number) {
-  const feeCents = Math.round(grossCents * PLATFORM_FEE_RATE);
-  return { grossCents, feeCents, netCents: grossCents - feeCents };
+export function splitRevenue(revenueCents: number) {
+  const feeCents = Math.round(revenueCents * PLATFORM_FEE_RATE);
+  return { revenueCents, feeCents, netEarningsCents: revenueCents - feeCents };
 }
