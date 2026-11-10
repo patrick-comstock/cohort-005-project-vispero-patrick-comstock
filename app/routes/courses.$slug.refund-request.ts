@@ -5,24 +5,21 @@ import { getCurrentUserId } from "~/lib/session";
 import { db } from "~/db";
 import {
   courses,
-  coupons,
   lessons,
   modules,
-  purchases,
-  refundRequests,
   users,
   videoWatchEvents,
-  RefundRequestStatus,
 } from "~/db/schema";
-import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { parseFormData, parseParams } from "~/lib/validation";
-import { getDiscountForCountry } from "~/lib/ppp";
 import { formatPrice } from "~/lib/utils";
 import {
   REFUND_WINDOW_DAYS,
   WATCH_TIME_LIMIT_SECONDS,
-  getPendingRefundRequest,
+  getRefundRequestPurchase,
+  hasRefundRequest,
   lastDayOfRefundWindow,
+  makeRefundRequest,
   toCalendarDay,
 } from "~/lib/refund-requests.server";
 
@@ -40,15 +37,6 @@ const refundRequestSchema = z.object({
 
 function getCourseBySlug(slug: string) {
   return db.select().from(courses).where(eq(courses.slug, slug)).get();
-}
-
-function getLatestPurchase(userId: number, courseId: number) {
-  return db
-    .select()
-    .from(purchases)
-    .where(and(eq(purchases.userId, userId), eq(purchases.courseId, courseId)))
-    .orderBy(sql`${purchases.createdAt} desc`)
-    .get();
 }
 
 function getLessonIdsForCourse(courseId: number): number[] {
@@ -112,33 +100,17 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("User not found", { status: 404 });
   }
 
-  const purchase = getLatestPurchase(currentUserId, course.id);
+  const purchase = getRefundRequestPurchase(db, currentUserId, course.id);
 
   if (!purchase) {
     throw data("You have not bought this course.", { status: 403 });
   }
 
-  if (getPendingRefundRequest(purchase.id)) {
-    throw data("You already have a pending Refund Request for this purchase.", {
+  // A Purchase can have at most one Refund Request, ever — Pending or Resolved.
+  if (hasRefundRequest(db, purchase.id)) {
+    throw data("You have already made a Refund Request for this Purchase.", {
       status: 409,
     });
-  }
-
-  // A Team Purchase whose Coupon has been Redeemed belongs to the team — the
-  // Student cannot make a Refund Request for it on their own.
-  const redeemedCoupon = db
-    .select({ id: coupons.id })
-    .from(coupons)
-    .where(
-      and(eq(coupons.purchaseId, purchase.id), isNotNull(coupons.redeemedAt))
-    )
-    .get();
-
-  if (redeemedCoupon) {
-    throw data(
-      "A refund cannot be requested once a team Coupon has been redeemed.",
-      { status: 403 }
-    );
   }
 
   const today = toCalendarDay(new Date());
@@ -181,10 +153,8 @@ export async function action({ params, request }: Route.ActionArgs) {
     );
   }
 
-  // A Purchase made at a purchasing-power price is refunded at that price,
-  // not at the list price of the course.
-  const pppDiscount = getDiscountForCountry(purchase.country);
-  const refundableAmount = pppDiscount > 0 ? purchase.amountPaid : course.price;
+  // The Refund is always the full amount paid for the Purchase.
+  const refundableAmount = purchase.amountPaid;
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, refundRequestSchema);
@@ -193,15 +163,14 @@ export async function action({ params, request }: Route.ActionArgs) {
     return data({ errors: parsed.errors }, { status: 400 });
   }
 
-  db
-    .insert(refundRequests)
-    .values({
-      purchaseId: purchase.id,
-      status: RefundRequestStatus.Pending,
-      reason: parsed.data.reason,
-    })
-    .returning()
-    .get();
+  const made = makeRefundRequest(db, {
+    purchaseId: purchase.id,
+    reason: parsed.data.reason,
+  });
+
+  if (!made.ok) {
+    throw data(made.error, { status: 409 });
+  }
 
   const email = buildRefundRequestEmail({
     studentName: student.name,

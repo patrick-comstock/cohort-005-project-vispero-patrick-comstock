@@ -19,11 +19,12 @@ import {
   videoWatchEvents,
   LessonProgressStatus,
 } from "~/db/schema";
-import { eq, and, or, sql, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, or, sql, inArray } from "drizzle-orm";
 import {
   COMPLETION_LIMIT,
   WATCH_TIME_LIMIT_SECONDS,
-  getPendingRefundRequest,
+  getRefundRequestPurchase,
+  hasRefundRequest,
   lastDayOfRefundWindow,
   toCalendarDay,
 } from "~/lib/refund-requests.server";
@@ -57,7 +58,6 @@ import { resolveCountry } from "~/lib/country.server";
 import {
   calculatePppPrice,
   getCountryTierInfo,
-  getDiscountForCountry,
 } from "~/lib/ppp";
 import { parseFormData } from "~/lib/validation";
 import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
@@ -373,15 +373,6 @@ function rateCourse(userId: number, courseId: number, rating: number) {
     .get();
 }
 
-function getPurchaseForCourse(userId: number, courseId: number) {
-  return db
-    .select()
-    .from(purchases)
-    .where(and(eq(purchases.userId, userId), eq(purchases.courseId, courseId)))
-    .orderBy(sql`${purchases.createdAt} desc`)
-    .get();
-}
-
 /** Whether the user bought this course as a Team Purchase (a Purchase with Coupons). */
 function hasTeamPurchaseForCourse(userId: number, courseId: number) {
   const teamCoupon = db
@@ -435,14 +426,13 @@ function getSecondsWatched(userId: number, lessonIds: number[]) {
  * The Refund Request the Student may make for their Purchase, with the Refund
  * amount, or null if the Purchase does not meet Refund Eligibility.
  */
-function getRefundRequestOffer(
-  userId: number,
-  course: { id: number; price: number }
-) {
-  const purchase = getPurchaseForCourse(userId, course.id);
+function getRefundRequestOffer(userId: number, course: { id: number }) {
+  const purchase = getRefundRequestPurchase(db, userId, course.id);
 
   if (!purchase) return null;
-  if (getPendingRefundRequest(purchase.id)) return null;
+  // A Purchase can have at most one Refund Request, ever — once one is made,
+  // Pending or Resolved, the offer is gone for that Purchase.
+  if (hasRefundRequest(db, purchase.id)) return null;
 
   const purchasedDay = toCalendarDay(new Date(purchase.createdAt));
   const lastDayInWindow = lastDayOfRefundWindow(purchase.createdAt);
@@ -465,20 +455,8 @@ function getRefundRequestOffer(
     return null;
   }
 
-  const redeemedCoupon = db
-    .select({ id: coupons.id })
-    .from(coupons)
-    .where(
-      and(eq(coupons.purchaseId, purchase.id), isNotNull(coupons.redeemedAt))
-    )
-    .get();
-
-  if (redeemedCoupon) return null;
-
-  // A purchasing-power price is refunded at the price that was paid, not at
-  // the list price of the course.
-  const pppDiscount = getDiscountForCountry(purchase.country);
-  const amount = pppDiscount > 0 ? purchase.amountPaid : course.price;
+  // The Refund is always the full amount paid for the Purchase.
+  const amount = purchase.amountPaid;
 
   return { amount, lastDayInWindow };
 }
@@ -528,7 +506,6 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     if (enrolled) {
       refundRequestOffer = getRefundRequestOffer(currentUserId, {
         id: course.id,
-        price: courseWithDetails.price,
       });
 
       progress = calculateProgress(currentUserId, course.id, false);

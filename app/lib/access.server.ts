@@ -6,11 +6,11 @@ import {
   users,
   courses,
   enrollments,
-  purchases,
 } from "~/db/schema";
 import { getCurrentUserId } from "~/lib/session";
 import { resolveCountry } from "~/lib/country.server";
 import { checkPppAccess } from "~/lib/ppp";
+import { findPurchaseForAccess } from "~/lib/refund-requests.server";
 
 function getUserById(id: number) {
   return db.select().from(users).where(eq(users.id, id)).get();
@@ -32,14 +32,6 @@ function findEnrollment(userId: number, courseId: number) {
 
 function isUserEnrolled(userId: number, courseId: number) {
   return !!findEnrollment(userId, courseId);
-}
-
-function findPurchase(userId: number, courseId: number) {
-  return db
-    .select()
-    .from(purchases)
-    .where(and(eq(purchases.userId, userId), eq(purchases.courseId, courseId)))
-    .get();
 }
 
 // ─── Access Resolution ───
@@ -107,7 +99,8 @@ export async function getAccess(
   };
 
   if (enrolled && !isStaff && course) {
-    const purchase = findPurchase(userId, courseId);
+    // A Refunded Purchase no longer decides where the Student may watch from.
+    const purchase = findPurchaseForAccess(db, userId, courseId);
     const currentCountry = await resolveCountry(request);
     ppp = checkPppAccess(
       course.price,
