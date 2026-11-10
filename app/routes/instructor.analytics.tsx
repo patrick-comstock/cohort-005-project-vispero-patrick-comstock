@@ -36,6 +36,7 @@ import { ownedBy, scopeOn, sinceRange } from "~/lib/analytics-scope.server";
 import {
   getBuyerCount,
   getCourseRevenueByCountry,
+  getFullyRefundedCourseIds,
   getRevenueByCourse,
   getRevenueOverTime,
   getRevenueSummary,
@@ -524,6 +525,9 @@ export async function loader({ request, url }: Route.LoaderArgs) {
 
   // Revenue broken down by course, biggest earner first.
   const courseRevenue = getRevenueByCourse(db, scope);
+  // Courses left out of that breakdown because every sale was Refunded, so
+  // the table can say so rather than claim there were no sales.
+  const fullyRefundedCourseIds = getFullyRefundedCourseIds(db, scope);
 
   // How many people paid, and how many are learning. Deliberately two numbers:
   // one team purchase is a single buyer covering several Coupons, and someone who
@@ -589,6 +593,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
     summary,
     series: getRevenueOverTime(db, scope),
     courses: courseRevenue,
+    fullyRefundedCourseIds,
     courseOptions,
     // Progress and drop-off carry no usable timestamp, so they span all time
     // whatever the range control says — and the tab says so on screen.
@@ -1095,6 +1100,11 @@ function RevenueByCountry({ breakdown }: { breakdown: CourseCountryRevenue }) {
   );
 }
 
+// The two empty states for Revenue: a period with no Purchases, and one whose
+// Purchases were all Refunded.
+const NO_SALES_YET = "No sales in this period yet.";
+const ALL_SALES_REFUNDED = "All sales in this period were Refunded.";
+
 export default function InstructorAnalytics({
   loaderData,
 }: Route.ComponentProps) {
@@ -1107,6 +1117,7 @@ export default function InstructorAnalytics({
     summary,
     series,
     courses,
+    fullyRefundedCourseIds,
     courseOptions,
     progress,
     funnel,
@@ -1141,6 +1152,12 @@ export default function InstructorAnalytics({
   const revenueRows = selectedCourse
     ? courses.filter((course) => course.courseId === selectedCourseId)
     : courses;
+  // An empty table means either no sales or sales that were all Refunded. For
+  // every course, the summary already tells them apart: with nothing kept, any
+  // Refund means every sale was Refunded.
+  const revenueRowsAllRefunded = selectedCourse
+    ? fullyRefundedCourseIds.includes(selectedCourse.courseId)
+    : summary.refundCount > 0;
 
   return (
     <div className="mx-auto max-w-5xl p-6 lg:p-8">
@@ -1328,7 +1345,11 @@ export default function InstructorAnalytics({
                     than being told there is nothing there. */}
                 {summary.purchaseCount === 0 ? (
                   <p className="py-12 text-center text-sm text-muted-foreground">
-                    No sales in this period yet.
+                    {/* Nothing kept, so any Refund means every sale was
+                        Refunded. */}
+                    {summary.refundCount > 0
+                      ? ALL_SALES_REFUNDED
+                      : NO_SALES_YET}
                   </p>
                 ) : (
                   <RevenueChart series={series} />
@@ -1450,7 +1471,7 @@ export default function InstructorAnalytics({
               <CardContent className="p-6">
                 {revenueRows.length === 0 ? (
                   <p className="py-12 text-center text-sm text-muted-foreground">
-                    No sales in this period yet.
+                    {revenueRowsAllRefunded ? ALL_SALES_REFUNDED : NO_SALES_YET}
                   </p>
                 ) : (
                   <table className="w-full text-sm">
