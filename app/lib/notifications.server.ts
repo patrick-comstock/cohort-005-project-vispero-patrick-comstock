@@ -57,13 +57,16 @@ export function markNotificationRead(
   return notification.link;
 }
 
-/** Marks all of the user's unread Notifications read. */
+/**
+ * Marks all of the user's unread Notifications read, and returns how many it
+ * marked.
+ */
 export function markAllNotificationsRead(
   database: Db,
   recipientId: number,
   now = new Date().toISOString()
-) {
-  database
+): number {
+  const result = database
     .update(notifications)
     .set({ readAt: now })
     .where(
@@ -73,6 +76,7 @@ export function markAllNotificationsRead(
       )
     )
     .run();
+  return result.changes;
 }
 
 /** How many of a user's own Notifications are unread. */

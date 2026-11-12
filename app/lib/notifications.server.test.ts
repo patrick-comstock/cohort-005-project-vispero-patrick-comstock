@@ -130,6 +130,20 @@ describe("markAllNotificationsRead", () => {
     ]);
     expect(listNotifications(testDb, base.instructor.id)[0].readAt).toBeNull();
   });
+
+  it("returns how many Notifications it marked read", () => {
+    notify(base.user.id, "Unread 1", "2026-03-01T09:00:00.000Z");
+    notify(base.user.id, "Unread 2", "2026-03-02T09:00:00.000Z");
+    notify(
+      base.user.id,
+      "Read",
+      "2026-03-03T09:00:00.000Z",
+      "2026-03-04T09:00:00.000Z"
+    );
+
+    expect(markAllNotificationsRead(testDb, base.user.id)).toBe(2);
+    expect(markAllNotificationsRead(testDb, base.user.id)).toBe(0);
+  });
 });
 
 describe("countUnreadNotifications", () => {
