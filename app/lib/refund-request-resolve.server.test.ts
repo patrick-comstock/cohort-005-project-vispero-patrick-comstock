@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
-import { RefundRequestStatus, UserRole } from "~/db/schema";
+import { NotificationKind, RefundRequestStatus, UserRole } from "~/db/schema";
 import {
   makeRefundRequest,
   makeTeamPurchaseRefundRequest,
 } from "./refund-eligibility.server";
+import { listNotifications } from "./notifications.server";
 import {
   getRefundRequestDetail,
   listRefundRequests,
@@ -55,6 +56,32 @@ function requestRefund(purchaseId: number) {
   if (!result.ok) throw new Error(result.error);
   return result.refundRequest;
 }
+function buyForTeam(userId: number, couponCount: number) {
+  const team = testDb.insert(schema.teams).values({}).returning().get();
+  const purchase = testDb
+    .insert(schema.purchases)
+    .values({
+      userId,
+      courseId: base.course.id,
+      amountPaid: 4999 * couponCount,
+      country: "US",
+    })
+    .returning()
+    .get();
+  testDb
+    .insert(schema.coupons)
+    .values(
+      Array.from({ length: couponCount }, (_, i) => ({
+        teamId: team.id,
+        courseId: base.course.id,
+        code: `TEAM-${purchase.id}-${i}`,
+        purchaseId: purchase.id,
+      }))
+    )
+    .run();
+  return purchase;
+}
+
 describe("resolveRefundRequest", () => {
   it("records the Refund at the amount paid when an Admin Approves", () => {
     const purchase = buyCourse(base.user.id, 2500);
@@ -229,32 +256,6 @@ describe("resolveRefundRequest — what Approval does", () => {
 });
 
 describe("resolveRefundRequest — Team Purchase", () => {
-  function buyForTeam(userId: number, couponCount: number) {
-    const team = testDb.insert(schema.teams).values({}).returning().get();
-    const purchase = testDb
-      .insert(schema.purchases)
-      .values({
-        userId,
-        courseId: base.course.id,
-        amountPaid: 4999 * couponCount,
-        country: "US",
-      })
-      .returning()
-      .get();
-    testDb
-      .insert(schema.coupons)
-      .values(
-        Array.from({ length: couponCount }, (_, i) => ({
-          teamId: team.id,
-          courseId: base.course.id,
-          code: `TEAM-${purchase.id}-${i}`,
-          purchaseId: purchase.id,
-        }))
-      )
-      .run();
-    return purchase;
-  }
-
   function couponsFor(purchaseId: number) {
     return testDb
       .select()
@@ -662,5 +663,138 @@ describe("listRequesterRefundRequests", () => {
         resolutionNote: "Sorry it was not a fit.",
       },
     ]);
+  });
+});
+
+describe("resolveRefundRequest — the Requester is Notified", () => {
+  function resolve(
+    refundRequestId: number,
+    resolution: RefundRequestStatus.Approved | RefundRequestStatus.Declined,
+    resolutionNote?: string
+  ) {
+    const result = resolveRefundRequest(testDb, {
+      refundRequestId,
+      adminUserId: admin.id,
+      resolution,
+      resolutionNote,
+    });
+    if (!result.ok) throw new Error(result.error);
+  }
+
+  it("tells a Student their Refund Request was Approved, linking to /settings", () => {
+    const purchase = buyCourse(base.user.id, 2500);
+    resolve(requestRefund(purchase.id).id, RefundRequestStatus.Approved);
+
+    expect(listNotifications(testDb, base.user.id)).toMatchObject([
+      {
+        kind: NotificationKind.RefundRequestResolved,
+        headline: 'Your Refund Request for "Test Course" was Approved',
+        body: "We're refunding $25.00, the amount you paid. Your access to the course has ended.",
+        link: "/settings",
+        readAt: null,
+      },
+    ]);
+  });
+
+  it("adds the Resolution Note to an Approval as its own paragraph", () => {
+    const purchase = buyCourse(base.user.id, 2500);
+    resolve(
+      requestRefund(purchase.id).id,
+      RefundRequestStatus.Approved,
+      "  Sorry it wasn't a fit.  "
+    );
+
+    expect(listNotifications(testDb, base.user.id)).toMatchObject([
+      {
+        body: "We're refunding $25.00, the amount you paid. Your access to the course has ended.\n\nNote from the Admin: Sorry it wasn't a fit.",
+      },
+    ]);
+  });
+
+  it("tells a Student their Refund Request was Declined, with the Resolution Note", () => {
+    const purchase = buyCourse(base.user.id);
+    resolve(
+      requestRefund(purchase.id).id,
+      RefundRequestStatus.Declined,
+      "You have finished most of the course."
+    );
+
+    expect(listNotifications(testDb, base.user.id)).toMatchObject([
+      {
+        kind: NotificationKind.RefundRequestResolved,
+        headline: 'Your Refund Request for "Test Course" was Declined',
+        body: "There is no Refund, and you keep your access to the course.\n\nNote from the Admin: You have finished most of the course.",
+        link: "/settings",
+      },
+    ]);
+  });
+
+  it("tells a Team Purchase buyer their Refund Request was Approved, linking to /team", () => {
+    const purchase = buyForTeam(base.user.id, 2);
+    resolve(requestRefund(purchase.id).id, RefundRequestStatus.Approved);
+
+    expect(listNotifications(testDb, base.user.id)).toMatchObject([
+      {
+        kind: NotificationKind.RefundRequestResolved,
+        headline: 'Your Refund Request for "Test Course" was Approved',
+        body: "We're refunding $99.98, the amount you paid. Its Coupons have been Voided and can no longer be Redeemed. Anyone who already Redeemed one keeps the course.",
+        link: "/team",
+      },
+    ]);
+  });
+
+  it("tells a Team Purchase buyer their Refund Request was Declined, with the Resolution Note", () => {
+    const purchase = buyForTeam(base.user.id, 2);
+    resolve(
+      requestRefund(purchase.id).id,
+      RefundRequestStatus.Declined,
+      "Your team is still using it."
+    );
+
+    expect(listNotifications(testDb, base.user.id)).toMatchObject([
+      {
+        kind: NotificationKind.RefundRequestResolved,
+        headline: 'Your Refund Request for "Test Course" was Declined',
+        body: "There is no Refund. Its unredeemed Coupons can still be Redeemed.\n\nNote from the Admin: Your team is still using it.",
+        link: "/team",
+      },
+    ]);
+  });
+
+  it("tells only the Requester: the Admin gets no Resolved Notification", () => {
+    const purchase = buyCourse(base.user.id);
+    resolve(requestRefund(purchase.id).id, RefundRequestStatus.Approved);
+
+    expect(
+      listNotifications(testDb, admin.id).map((n) => n.kind)
+    ).toEqual([NotificationKind.RefundRequestMade]);
+    expect(listNotifications(testDb, base.user.id)).toHaveLength(1);
+  });
+
+  it("writes no Notification when the Resolve fails", () => {
+    const purchase = buyCourse(base.user.id);
+    const refundRequest = requestRefund(purchase.id);
+    resolve(refundRequest.id, RefundRequestStatus.Declined, "Outside policy.");
+
+    const second = resolveRefundRequest(testDb, {
+      refundRequestId: refundRequest.id,
+      adminUserId: admin.id,
+      resolution: RefundRequestStatus.Approved,
+    });
+
+    expect(second).toMatchObject({ ok: false, code: "already-resolved" });
+    expect(listNotifications(testDb, base.user.id)).toHaveLength(1);
+  });
+
+  it("writes no Notification when a Decline has no Resolution Note", () => {
+    const purchase = buyCourse(base.user.id);
+    const result = resolveRefundRequest(testDb, {
+      refundRequestId: requestRefund(purchase.id).id,
+      adminUserId: admin.id,
+      resolution: RefundRequestStatus.Declined,
+    });
+
+    expect(result).toMatchObject({ ok: false, code: "note-required" });
+    expect(listNotifications(testDb, base.user.id)).toEqual([]);
   });
 });

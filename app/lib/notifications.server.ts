@@ -52,3 +52,18 @@ export function notifyAdmins(database: Db, content: NotificationContent) {
     .values(admins.map((admin) => ({ ...content, recipientId: admin.id })))
     .run();
 }
+
+/**
+ * Tells one user, with one Notification. Call it inside the transaction of
+ * the event it reports, so a Notification never exists without its event.
+ */
+export function notifyUser(
+  database: Db,
+  recipientId: number,
+  content: NotificationContent
+) {
+  database
+    .insert(notifications)
+    .values({ ...content, recipientId })
+    .run();
+}

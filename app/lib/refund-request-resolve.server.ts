@@ -4,6 +4,7 @@ import {
   coupons,
   courses,
   enrollments,
+  NotificationKind,
   purchases,
   refundRequests,
   RefundRequestStatus,
@@ -14,6 +15,8 @@ import {
   getWatchTimeAndCompletion,
   isTeamPurchase,
 } from "~/lib/refund-eligibility.server";
+import { notifyUser } from "~/lib/notifications.server";
+import { formatPrice } from "~/lib/utils";
 
 type RefundRequest = typeof refundRequests.$inferSelect;
 
@@ -42,9 +45,11 @@ export function resolveRefundRequest(
       amountPaid: purchases.amountPaid,
       userId: purchases.userId,
       courseId: purchases.courseId,
+      courseTitle: courses.title,
     })
     .from(refundRequests)
     .innerJoin(purchases, eq(refundRequests.purchaseId, purchases.id))
+    .innerJoin(courses, eq(purchases.courseId, courses.id))
     .where(eq(refundRequests.id, input.refundRequestId))
     .get();
 
@@ -106,7 +111,9 @@ export function resolveRefundRequest(
       };
     }
 
-    if (isApproved && isTeamPurchase(tx, refundRequest.purchaseId)) {
+    const teamPurchase = isTeamPurchase(tx, refundRequest.purchaseId);
+
+    if (isApproved && teamPurchase) {
       // A Team Purchase gave its buyer no Enrollment, so Approval only Voids
       // its Coupons. Any Enrollment the buyer has came from another Purchase.
       tx.update(coupons)
@@ -127,8 +134,45 @@ export function resolveRefundRequest(
         .run();
     }
 
+    notifyUser(tx, existing.userId, {
+      kind: NotificationKind.RefundRequestResolved,
+      headline: `Your Refund Request for "${existing.courseTitle}" was ${isApproved ? "Approved" : "Declined"}`,
+      body: resolvedNotificationBody({
+        isApproved,
+        teamPurchase,
+        refundAmount: refundRequest.refundAmount,
+        resolutionNote,
+      }),
+      link: teamPurchase ? "/team" : "/settings",
+    });
+
     return { ok: true, refundRequest };
   });
+}
+
+/**
+ * What the Requester is told about a Resolution. The outcome sentences mirror
+ * the simulated email in refund-request-emails.server.ts; the Resolution Note
+ * follows as its own paragraph.
+ */
+function resolvedNotificationBody(input: {
+  isApproved: boolean;
+  teamPurchase: boolean;
+  refundAmount: number | null;
+  resolutionNote: string | null;
+}) {
+  const refunding = `We're refunding ${formatPrice(input.refundAmount)}, the amount you paid.`;
+  const outcome = input.isApproved
+    ? input.teamPurchase
+      ? `${refunding} Its Coupons have been Voided and can no longer be Redeemed. Anyone who already Redeemed one keeps the course.`
+      : `${refunding} Your access to the course has ended.`
+    : input.teamPurchase
+      ? "There is no Refund. Its unredeemed Coupons can still be Redeemed."
+      : "There is no Refund, and you keep your access to the course.";
+
+  return input.resolutionNote
+    ? `${outcome}\n\nNote from the Admin: ${input.resolutionNote}`
+    : outcome;
 }
 
 function selectRefundRequestRows(database: Db) {
