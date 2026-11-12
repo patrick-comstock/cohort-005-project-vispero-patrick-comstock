@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
-import { RefundRequestStatus, UserRole } from "~/db/schema";
+import { NotificationKind, RefundRequestStatus, UserRole } from "~/db/schema";
 import {
   formatCalendarDay,
   getRefundRequestOffer,
@@ -17,6 +17,7 @@ import {
   refusalReasonForStudent,
   refusalReasonForTeamPurchaseBuyer,
 } from "./refund-eligibility.server";
+import { listNotifications } from "./notifications.server";
 import {
   listRequesterRefundRequests,
   resolveRefundRequest,
@@ -53,6 +54,27 @@ function buyCourse(userId: number, amountPaid = 4999) {
     .values({ userId, courseId: base.course.id })
     .run();
   return purchase;
+}
+
+function makeAdmin(name: string, email: string) {
+  return testDb
+    .insert(schema.users)
+    .values({ name, email, role: UserRole.Admin })
+    .returning()
+    .get();
+}
+
+/** What a user's Notifications say, without their ids and times. */
+function notificationsFor(userId: number) {
+  return listNotifications(testDb, userId).map(
+    ({ kind, headline, body, link, readAt }) => ({
+      kind,
+      headline,
+      body,
+      link,
+      readAt,
+    })
+  );
 }
 
 function requestRefund(purchaseId: number) {
@@ -410,6 +432,41 @@ describe("getRefundRequestOffer", () => {
       });
     });
 
+    it("tells every Admin, each with their own unread Notification", () => {
+      const secondAdmin = makeAdmin("Bea Admin", "bea@example.com");
+      buyCourseOn("2026-03-01", 2500);
+
+      const made = makeOn("2026-03-02");
+      if (!made.ok) throw new Error(made.error);
+
+      const expected = [
+        {
+          kind: NotificationKind.RefundRequestMade,
+          headline: 'Test User made a Refund Request for "Test Course"',
+          body: "Refund if Approved: $25.00",
+          link: `/admin/refund-requests/${made.refundRequest.id}`,
+          readAt: null,
+        },
+      ];
+      expect(notificationsFor(admin.id)).toEqual(expected);
+      expect(notificationsFor(secondAdmin.id)).toEqual(expected);
+      expect(notificationsFor(base.user.id)).toEqual([]);
+      expect(notificationsFor(base.instructor.id)).toEqual([]);
+    });
+
+    it("does not tell someone who becomes an Admin afterwards", () => {
+      buyCourseOn("2026-03-01");
+      makeOn("2026-03-02");
+
+      testDb
+        .update(schema.users)
+        .set({ role: UserRole.Admin })
+        .where(eq(schema.users.id, base.instructor.id))
+        .run();
+
+      expect(notificationsFor(base.instructor.id)).toEqual([]);
+    });
+
     it("refuses outside the Refund Window and records nothing", () => {
       const purchase = buyCourseOn("2026-03-01");
 
@@ -418,6 +475,7 @@ describe("getRefundRequestOffer", () => {
         code: "outside-refund-window",
       });
       expect(hasRefundRequest(testDb, purchase.id)).toBe(false);
+      expect(notificationsFor(admin.id)).toEqual([]);
     });
 
     it("refuses a second Refund Request for the same Purchase", () => {
@@ -428,6 +486,7 @@ describe("getRefundRequestOffer", () => {
         ok: false,
         code: "already-requested",
       });
+      expect(notificationsFor(admin.id)).toHaveLength(1);
     });
   });
 });
@@ -593,6 +652,33 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
       });
     });
 
+    it("tells every Admin that it is for a Team Purchase", () => {
+      const secondAdmin = makeAdmin("Bea Admin", "bea@example.com");
+      const purchase = buyForTeamOn("2026-03-01", 3, 15000);
+
+      const made = makeTeamPurchaseRefundRequest(testDb, {
+        userId: base.user.id,
+        purchaseId: purchase.id,
+        reason: "The team changed direction.",
+        now: new Date("2026-03-02T12:00:00"),
+      });
+      if (!made.ok) throw new Error(made.error);
+
+      const expected = [
+        {
+          kind: NotificationKind.RefundRequestMade,
+          headline:
+            'Test User made a Refund Request for a Team Purchase of "Test Course"',
+          body: "Refund if Approved: $150.00",
+          link: `/admin/refund-requests/${made.refundRequest.id}`,
+          readAt: null,
+        },
+      ];
+      expect(notificationsFor(admin.id)).toEqual(expected);
+      expect(notificationsFor(secondAdmin.id)).toEqual(expected);
+      expect(notificationsFor(base.user.id)).toEqual([]);
+    });
+
     it("refuses once any of its Coupons is Redeemed and records nothing", () => {
       const purchase = buyForTeamOn("2026-03-01");
       testDb
@@ -613,6 +699,7 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
 
       expect(result).toMatchObject({ ok: false, code: "coupon-redeemed" });
       expect(hasRefundRequest(testDb, purchase.id)).toBe(false);
+      expect(notificationsFor(admin.id)).toEqual([]);
     });
   });
 

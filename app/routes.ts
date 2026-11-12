@@ -55,6 +55,7 @@ export default [
       "admin/refund-requests/:refundRequestId",
       "routes/admin.refund-requests.$refundRequestId.tsx"
     ),
+    route("notifications", "routes/notifications.tsx"),
     route("settings", "routes/settings.tsx"),
     route("team", "routes/team.tsx"),
     route(

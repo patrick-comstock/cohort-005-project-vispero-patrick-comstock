@@ -8,11 +8,15 @@ import {
   LessonProgressStatus,
   lessons,
   modules,
+  NotificationKind,
   purchases,
   refundRequests,
   RefundRequestStatus,
+  users,
   videoWatchEvents,
 } from "~/db/schema";
+import { notifyAdmins } from "~/lib/notifications.server";
+import { formatPrice } from "~/lib/utils";
 
 // Refund Eligibility = Refund Window + Watch-Time Limit + Completion Limit.
 export const REFUND_WINDOW_DAYS = 14;
@@ -102,7 +106,11 @@ export function hasPendingRefundRequest(database: Db, purchaseId: number) {
 
 type RefundRequest = typeof refundRequests.$inferSelect;
 
-/** Records a new Pending Refund Request for a Purchase. */
+/**
+ * Records a new Pending Refund Request for a Purchase and tells every Admin.
+ * Callers run it inside a transaction, so the Notifications are written with
+ * the Refund Request or not at all.
+ */
 export function makeRefundRequest(
   database: Db,
   input: { purchaseId: number; reason: string }
@@ -126,7 +134,40 @@ export function makeRefundRequest(
     };
   }
 
+  notifyAdminsOfRefundRequest(database, refundRequest);
+
   return { ok: true, refundRequest };
+}
+
+/** The "Refund Request made" Notification every Admin gets. */
+function notifyAdminsOfRefundRequest(
+  database: Db,
+  refundRequest: RefundRequest
+) {
+  const made = database
+    .select({
+      requesterName: users.name,
+      courseTitle: courses.title,
+      amount: purchases.amountPaid,
+    })
+    .from(purchases)
+    .innerJoin(users, eq(purchases.userId, users.id))
+    .innerJoin(courses, eq(purchases.courseId, courses.id))
+    .where(eq(purchases.id, refundRequest.purchaseId))
+    .get();
+  if (!made) throw new Error("Refund Request has no Purchase.");
+
+  const subject = isTeamPurchase(database, refundRequest.purchaseId)
+    ? `a Team Purchase of "${made.courseTitle}"`
+    : `"${made.courseTitle}"`;
+
+  notifyAdmins(database, {
+    kind: NotificationKind.RefundRequestMade,
+    headline: `${made.requesterName} made a Refund Request for ${subject}`,
+    // The Refund is always the full amount paid for the Purchase.
+    body: `Refund if Approved: ${formatPrice(made.amount)}`,
+    link: `/admin/refund-requests/${refundRequest.id}`,
+  });
 }
 
 /** A Team Purchase is a Purchase with Coupons. */

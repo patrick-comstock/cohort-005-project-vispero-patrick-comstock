@@ -37,6 +37,11 @@ export enum RefundRequestStatus {
   Declined = "declined",
 }
 
+export enum NotificationKind {
+  RefundRequestMade = "refund_request_made",
+  RefundRequestResolved = "refund_request_resolved",
+}
+
 export enum TeamMemberRole {
   Admin = "admin",
   Member = "member",
@@ -378,3 +383,28 @@ export const videoWatchEvents = sqliteTable("video_watch_events", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 });
+
+// A snapshot of what one person was told (ADR 0005): finished text, written
+// in the same transaction as its event, with no reference to its subject.
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    recipientId: integer("recipient_id")
+      .notNull()
+      .references(() => users.id),
+    kind: text("kind").notNull().$type<NotificationKind>(),
+    headline: text("headline").notNull(),
+    body: text("body"),
+    // Path to its subject, e.g. /admin/refund-requests/12.
+    link: text("link").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    // Null while unread.
+    readAt: text("read_at"),
+  },
+  (table) => [
+    index("notifications_recipient_idx").on(table.recipientId, table.createdAt),
+  ]
+);

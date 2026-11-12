@@ -6,10 +6,12 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "path";
 import { fileURLToPath } from "url";
 import * as schema from "../app/db/schema";
+import { formatPrice } from "../app/lib/utils";
 import {
   UserRole,
   CourseStatus,
   LessonProgressStatus,
+  NotificationKind,
   QuestionType,
   RefundRequestStatus,
   TeamMemberRole,
@@ -65,6 +67,7 @@ async function seed() {
 
   // Drop and recreate tables for a clean seed
   sqlite.exec(`
+    DROP TABLE IF EXISTS notifications;
     DROP TABLE IF EXISTS comments;
     DROP TABLE IF EXISTS course_ratings;
     DROP TABLE IF EXISTS video_watch_events;
@@ -224,15 +227,40 @@ async function seed() {
   // generated at the bottom of this file. Sign-up dates are spread across the
   // last twelve months, including the last few days.
   const cohortNames = [
-    "Ava Nakamura", "Noah Blackwood", "Isla Fernandes", "Ethan Okafor",
-    "Mia Lindqvist", "Lucas Moreau", "Zara Haddad", "Felix Andersen",
-    "Nina Kowalski", "Omar Rahman", "Chloe Beaumont", "Dmitri Volkov",
-    "Priya Raghavan", "Tomas Silva", "Hana Kim", "Gabriel Rossi",
-    "Amara Diallo", "Jonas Weber", "Lena Petrova", "Kwame Mensah",
-    "Sofia Ricci", "Aarav Shah", "Freya Nilsen", "Diego Castillo",
-    "Yuki Tanaka", "Rosa Delgado", "Idris Bello", "Clara Hoffmann",
-    "Mateo Alvarez", "Elif Demir", "Ruben Ortiz", "Anika Bose",
-    "Caleb Ncube", "Marta Novak",
+    "Ava Nakamura",
+    "Noah Blackwood",
+    "Isla Fernandes",
+    "Ethan Okafor",
+    "Mia Lindqvist",
+    "Lucas Moreau",
+    "Zara Haddad",
+    "Felix Andersen",
+    "Nina Kowalski",
+    "Omar Rahman",
+    "Chloe Beaumont",
+    "Dmitri Volkov",
+    "Priya Raghavan",
+    "Tomas Silva",
+    "Hana Kim",
+    "Gabriel Rossi",
+    "Amara Diallo",
+    "Jonas Weber",
+    "Lena Petrova",
+    "Kwame Mensah",
+    "Sofia Ricci",
+    "Aarav Shah",
+    "Freya Nilsen",
+    "Diego Castillo",
+    "Yuki Tanaka",
+    "Rosa Delgado",
+    "Idris Bello",
+    "Clara Hoffmann",
+    "Mateo Alvarez",
+    "Elif Demir",
+    "Ruben Ortiz",
+    "Anika Bose",
+    "Caleb Ncube",
+    "Marta Novak",
   ];
 
   const cohort = db
@@ -2062,7 +2090,9 @@ This course is still in draft while the cluster examples are rewritten against t
   markComplete(students[4].id, course1LessonIds[0], 12);
   markInProgress(students[4].id, course1LessonIds[1]);
 
-  console.log(`Created ${countRows(schema.lessonProgress)} lesson progress records.`);
+  console.log(
+    `Created ${countRows(schema.lessonProgress)} lesson progress records.`
+  );
 
   // ─── Quiz Attempts ───
 
@@ -2760,7 +2790,8 @@ This course is still in draft while the cluster examples are rewritten against t
   // settings have a Resolution, and the Approved one that makes Liam's second
   // Refund Request a Repeat Refund Request.
 
-  db.insert(schema.refundRequests)
+  const seededRefundRequests = db
+    .insert(schema.refundRequests)
     .values([
       {
         purchaseId: sophiaPurchase.id,
@@ -2802,9 +2833,56 @@ This course is still in draft while the cluster examples are rewritten against t
         requestedAt: daysAgo(2),
       },
     ])
-    .run();
+    .returning()
+    .all();
 
   console.log(`Created ${countRows(schema.refundRequests)} refund requests.`);
+
+  // ─── Notifications ───
+  // The "Refund Request made" Notification the Admin got for each Refund
+  // Request above, worded as makeRefundRequest words it. The Admin has read
+  // the ones for Refund Requests already Resolved; the Pending ones are unread.
+
+  for (const refundRequest of seededRefundRequests) {
+    const made = db
+      .select({
+        requesterName: schema.users.name,
+        courseTitle: schema.courses.title,
+        amount: schema.purchases.amountPaid,
+      })
+      .from(schema.purchases)
+      .innerJoin(schema.users, eq(schema.purchases.userId, schema.users.id))
+      .innerJoin(
+        schema.courses,
+        eq(schema.purchases.courseId, schema.courses.id)
+      )
+      .where(eq(schema.purchases.id, refundRequest.purchaseId))
+      .get();
+    if (!made) throw new Error("Seeded Refund Request has no Purchase.");
+
+    const isTeamPurchase =
+      countRows(
+        schema.coupons,
+        eq(schema.coupons.purchaseId, refundRequest.purchaseId)
+      ) > 0;
+    const subject = isTeamPurchase
+      ? `a Team Purchase of "${made.courseTitle}"`
+      : `"${made.courseTitle}"`;
+
+    db.insert(schema.notifications)
+      .values({
+        recipientId: admin.id,
+        kind: NotificationKind.RefundRequestMade,
+        headline: `${made.requesterName} made a Refund Request for ${subject}`,
+        body: `Refund if Approved: ${formatPrice(made.amount)}`,
+        link: `/admin/refund-requests/${refundRequest.id}`,
+        createdAt: refundRequest.requestedAt,
+        readAt: refundRequest.resolvedAt,
+      })
+      .run();
+  }
+
+  console.log(`Created ${countRows(schema.notifications)} notifications.`);
 
   // ─── Flush watch events ───
   // Batched: the heartbeat makes these by far the largest table, and one
@@ -2862,6 +2940,9 @@ This course is still in draft while the cluster examples are rewritten against t
   );
   console.log(
     `  Teams: ${countRows(schema.teams)}, coupons: ${countRows(schema.coupons)} (${countRows(schema.coupons, isNotNull(schema.coupons.redeemedByUserId))} redeemed)`
+  );
+  console.log(
+    `  Notifications: ${countRows(schema.notifications)} (${countRows(schema.notifications, isNull(schema.notifications.readAt))} unread)`
   );
 }
 
