@@ -25,6 +25,49 @@ export function listNotifications(database: Db, recipientId: number) {
     .all();
 }
 
+/**
+ * Marks one of the recipient's own Notifications read and returns its link.
+ * Returns null, changing nothing, when no such Notification is theirs.
+ */
+export function markNotificationRead(
+  database: Db,
+  recipientId: number,
+  notificationId: number,
+  now = new Date().toISOString()
+) {
+  const notification = database
+    .select({ link: notifications.link })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.id, notificationId),
+        eq(notifications.recipientId, recipientId)
+      )
+    )
+    .get();
+  if (!notification) return null;
+
+  database
+    .update(notifications)
+    .set({ readAt: now })
+    .where(
+      and(eq(notifications.id, notificationId), isNull(notifications.readAt))
+    )
+    .run();
+  return notification.link;
+}
+
+/** Marks all of the user's unread Notifications read. */
+export function markAllNotificationsRead(
+  database: Db,
+  recipientId: number,
+  now = new Date().toISOString()
+) {
+  database
+    .update(notifications)
+    .set({ readAt: now })
+    .where(
+      and(
 /** How many of a user's own Notifications are unread. */
 export function countUnreadNotifications(
   database: Db,
@@ -39,7 +82,7 @@ export function countUnreadNotifications(
         isNull(notifications.readAt)
       )
     )
-    .get();
+    .run();
   return result?.unread ?? 0;
 }
 

@@ -1,9 +1,18 @@
-import { Link, isRouteErrorResponse } from "react-router";
+import { useEffect } from "react";
+import { Form, data, isRouteErrorResponse, redirect } from "react-router";
 import { AlertTriangle } from "lucide-react";
+import { z } from "zod";
 import type { Route } from "./+types/notifications";
 import { db } from "~/db";
 import { requireUserId } from "~/lib/access.server";
-import { listNotifications } from "~/lib/notifications.server";
+import {
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "~/lib/notifications.server";
+import { parseFormData } from "~/lib/validation";
+import { useAnnounce } from "~/components/status-region";
+import { Button } from "~/components/ui/button";
 import { formatTimeAgo } from "~/lib/time-ago";
 import { cn } from "~/lib/utils";
 
@@ -18,6 +27,30 @@ export function meta() {
 export async function loader({ request }: Route.LoaderArgs) {
   const userId = await requireUserId(request);
   return { notifications: listNotifications(db, userId) };
+}
+
+const actionSchema = z.discriminatedUnion("intent", [
+  z.object({
+    intent: z.literal("open"),
+    notificationId: z.coerce.number().int(),
+  }),
+  z.object({ intent: z.literal("mark-all-read") }),
+]);
+
+export async function action({ request }: Route.ActionArgs) {
+  const userId = await requireUserId(request);
+  const parsed = parseFormData(await request.formData(), actionSchema);
+  if (!parsed.success) throw data("Invalid input.", { status: 400 });
+
+  if (parsed.data.intent === "open") {
+    // Only the recipient's own Notification is marked read.
+    const link = markNotificationRead(db, userId, parsed.data.notificationId);
+    if (link === null) throw data("Notification not found.", { status: 404 });
+    return redirect(link);
+  }
+
+  markAllNotificationsRead(db, userId);
+  return { announcement: "All Notifications marked as read" };
 }
 
 type NotificationListItem = Awaited<
@@ -40,21 +73,25 @@ function NotificationItem({
 
   return (
     <li className={cn("p-4", isUnread && "bg-primary/5")}>
-      <Link
-        to={notification.link}
-        className={cn(
-          "text-sm hover:underline",
-          isUnread ? "font-semibold" : "text-foreground/80"
-        )}
-      >
-        {/* Read state in text, not by styling alone. */}
-        {isUnread && (
-          <span className="mr-1.5 inline-block rounded bg-primary/15 px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-primary">
-            New<span className="sr-only">:</span>
-          </span>
-        )}
-        {notification.headline}
-      </Link>
+      <Form method="post">
+        <input type="hidden" name="intent" value="open" />
+        <input type="hidden" name="notificationId" value={notification.id} />
+        <button
+          type="submit"
+          className={cn(
+            "text-left text-sm hover:underline",
+            isUnread ? "font-semibold" : "text-foreground/80"
+          )}
+        >
+          {/* Read state in text, not by styling alone. */}
+          {isUnread && (
+            <span className="mr-1.5 inline-block rounded bg-primary/15 px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-primary">
+              New<span className="sr-only">:</span>
+            </span>
+          )}
+          {notification.headline}
+        </button>
+      </Form>
       {notification.body && (
         <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
           {notification.body}
@@ -76,14 +113,40 @@ function NotificationItem({
   );
 }
 
-export default function Notifications({ loaderData }: Route.ComponentProps) {
+export default function Notifications({
+  loaderData,
+  actionData,
+}: Route.ComponentProps) {
   const { notifications } = loaderData;
+  const hasUnread = notifications.some((n) => n.readAt === null);
+  const announce = useAnnounce();
+
+  // Each submission returns a new object, so repeating the action announces
+  // again.
+  useEffect(() => {
+    if (actionData) announce(actionData.announcement);
+  }, [actionData, announce]);
 
   return (
     <div className="mx-auto max-w-3xl p-6 lg:p-8">
-      <h1 id="notifications-heading" className="mb-6 text-2xl font-bold">
-        Notifications
-      </h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <h1 id="notifications-heading" className="text-2xl font-bold">
+          Notifications
+        </h1>
+        {/* Never removed or `disabled`, so it keeps focus when nothing is
+            left unread. */}
+        <Form method="post">
+          <input type="hidden" name="intent" value="mark-all-read" />
+          <Button
+            type="submit"
+            variant="outline"
+            aria-disabled={hasUnread ? undefined : true}
+            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+          >
+            Mark all as read
+          </Button>
+        </Form>
+      </div>
       {notifications.length === 0 ? (
         <p className="text-muted-foreground">You have no Notifications.</p>
       ) : (
