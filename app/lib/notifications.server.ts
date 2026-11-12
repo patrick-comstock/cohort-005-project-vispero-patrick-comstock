@@ -68,6 +68,13 @@ export function markAllNotificationsRead(
     .set({ readAt: now })
     .where(
       and(
+        eq(notifications.recipientId, recipientId),
+        isNull(notifications.readAt)
+      )
+    )
+    .run();
+}
+
 /** How many of a user's own Notifications are unread. */
 export function countUnreadNotifications(
   database: Db,
@@ -82,7 +89,7 @@ export function countUnreadNotifications(
         isNull(notifications.readAt)
       )
     )
-    .run();
+    .get();
   return result?.unread ?? 0;
 }
 
