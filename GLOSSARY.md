@@ -101,6 +101,12 @@ _Avoid_: Net revenue, sales, income
 The instructor's share of Revenue, after the platform fee.
 _Avoid_: Net, payout, profit, take-home
 
+### Notifications
+
+**Notification**:
+A message shown to one person inside the app, telling them something happened that concerns them. Distinct from an email, which goes outside the app; one event may cause both.
+_Avoid_: Alert, message, activity
+
 ### Outside this system
 
 **Chargeback**:
