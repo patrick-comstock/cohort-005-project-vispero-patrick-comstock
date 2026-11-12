@@ -49,7 +49,10 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect(link);
   }
 
-  markAllNotificationsRead(db, userId);
+  // Nothing was unread (the button was aria-disabled, or JavaScript is off):
+  // a no-op, so nothing is announced.
+  const marked = markAllNotificationsRead(db, userId);
+  if (marked === 0) return { announcement: null };
   return { announcement: "All Notifications marked as read" };
 }
 
@@ -124,7 +127,7 @@ export default function Notifications({
   // Each submission returns a new object, so repeating the action announces
   // again.
   useEffect(() => {
-    if (actionData) announce(actionData.announcement);
+    if (actionData?.announcement) announce(actionData.announcement);
   }, [actionData, announce]);
 
   return (
@@ -134,13 +137,16 @@ export default function Notifications({
           Notifications
         </h1>
         {/* Never removed or `disabled`, so it keeps focus when nothing is
-            left unread. */}
+            left unread. While aria-disabled, activating it does nothing. */}
         <Form method="post">
           <input type="hidden" name="intent" value="mark-all-read" />
           <Button
             type="submit"
             variant="outline"
             aria-disabled={hasUnread ? undefined : true}
+            onClick={(event) => {
+              if (!hasUnread) event.preventDefault();
+            }}
             className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
           >
             Mark all as read
