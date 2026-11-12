@@ -6,6 +6,7 @@ import {
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  countUnreadNotifications,
 } from "./notifications.server";
 
 type TestDb = ReturnType<typeof createTestDb>;
@@ -18,7 +19,12 @@ beforeEach(() => {
   base = seedBaseData(testDb);
 });
 
-function notify(recipientId: number, headline: string, createdAt: string) {
+function notify(
+  recipientId: number,
+  headline: string,
+  createdAt: string,
+  readAt: string | null = null
+) {
   testDb
     .insert(schema.notifications)
     .values({
@@ -28,6 +34,7 @@ function notify(recipientId: number, headline: string, createdAt: string) {
       body: null,
       link: "/admin/refund-requests/1",
       createdAt,
+      readAt,
     })
     .run();
 }
@@ -122,5 +129,22 @@ describe("markAllNotificationsRead", () => {
       ["Read before", "2026-03-04T09:00:00.000Z"],
     ]);
     expect(listNotifications(testDb, base.instructor.id)[0].readAt).toBeNull();
+describe("countUnreadNotifications", () => {
+  it("counts only the user's own unread Notifications", () => {
+    notify(base.user.id, "Unread 1", "2026-03-01T09:00:00.000Z");
+    notify(base.user.id, "Unread 2", "2026-03-02T09:00:00.000Z");
+    notify(
+      base.user.id,
+      "Read",
+      "2026-03-03T09:00:00.000Z",
+      "2026-03-04T09:00:00.000Z"
+    );
+    notify(base.instructor.id, "Someone else's", "2026-03-05T09:00:00.000Z");
+
+    expect(countUnreadNotifications(testDb, base.user.id)).toBe(2);
+  });
+
+  it("is zero for a user with no Notifications", () => {
+    expect(countUnreadNotifications(testDb, base.user.id)).toBe(0);
   });
 });

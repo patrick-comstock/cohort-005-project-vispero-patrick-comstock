@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import type { Db } from "~/db";
 import {
   notifications,
@@ -68,11 +68,22 @@ export function markAllNotificationsRead(
     .set({ readAt: now })
     .where(
       and(
+/** How many of a user's own Notifications are unread. */
+export function countUnreadNotifications(
+  database: Db,
+  recipientId: number
+): number {
+  const result = database
+    .select({ unread: count() })
+    .from(notifications)
+    .where(
+      and(
         eq(notifications.recipientId, recipientId),
         isNull(notifications.readAt)
       )
     )
     .run();
+  return result?.unread ?? 0;
 }
 
 /** The finished content of a Notification, as its recipient will read it. */
@@ -100,5 +111,20 @@ export function notifyAdmins(database: Db, content: NotificationContent) {
   database
     .insert(notifications)
     .values(admins.map((admin) => ({ ...content, recipientId: admin.id })))
+    .run();
+}
+
+/**
+ * Tells one user, with one Notification. Call it inside the transaction of
+ * the event it reports, so a Notification never exists without its event.
+ */
+export function notifyUser(
+  database: Db,
+  recipientId: number,
+  content: NotificationContent
+) {
+  database
+    .insert(notifications)
+    .values({ ...content, recipientId })
     .run();
 }

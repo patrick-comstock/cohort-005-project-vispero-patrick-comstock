@@ -2880,6 +2880,38 @@ This course is still in draft while the cluster examples are rewritten against t
         readAt: refundRequest.resolvedAt,
       })
       .run();
+
+    // The "Refund Request Resolved" Notification its Requester got, worded as
+    // resolveRefundRequest words it. The Requesters have not opened them yet.
+    if (refundRequest.status === RefundRequestStatus.Pending) continue;
+    const isApproved = refundRequest.status === RefundRequestStatus.Approved;
+    const refunding = `We're refunding ${formatPrice(refundRequest.refundAmount)}, the amount you paid.`;
+    const outcome = isApproved
+      ? isTeamPurchase
+        ? `${refunding} Its Coupons have been Voided and can no longer be Redeemed. Anyone who already Redeemed one keeps the course.`
+        : `${refunding} Your access to the course has ended.`
+      : isTeamPurchase
+        ? "There is no Refund. Its unredeemed Coupons can still be Redeemed."
+        : "There is no Refund, and you keep your access to the course.";
+    const requester = db
+      .select({ id: schema.purchases.userId })
+      .from(schema.purchases)
+      .where(eq(schema.purchases.id, refundRequest.purchaseId))
+      .get();
+    if (!requester) throw new Error("Seeded Refund Request has no Purchase.");
+
+    db.insert(schema.notifications)
+      .values({
+        recipientId: requester.id,
+        kind: NotificationKind.RefundRequestResolved,
+        headline: `Your Refund Request for "${made.courseTitle}" was ${isApproved ? "Approved" : "Declined"}`,
+        body: refundRequest.resolutionNote
+          ? `${outcome}\n\nNote from the Admin: ${refundRequest.resolutionNote}`
+          : outcome,
+        link: isTeamPurchase ? "/team" : "/settings",
+        createdAt: refundRequest.resolvedAt ?? refundRequest.requestedAt,
+      })
+      .run();
   }
 
   console.log(`Created ${countRows(schema.notifications)} notifications.`);
