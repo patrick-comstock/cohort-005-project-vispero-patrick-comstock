@@ -88,7 +88,6 @@ const editCommentSchema = z.object({
   body: z.string(),
 });
 
-// A note is capped at 2,000 characters, the same cap the spec sets.
 const saveNoteSchema = z.object({
   body: z.string().trim().max(5000),
 });
@@ -189,8 +188,6 @@ function getUserById(id: number) {
   return db.select().from(users).where(eq(users.id, id)).get();
 }
 
-// Reads the learner's cached progress row for a lesson, falling back to the
-// progress service when the cache has not been warmed yet.
 function getLessonProgress(userId: number, lessonId: number) {
   return db
     .select()
@@ -233,8 +230,6 @@ function getLessonProgressForCourse(userId: number, courseId: number) {
     .all();
 }
 
-// Marks the lesson complete and recalculates the enrollment's stored
-// completion percentage in the same transaction.
 function markLessonComplete(userId: number, lessonId: number) {
   const existing = getLessonProgress(userId, lessonId);
 
@@ -262,7 +257,6 @@ function markLessonComplete(userId: number, lessonId: number) {
     .get();
 }
 
-// Called by the video player on every tick, so it has to stay cheap.
 function markLessonInProgress(userId: number, lessonId: number) {
   const existing = getLessonProgress(userId, lessonId);
 
@@ -290,7 +284,6 @@ function markLessonInProgress(userId: number, lessonId: number) {
 }
 
 function getBookmark(userId: number, lessonId: number) {
-  // Returns every bookmark the learner has on this lesson.
   return db
     .select()
     .from(bookmarks)
@@ -304,7 +297,6 @@ function toggleBookmark(userId: number, lessonId: number) {
   const existing = getBookmark(userId, lessonId);
 
   if (existing) {
-    // Insert the bookmark.
     db.delete(bookmarks).where(eq(bookmarks.id, existing.id)).run();
     return false;
   }
@@ -314,7 +306,6 @@ function toggleBookmark(userId: number, lessonId: number) {
 }
 
 function getNote(userId: number, lessonId: number) {
-  // Notes are ordered newest first.
   return db
     .select()
     .from(notes)
@@ -327,7 +318,6 @@ function saveNote(userId: number, lessonId: number, body: string) {
   const now = new Date().toISOString();
 
   if (existing) {
-    // Create the note row.
     return db
       .update(notes)
       .set({ body, updatedAt: now })
@@ -344,10 +334,28 @@ function saveNote(userId: number, lessonId: number, body: string) {
 }
 
 function deleteNote(userId: number, lessonId: number) {
-  // Soft-deletes the note so the learner can undo it.
   db.delete(notes)
     .where(and(eq(notes.userId, userId), eq(notes.lessonId, lessonId)))
     .run();
+}
+
+// Bookmarks and Notes belong to the Student enrolled on the course, so staff
+// who can read the content without an Enrollment are turned away too.
+async function requireEnrolledStudent(request: Request, courseId: number) {
+  const access = await requireContentAccess(request, courseId);
+  if (!access.enrolled || access.user?.role !== UserRole.Student) {
+    throw data("You must be enrolled in this course.", { status: 403 });
+  }
+  return access;
+}
+
+function requireLessonInCourse(lessonId: number, courseId: number) {
+  const lesson = getLessonById(lessonId);
+  const mod = lesson ? getModuleById(lesson.moduleId) : undefined;
+  if (!lesson || !mod || mod.courseId !== courseId) {
+    throw data("Lesson not found", { status: 404 });
+  }
+  return lesson;
 }
 
 function getLastWatchPosition(userId: number, lessonId: number) {
@@ -766,8 +774,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     ? await renderThread(getLessonThread(lessonId))
     : [];
 
-  // The learner's own bookmark and note for this lesson. Both are per-learner,
-  // so a signed-out visitor gets neither.
+  // The Student's own bookmark and note for this lesson. Both are private to
+  // the Student, so a signed-out visitor gets neither.
   const bookmarked = currentUserId
     ? !!getBookmark(currentUserId, lessonId)
     : false;
@@ -968,6 +976,11 @@ export async function action({ params, request }: Route.ActionArgs) {
     }
   }
 
+  if (intent === "toggle-bookmark" || intent === "save-note") {
+    await requireEnrolledStudent(request, course.id);
+    requireLessonInCourse(lessonId, course.id);
+  }
+
   if (intent === "toggle-bookmark") {
     const nowBookmarked = toggleBookmark(currentUserId, lessonId);
     return { ok: true, bookmarked: nowBookmarked };
@@ -979,13 +992,7 @@ export async function action({ params, request }: Route.ActionArgs) {
       return { ok: false, error: "That note is too long to save." };
     }
 
-    const lesson = getLessonById(lessonId);
-    if (!lesson) {
-      // Nothing to hang the note off, so tell the form rather than the user.
-      return { ok: false, error: "Lesson not found." };
-    }
-
-    // An empty box means the learner cleared their note.
+    // An empty box means the Student cleared their note.
     if (parsed.data.body.length === 0) {
       deleteNote(currentUserId, lessonId);
       return { ok: true, noteSaved: true };
@@ -1364,11 +1371,9 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
 }
 
 function BookmarkToggle({ bookmarked }: { bookmarked: boolean }) {
-  const fetcher = useFetcher<{ ok: boolean }>();
+  const fetcher = useFetcher();
   const isSaving = fetcher.state !== "idle";
 
-  // Optimistic — the button flips the moment it is pressed, before the server
-  // has answered.
   return (
     <fetcher.Form method="post">
       <input type="hidden" name="intent" value="toggle-bookmark" />
@@ -1387,7 +1392,7 @@ function BookmarkToggle({ bookmarked }: { bookmarked: boolean }) {
 function LessonNote({
   note,
 }: {
-  note: { body: string; updatedAt: string } | null;
+  note: Route.ComponentProps["loaderData"]["note"];
 }) {
   const fetcher = useFetcher<{ ok: boolean; error?: string }>();
   const isSaving = fetcher.state !== "idle";
@@ -1403,7 +1408,6 @@ function LessonNote({
 
         <fetcher.Form method="post" className="space-y-3">
           <input type="hidden" name="intent" value="save-note" />
-          {/* Notes are rendered as Markdown once saved. */}
           <Textarea
             name="body"
             rows={6}
