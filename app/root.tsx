@@ -9,6 +9,7 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
+import { StatusRegionProvider } from "./components/status-region";
 import "./app.css";
 
 const darkModeScript = `
@@ -47,7 +48,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body>
-        {children}
+        <StatusRegionProvider>{children}</StatusRegionProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
