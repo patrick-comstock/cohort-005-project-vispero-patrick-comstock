@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import type { Db } from "~/db";
 import {
   notifications,
@@ -23,6 +23,24 @@ export function listNotifications(database: Db, recipientId: number) {
     .where(eq(notifications.recipientId, recipientId))
     .orderBy(desc(notifications.createdAt), desc(notifications.id))
     .all();
+}
+
+/** How many of a user's own Notifications are unread. */
+export function countUnreadNotifications(
+  database: Db,
+  recipientId: number
+): number {
+  const result = database
+    .select({ unread: count() })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.recipientId, recipientId),
+        isNull(notifications.readAt)
+      )
+    )
+    .get();
+  return result?.unread ?? 0;
 }
 
 /** The finished content of a Notification, as its recipient will read it. */
