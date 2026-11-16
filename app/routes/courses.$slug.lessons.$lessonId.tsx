@@ -4,6 +4,11 @@ import { toast } from "sonner";
 import type { Route } from "./+types/courses.$slug.lessons.$lessonId";
 import { getCurrentUserId } from "~/lib/session";
 import { getAccess, requireContentAccess } from "~/lib/access.server";
+import {
+  getCourseIdForLesson,
+  loadLessonPage,
+  markLessonComplete,
+} from "~/lib/lesson-page.server";
 import { renderComment } from "~/lib/comment-markdown.server";
 import {
   CommentThread,
@@ -15,7 +20,6 @@ import {
   categories,
   comments,
   courses,
-  lessonProgress,
   lessons,
   modules,
   quizzes,
@@ -24,11 +28,10 @@ import {
   quizAttempts,
   quizAnswers,
   users,
-  videoWatchEvents,
   LessonProgressStatus,
   UserRole,
 } from "~/db/schema";
-import { and, asc, desc, eq, or, sql } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
@@ -49,7 +52,6 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn, formatDuration } from "~/lib/utils";
-import { renderMarkdown } from "~/lib/markdown.server";
 import { YouTubePlayer } from "~/components/youtube-player";
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
@@ -171,141 +173,6 @@ function getModuleById(id: number) {
 
 function getUserById(id: number) {
   return db.select().from(users).where(eq(users.id, id)).get();
-}
-
-function getLessonProgress(userId: number, lessonId: number) {
-  return db
-    .select()
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.lessonId, lessonId)
-      )
-    )
-    .get();
-}
-
-function getLessonProgressForCourse(userId: number, courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .all();
-
-  if (courseLessons.length === 0) return [];
-
-  return db
-    .select()
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        or(...courseLessons.map((l) => eq(lessonProgress.lessonId, l.id)))!
-      )
-    )
-    .all();
-}
-
-function markLessonComplete(userId: number, lessonId: number) {
-  const existing = getLessonProgress(userId, lessonId);
-
-  if (existing) {
-    return db
-      .update(lessonProgress)
-      .set({
-        status: LessonProgressStatus.Completed,
-        completedAt: new Date().toISOString(),
-      })
-      .where(eq(lessonProgress.id, existing.id))
-      .returning()
-      .get();
-  }
-
-  return db
-    .insert(lessonProgress)
-    .values({
-      userId,
-      lessonId,
-      status: LessonProgressStatus.Completed,
-      completedAt: new Date().toISOString(),
-    })
-    .returning()
-    .get();
-}
-
-function markLessonInProgress(userId: number, lessonId: number) {
-  const existing = getLessonProgress(userId, lessonId);
-
-  if (existing) {
-    if (existing.status === LessonProgressStatus.Completed) {
-      return existing;
-    }
-    return db
-      .update(lessonProgress)
-      .set({ status: LessonProgressStatus.InProgress })
-      .where(eq(lessonProgress.id, existing.id))
-      .returning()
-      .get();
-  }
-
-  return db
-    .insert(lessonProgress)
-    .values({
-      userId,
-      lessonId,
-      status: LessonProgressStatus.InProgress,
-    })
-    .returning()
-    .get();
-}
-
-function getLastWatchPosition(userId: number, lessonId: number) {
-  const lastEvent = db
-    .select()
-    .from(videoWatchEvents)
-    .where(
-      and(
-        eq(videoWatchEvents.userId, userId),
-        eq(videoWatchEvents.lessonId, lessonId)
-      )
-    )
-    .orderBy(desc(videoWatchEvents.createdAt))
-    .limit(1)
-    .get();
-
-  return lastEvent?.positionSeconds ?? 0;
-}
-
-function calculateWatchProgress(
-  userId: number,
-  lessonId: number,
-  videoDurationSeconds: number
-) {
-  if (videoDurationSeconds <= 0) return 0;
-
-  const result = db
-    .select({ maxPos: sql<number>`max(${videoWatchEvents.positionSeconds})` })
-    .from(videoWatchEvents)
-    .where(
-      and(
-        eq(videoWatchEvents.userId, userId),
-        eq(videoWatchEvents.lessonId, lessonId)
-      )
-    )
-    .get();
-
-  const maxPosition = result?.maxPos ?? 0;
-
-  return Math.min(Math.round((maxPosition / videoDurationSeconds) * 100), 100);
 }
 
 function getCourseForLesson(lessonId: number) {
@@ -476,43 +343,8 @@ function deleteComment(commentId: number, userId: number, isStaff: boolean) {
     .get();
 }
 
-function getQuizByLessonId(lessonId: number) {
-  return db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).get();
-}
-
-function getQuizWithQuestions(quizId: number) {
-  const quiz = db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
-  if (!quiz) return null;
-
-  const questions = db
-    .select()
-    .from(quizQuestions)
-    .where(eq(quizQuestions.quizId, quizId))
-    .orderBy(quizQuestions.position)
-    .all();
-
-  const questionsWithOptions = questions.map((question) => {
-    const options = db
-      .select()
-      .from(quizOptions)
-      .where(eq(quizOptions.questionId, question.id))
-      .all();
-    return { ...question, options };
-  });
-
-  return { ...quiz, questions: questionsWithOptions };
-}
-
-function getBestAttempt(userId: number, quizId: number) {
-  return db
-    .select()
-    .from(quizAttempts)
-    .where(
-      and(eq(quizAttempts.userId, userId), eq(quizAttempts.quizId, quizId))
-    )
-    .orderBy(desc(quizAttempts.score))
-    .limit(1)
-    .get();
+function getQuizById(quizId: number) {
+  return db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
 }
 
 function calculateGrade(score: any): any {
@@ -724,46 +556,15 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const access = await getAccess(request, course.id);
   const currentUserId = access.userId;
   const enrolled = access.enrolled;
-  let lessonStatus: string | null = null;
-  let lastWatchPosition = 0;
-  let watchProgress = 0;
-  let lessonProgressMap: Record<number, string> = {};
-
-  if (currentUserId) {
-    if (enrolled) {
-      // Mark lesson as in-progress when viewed
-      markLessonInProgress(currentUserId, lessonId);
-      const progress = getLessonProgress(currentUserId, lessonId);
-      lessonStatus = progress?.status ?? null;
-
-      // Get progress for all lessons in course (for curriculum sidebar)
-      const progressRecords = getLessonProgressForCourse(
-        currentUserId,
-        course.id
-      );
-      for (const record of progressRecords) {
-        lessonProgressMap[record.lessonId] = record.status;
-      }
-
-      // Get video watch state for resume and progress display
-      if (lesson.videoUrl) {
-        lastWatchPosition = getLastWatchPosition(currentUserId, lessonId);
-        const videoDurationSeconds = (lesson.durationMinutes ?? 0) * 60;
-        if (videoDurationSeconds > 0) {
-          watchProgress = calculateWatchProgress(
-            currentUserId,
-            lessonId,
-            videoDurationSeconds
-          );
-        }
-      }
-    }
-  }
 
   // PPP Access Guard — resolved by getAccess, which treats a blocked user as
   // having no access to the course's content at all.
   const { pppBlocked, pppBlockedCountry, pppPurchaseCountry, canViewContent } =
     access;
+
+  // Without canViewContent, only the lesson's metadata leaves the server, and
+  // no progress is written.
+  const lessonPage = await loadLessonPage(db, lessonId, course.id, access);
 
   // Comments are confidential to the course: only people who can read the
   // lesson can read the discussion on it.
@@ -772,62 +573,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     ? await renderThread(getLessonThread(lessonId))
     : [];
 
-  // Render lesson content from Markdown to HTML server-side
-  const contentHtml = lesson.content
-    ? await renderMarkdown(lesson.content)
-    : null;
-
   // Build prev/next navigation
   const allLessons = flattenCourseLessons(courseWithDetails);
   const currentIndex = allLessons.findIndex((l) => l.id === lessonId);
   const prevLesson = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
   const nextLesson =
     currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
-
-  // Check for quiz attached to this lesson
-  const quizRecord = getQuizByLessonId(lessonId);
-  let quiz: {
-    id: number;
-    title: string;
-    passingScore: number;
-    questions: Array<{
-      id: number;
-      questionText: string;
-      questionType: string;
-      position: number;
-      options: Array<{ id: number; optionText: string }>;
-    }>;
-  } | null = null;
-  let bestAttempt: { score: number; passed: boolean } | null = null;
-
-  if (quizRecord) {
-    const quizData = getQuizWithQuestions(quizRecord.id);
-    if (quizData) {
-      // Strip isCorrect from options so answers aren't leaked to the client
-      quiz = {
-        id: quizData.id,
-        title: quizData.title,
-        passingScore: quizData.passingScore,
-        questions: quizData.questions.map((q) => ({
-          id: q.id,
-          questionText: q.questionText,
-          questionType: q.questionType,
-          position: q.position,
-          options: q.options.map((o) => ({
-            id: o.id,
-            optionText: o.optionText,
-          })),
-        })),
-      };
-    }
-
-    if (currentUserId) {
-      const best = getBestAttempt(currentUserId, quizRecord.id);
-      if (best) {
-        bestAttempt = { score: best.score, passed: best.passed };
-      }
-    }
-  }
 
   return {
     course: {
@@ -847,18 +598,11 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       id: mod.id,
       title: mod.title,
     },
-    lesson,
-    contentHtml,
-    lessonStatus,
+    ...lessonPage,
     enrolled,
     currentUserId,
     prevLesson,
     nextLesson,
-    quiz,
-    bestAttempt,
-    lastWatchPosition,
-    watchProgress,
-    lessonProgressMap,
     pppBlocked,
     pppBlockedCountry,
     pppPurchaseCountry,
@@ -877,23 +621,30 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("Course not found", { status: 404 });
   }
 
+  // Access is checked against the course in the URL, so the lesson must belong
+  // to it — otherwise a lesson in another course could be reached through here.
+  if (getCourseIdForLesson(db, lessonId) !== course.id) {
+    throw data("Lesson not found in this course", { status: 404 });
+  }
+
   const currentUserId = await getCurrentUserId(request);
   if (!currentUserId) {
     throw data("You must be logged in", { status: 401 });
   }
 
+  // Every intent writes to the course's content (comments, progress, quiz
+  // attempts), so all of them re-check access here rather than relying on the
+  // loader — loader guards don't protect actions.
+  const access = await requireContentAccess(request, course.id);
+
   const formData = await request.formData();
   const intent = formData.get("intent");
 
-  // Comment intents re-check access here rather than relying on the loader —
-  // loader guards don't protect actions.
   if (
     intent === "create-comment" ||
     intent === "edit-comment" ||
     intent === "delete-comment"
   ) {
-    const access = await requireContentAccess(request, course.id);
-
     try {
       if (intent === "create-comment") {
         const parsed = parseFormData(formData, createCommentSchema);
@@ -945,7 +696,7 @@ export async function action({ params, request }: Route.ActionArgs) {
   }
 
   if (intent === "mark-complete") {
-    markLessonComplete(currentUserId, lessonId);
+    markLessonComplete(db, currentUserId, lessonId);
     return { success: true };
   }
 
@@ -953,6 +704,10 @@ export async function action({ params, request }: Route.ActionArgs) {
     const quizId = Number(formData.get("quizId"));
     if (isNaN(quizId)) {
       throw data("Invalid quiz ID", { status: 400 });
+    }
+    // Scope the quiz to this lesson, which the access check above covers.
+    if (getQuizById(quizId)?.lessonId !== lessonId) {
+      throw data("Quiz not found", { status: 404 });
     }
 
     // Collect answers: form fields named "question-{questionId}" with value = optionId
@@ -1012,7 +767,7 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
     curriculum,
     module: mod,
     lesson,
-    contentHtml,
+    lessonBody,
     lessonStatus,
     enrolled,
     currentUserId,
@@ -1138,9 +893,9 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
                 {formatDuration(lesson.durationMinutes)}
               </div>
             )}
-            {lesson.githubRepoUrl && (
+            {lessonBody?.githubRepoUrl && (
               <a
-                href={lesson.githubRepoUrl}
+                href={lessonBody.githubRepoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -1152,10 +907,24 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
             )}
           </div>
 
+          {/* Without Access, the loader sends no lesson body at all */}
+          {!lessonBody && (
+            <Card className="mb-8">
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <p className="mb-4">
+                  Enroll in this course to view this lesson.
+                </p>
+                <Link to={`/courses/${course.slug}`}>
+                  <Button variant="outline">View Course</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
           {/* YouTube Video */}
-          {lesson.videoUrl && (
+          {lessonBody?.videoUrl && (
             <YouTubePlayer
-              videoUrl={lesson.videoUrl}
+              videoUrl={lessonBody.videoUrl}
               lessonId={lesson.id}
               title={lesson.title}
               startPosition={lastWatchPosition}
@@ -1168,14 +937,14 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
           )}
 
           {/* Lesson Content */}
-          {contentHtml && (
+          {lessonBody?.contentHtml && (
             <div
               className="prose prose-neutral dark:prose-invert mb-8 max-w-none"
-              dangerouslySetInnerHTML={{ __html: contentHtml }}
+              dangerouslySetInnerHTML={{ __html: lessonBody.contentHtml }}
             />
           )}
 
-          {!contentHtml && !lesson.videoUrl && (
+          {lessonBody && !lessonBody.contentHtml && !lessonBody.videoUrl && (
             <Card className="mb-8">
               <CardContent className="py-12 text-center text-muted-foreground">
                 No content has been added to this lesson yet.
