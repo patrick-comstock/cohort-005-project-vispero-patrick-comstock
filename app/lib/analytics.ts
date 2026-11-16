@@ -14,7 +14,10 @@ export const PLATFORM_FEE_RATE = 0.2;
 /** The same rate as a whole number, for labelling it on screen. */
 export const PLATFORM_FEE_PERCENT = PLATFORM_FEE_RATE * 100;
 
-export type AnalyticsRange = "7d" | "30d" | "90d" | "all";
+/** Every range a viewer can ask for, as it appears in the search params. */
+export const ANALYTICS_RANGE_VALUES = ["7d", "30d", "90d", "all"] as const;
+
+export type AnalyticsRange = (typeof ANALYTICS_RANGE_VALUES)[number];
 
 /** The range control's options, in the order they are offered. */
 export const ANALYTICS_RANGES: { value: AnalyticsRange; label: string }[] = [
@@ -26,13 +29,6 @@ export const ANALYTICS_RANGES: { value: AnalyticsRange; label: string }[] = [
 
 export const DEFAULT_ANALYTICS_RANGE: AnalyticsRange = "30d";
 
-/** Narrows an untrusted search param — anything else falls back to the default. */
-export function parseAnalyticsRange(value: string | null): AnalyticsRange {
-  return ANALYTICS_RANGES.some((range) => range.value === value)
-    ? (value as AnalyticsRange)
-    : DEFAULT_ANALYTICS_RANGE;
-}
-
 const RANGE_DAYS: Record<Exclude<AnalyticsRange, "all">, number> = {
   "7d": 7,
   "30d": 30,
@@ -40,15 +36,16 @@ const RANGE_DAYS: Record<Exclude<AnalyticsRange, "all">, number> = {
 };
 
 /**
- * The inclusive start of a range, as an ISO timestamp, or null for all time.
+ * The inclusive start of a range ending at `now`, as an ISO timestamp, or
+ * null for all time.
  *
  * The boundary is decided in exactly one place: a row landing exactly on the
  * cutoff is inside the range. Lives here rather than in the service because
  * panels built on other services have to agree with it.
  */
-export function rangeStart(range: AnalyticsRange): string | null {
+export function rangeStart(range: AnalyticsRange, now: Date): string | null {
   if (range === "all") return null;
-  return new Date(Date.now() - RANGE_DAYS[range] * 86_400_000).toISOString();
+  return new Date(now.getTime() - RANGE_DAYS[range] * 86_400_000).toISOString();
 }
 
 const MONTHS = [

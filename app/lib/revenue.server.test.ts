@@ -21,7 +21,10 @@ let testDb: TestDb;
 let base: ReturnType<typeof seedBaseData>;
 let admin: typeof schema.users.$inferSelect;
 
-const allTime = { instructorId: null, range: "all" } as const;
+const now = new Date("2026-03-15T12:00:00.000Z");
+const sixtyDaysAgo = new Date(now.getTime() - 60 * 86_400_000).toISOString();
+const allTime = { instructorId: null, range: "all", now } as const;
+const last30Days = { instructorId: null, range: "30d", now } as const;
 
 beforeEach(() => {
   testDb = createTestDb();
@@ -61,7 +64,7 @@ function buyCourse(
       courseId: options.courseId ?? base.course.id,
       amountPaid,
       country: options.country ?? "US",
-      ...(options.createdAt ? { createdAt: options.createdAt } : {}),
+      createdAt: options.createdAt ?? now.toISOString(),
     })
     .returning()
     .get();
@@ -177,13 +180,10 @@ describe("getRevenueSummary", () => {
   });
 
   it("counts a Refund on its Purchase's date, not the date it was Approved", () => {
-    const sixtyDaysAgo = new Date(Date.now() - 60 * 86_400_000).toISOString();
     refund(buyCourse(base.user.id, 5000, { createdAt: sixtyDaysAgo }).id);
     buyCourse(addStudent("Nina Now").id, 3000);
 
-    expect(
-      getRevenueSummary(testDb, { instructorId: null, range: "30d" })
-    ).toMatchObject({
+    expect(getRevenueSummary(testDb, last30Days)).toMatchObject({
       grossSalesCents: 3000,
       refundCents: 0,
       refundCount: 0,
@@ -226,7 +226,6 @@ describe("getFullyRefundedCourseIds", () => {
   it("lists the courses whose every Purchase in the range was Refunded, and no course that kept a sale or had none", () => {
     const refundedOnly = addCourse("Refunded Course");
     addCourse("Unsold Course");
-    const sixtyDaysAgo = new Date(Date.now() - 60 * 86_400_000).toISOString();
     buyCourse(base.user.id, 10000);
     refund(buyCourse(addStudent("Rory Refunded").id, 10000).id);
     refund(buyCourse(base.user.id, 9000, { courseId: refundedOnly.id }).id);
@@ -235,16 +234,15 @@ describe("getFullyRefundedCourseIds", () => {
       createdAt: sixtyDaysAgo,
     });
 
-    expect(
-      getFullyRefundedCourseIds(testDb, { instructorId: null, range: "30d" })
-    ).toEqual([refundedOnly.id]);
+    expect(getFullyRefundedCourseIds(testDb, last30Days)).toEqual([
+      refundedOnly.id,
+    ]);
     expect(getFullyRefundedCourseIds(testDb, allTime)).toEqual([]);
   });
 });
 
 describe("getRevenueOverTime", () => {
   it("charts Revenue and Net Earnings, so a month whose sales were all Refunded sits at zero", () => {
-    const sixtyDaysAgo = new Date(Date.now() - 60 * 86_400_000).toISOString();
     refund(buyCourse(base.user.id, 5000, { createdAt: sixtyDaysAgo }).id);
     buyCourse(addStudent("Nina Now").id, 3000);
 
@@ -257,7 +255,7 @@ describe("getRevenueOverTime", () => {
       revenueCents: 0,
       netEarningsCents: 0,
     });
-    expect(pointFor(new Date().toISOString())).toMatchObject({
+    expect(pointFor(now.toISOString())).toMatchObject({
       revenueCents: 3000,
       netEarningsCents: 2400,
     });
@@ -338,7 +336,12 @@ describe("getCourseRevenueByCountry", () => {
       buyCourse(addStudent("Bruno Brazil").id, 4000, { country: "BR" }).id
     );
 
-    const breakdown = getCourseRevenueByCountry(testDb, base.course.id, "all");
+    const breakdown = getCourseRevenueByCountry(
+      testDb,
+      base.course.id,
+      "all",
+      now
+    );
 
     expect(breakdown).toMatchObject({
       revenueCents: 10000,
