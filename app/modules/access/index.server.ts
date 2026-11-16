@@ -1,10 +1,12 @@
 // Entry point of the Access module: "who is asking, and what may they do with
-// this course?". Routes and page modules import Access from here only; the
-// rules behind it live in lib/ and are not importable from outside.
+// this course?". Access reads the session from the Request and hands the user
+// ID back, so routes and page modules never read the session themselves. They
+// import Access from here only; the rules behind it live in lib/ and are not
+// importable from outside.
 //
-// resolveAccess, checkCourseStaff and findPurchaseForAccess are exported only
-// for the module's existing tests. #81 replaces those tests with tests through
-// the Request-based checks and drops these exports.
+// getAccess never throws: it gives a signed-out visitor a null user ID, for
+// routes that redirect or render a preview. Every require* check refuses a
+// signed-out visitor with the same 401.
 export {
   getAccess,
   requireAdmin,
@@ -14,8 +16,4 @@ export {
   requireInstructorOrAdmin,
   requireUserId,
   type Access,
-  // For the module's tests only (see above).
-  checkCourseStaff,
-  findPurchaseForAccess,
-  resolveAccess,
 } from "./lib/access.server";

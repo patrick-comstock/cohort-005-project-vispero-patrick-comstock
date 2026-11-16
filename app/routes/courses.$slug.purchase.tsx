@@ -3,8 +3,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/courses.$slug.purchase";
-import { getCurrentUserId } from "~/lib/session";
-import { getAccess } from "~/modules/access/index.server";
+import { getAccess, requireUserId } from "~/modules/access/index.server";
 import { db } from "~/db";
 import {
   getCourseBySlug,
@@ -206,8 +205,8 @@ export async function loader({ params, request, url }: Route.LoaderArgs) {
     throw data("Course not found.", { status: 404 });
   }
 
-  const currentUserId = await getCurrentUserId(request);
-  if (!currentUserId) {
+  const { userId, enrolled } = await getAccess(request, course.id);
+  if (!userId) {
     throw redirect(
       `/signup?redirectTo=${encodeURIComponent(`/courses/${slug}/purchase`)}`
     );
@@ -216,7 +215,6 @@ export async function loader({ params, request, url }: Route.LoaderArgs) {
   const mode = url.searchParams.get("mode");
 
   // A PPP-blocked Student is still enrolled: don't send them to buy again.
-  const { enrolled } = await getAccess(request, course.id);
 
   if (enrolled && mode !== "team") {
     throw redirect(`/courses/${slug}?already_enrolled=1`);
@@ -267,10 +265,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("Course not found.", { status: 404 });
   }
 
-  const currentUserId = await getCurrentUserId(request);
-  if (!currentUserId) {
-    throw data("You must be logged in.", { status: 401 });
-  }
+  const currentUserId = await requireUserId(request);
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, purchaseActionSchema);

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useFetcher, useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/courses.$slug.lessons.$lessonId";
-import { getCurrentUserId } from "~/lib/session";
 import { getAccess, requireContentAccess } from "~/modules/access/index.server";
 import {
   getCourseIdForLesson,
@@ -575,15 +574,11 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("Lesson not found in this course", { status: 404 });
   }
 
-  const currentUserId = await getCurrentUserId(request);
-  if (!currentUserId) {
-    throw data("You must be logged in", { status: 401 });
-  }
-
   // Every intent writes to the course's content (comments, progress, quiz
   // attempts), so all of them re-check access here rather than relying on the
   // loader — loader guards don't protect actions.
   const access = await requireContentAccess(request, course.id);
+  const currentUserId = access.userId;
 
   const formData = await request.formData();
   const intent = formData.get("intent");

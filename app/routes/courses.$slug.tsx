@@ -3,14 +3,13 @@ import { Link, useFetcher, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/courses.$slug";
-import { getCurrentUserId } from "~/lib/session";
 import { db } from "~/db";
 import {
   getCourseBySlug,
   getCourseOutline,
   getLessonCount,
 } from "~/lib/courses.server";
-import { getAccess } from "~/modules/access/index.server";
+import { getAccess, requireUserId } from "~/modules/access/index.server";
 import { loadCourseProgress } from "~/lib/course-page.server";
 import {
   courses,
@@ -252,11 +251,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 // Enrollment is handled via the purchase confirmation page — this action only
 // records star ratings.
 export async function action({ params, request }: Route.ActionArgs) {
-  const currentUserId = await getCurrentUserId(request);
-
-  if (!currentUserId) {
-    throw data("You must be logged in to rate a course.", { status: 401 });
-  }
+  await requireUserId(request);
 
   const course = getCourseBySlug(db, params.slug);
   if (!course) {

@@ -17,11 +17,7 @@ import { getCourseById, getUserById } from "~/lib/courses.server";
  * The Purchase that the PPP check in Access looks at. A Purchase that was
  * Refunded (its Refund Request was Approved) no longer counts.
  */
-export function findPurchaseForAccess(
-  database: Db,
-  userId: number,
-  courseId: number
-) {
+function findPurchaseForAccess(database: Db, userId: number, courseId: number) {
   return database
     .select()
     .from(purchases)
@@ -120,7 +116,7 @@ const SIGNED_OUT: Access = {
  * for an enrolled user who isn't staff, the one case PPP can restrict: it may
  * call out to an IP lookup service.
  */
-export async function resolveAccess(
+async function resolveAccess(
   database: Db,
   userId: number | null,
   courseId: number,
@@ -182,40 +178,49 @@ export async function getAccess(
   );
 }
 
+const SIGNED_OUT_MESSAGE = "Select a user from the DevUI panel.";
+
+/** The one refusal every require* check gives a signed-out visitor. */
+function signedOut() {
+  return data(SIGNED_OUT_MESSAGE, { status: 401 });
+}
+
 /**
  * Throws 401 unless someone is signed in. Returns their user id.
  */
 export async function requireUserId(request: Request): Promise<number> {
   const userId = await getCurrentUserId(request);
   if (!userId) {
-    throw data("Select a user from the DevUI panel.", { status: 401 });
+    throw signedOut();
   }
   return userId;
 }
 
 /**
  * Throws 401 when signed out, 403 when the user can't see the course's content.
+ * Hands back their Access, with the user ID the route uses for its own work.
  * Use in actions — loader guards don't protect actions.
  */
 export async function requireContentAccess(
   request: Request,
   courseId: number,
   database: Db = db
-): Promise<Access> {
+): Promise<Access & { userId: number }> {
   const access = await getAccess(request, courseId, database);
+  const { userId } = access;
 
-  if (!access.userId) {
-    throw data("Select a user from the DevUI panel.", { status: 401 });
+  if (!userId) {
+    throw signedOut();
   }
 
   if (!access.canViewContent) {
     throw data("You must be enrolled in this course.", { status: 403 });
   }
 
-  return access;
+  return { ...access, userId };
 }
 
-export type CourseStaffCheck =
+type CourseStaffCheck =
   | {
       ok: true;
       user: NonNullable<Access["user"]>;
@@ -230,18 +235,14 @@ export type CourseStaffCheck =
  * is 401. Anyone else who isn't staff gets 404, whether or not the course
  * exists, so its existence isn't revealed.
  */
-export function checkCourseStaff(
+function checkCourseStaff(
   database: Db,
   userId: number | null,
   courseId: number
 ): CourseStaffCheck {
   const user = userId ? getUserById(database, userId) : undefined;
   if (!user) {
-    return {
-      ok: false,
-      status: 401,
-      message: "Select a user from the DevUI panel.",
-    };
+    return { ok: false, status: 401, message: SIGNED_OUT_MESSAGE };
   }
 
   const course = getCourseById(database, courseId);
