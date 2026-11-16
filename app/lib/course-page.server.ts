@@ -6,7 +6,7 @@ import {
   lessons,
   modules,
 } from "~/db/schema";
-import type { Access } from "~/lib/access.server";
+import type { Access } from "~/modules/access/index.server";
 import {
   getCourseProgress,
   getLessonProgressMap,

@@ -3,7 +3,7 @@ import { Link, useFetcher, useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/courses.$slug.lessons.$lessonId";
 import { getCurrentUserId } from "~/lib/session";
-import { getAccess, requireContentAccess } from "~/lib/access.server";
+import { getAccess, requireContentAccess } from "~/modules/access/index.server";
 import {
   getCourseIdForLesson,
   loadLessonPage,

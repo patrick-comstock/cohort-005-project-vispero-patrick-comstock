@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import type { Route } from "./+types/instructor.$courseId.modules.$moduleId";
-import { requireCourseStaff } from "~/lib/access.server";
+import { requireCourseStaff } from "~/modules/access/index.server";
 import { modules, lessons } from "~/db/schema";
 import { db } from "~/db";
 import { getCourseWithDetails } from "~/lib/courses.server";

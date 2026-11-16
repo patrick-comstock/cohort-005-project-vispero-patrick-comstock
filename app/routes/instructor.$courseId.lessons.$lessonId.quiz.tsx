@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useFetcher, useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/instructor.$courseId.lessons.$lessonId.quiz";
-import { requireCourseStaff } from "~/lib/access.server";
+import { requireCourseStaff } from "~/modules/access/index.server";
 import {
   QuestionType,
   modules,

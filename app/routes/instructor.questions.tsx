@@ -6,7 +6,7 @@ import type { Route } from "./+types/instructor.questions";
 import {
   requireCourseStaff,
   requireInstructorOrAdmin,
-} from "~/lib/access.server";
+} from "~/modules/access/index.server";
 import { renderComment } from "~/lib/comment-markdown.server";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";

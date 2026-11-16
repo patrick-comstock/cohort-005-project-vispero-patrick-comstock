@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/courses.$slug.purchase";
 import { getCurrentUserId } from "~/lib/session";
-import { getAccess } from "~/lib/access.server";
+import { getAccess } from "~/modules/access/index.server";
 import { db } from "~/db";
 import {
   getCourseBySlug,

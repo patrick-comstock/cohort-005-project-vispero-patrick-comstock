@@ -10,7 +10,7 @@ import {
   getCourseOutline,
   getLessonCount,
 } from "~/lib/courses.server";
-import { getAccess } from "~/lib/access.server";
+import { getAccess } from "~/modules/access/index.server";
 import { loadCourseProgress } from "~/lib/course-page.server";
 import {
   courses,

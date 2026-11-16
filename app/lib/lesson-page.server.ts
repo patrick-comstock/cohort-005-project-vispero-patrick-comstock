@@ -11,7 +11,7 @@ import {
   quizzes,
   videoWatchEvents,
 } from "~/db/schema";
-import type { Access } from "~/lib/access.server";
+import type { Access } from "~/modules/access/index.server";
 import { getLessonProgressMap } from "~/lib/course-progress.server";
 import { renderMarkdown } from "~/lib/markdown.server";
 

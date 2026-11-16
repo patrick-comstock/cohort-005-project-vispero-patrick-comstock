@@ -6,7 +6,7 @@ import {
   lessons,
   modules,
 } from "~/db/schema";
-import type { Access } from "~/lib/access.server";
+import type { Access } from "~/modules/access/index.server";
 
 /** The parts of Access that decide what the module page may show. */
 export type ModuleViewer = Pick<

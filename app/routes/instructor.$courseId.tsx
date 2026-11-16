@@ -8,7 +8,7 @@ import {
   type DropResult,
 } from "@hello-pangea/dnd";
 import type { Route } from "./+types/instructor.$courseId";
-import { requireCourseStaff } from "~/lib/access.server";
+import { requireCourseStaff } from "~/modules/access/index.server";
 import { CourseStatus } from "~/db/schema";
 import { db } from "~/db";
 import { courses, modules, lessons, enrollments } from "~/db/schema";

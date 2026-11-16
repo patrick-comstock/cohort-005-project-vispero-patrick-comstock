@@ -2,7 +2,7 @@ import { Link, redirect } from "react-router";
 import type { Route } from "./+types/courses.$slug.welcome";
 import { db } from "~/db";
 import { getCourseBySlug, getCourseOutline } from "~/lib/courses.server";
-import { getAccess } from "~/lib/access.server";
+import { getAccess } from "~/modules/access/index.server";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { PppRestrictedNotice } from "~/components/ppp-restricted-notice";

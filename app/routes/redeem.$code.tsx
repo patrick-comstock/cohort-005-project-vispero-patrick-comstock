@@ -13,7 +13,7 @@ import { data } from "react-router";
 import { db } from "~/db";
 import { getCourseById } from "~/lib/courses.server";
 import { purchases, coupons } from "~/db/schema";
-import { getAccess } from "~/lib/access.server";
+import { getAccess } from "~/modules/access/index.server";
 import {
   REFUND_REQUEST_PENDING_MESSAGE,
   redeemCoupon,

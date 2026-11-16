@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { z } from "zod";
 import type { Route } from "./+types/notifications";
 import { db } from "~/db";
-import { requireUserId } from "~/lib/access.server";
+import { requireUserId } from "~/modules/access/index.server";
 import {
   listNotifications,
   markAllNotificationsRead,

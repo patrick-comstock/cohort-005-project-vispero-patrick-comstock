@@ -173,10 +173,13 @@ export async function resolveAccess(
  */
 export async function getAccess(
   request: Request,
-  courseId: number
+  courseId: number,
+  database: Db = db
 ): Promise<Access> {
   const userId = await getCurrentUserId(request);
-  return resolveAccess(db, userId, courseId, () => resolveCountry(request));
+  return resolveAccess(database, userId, courseId, () =>
+    resolveCountry(request)
+  );
 }
 
 /**
@@ -196,9 +199,10 @@ export async function requireUserId(request: Request): Promise<number> {
  */
 export async function requireContentAccess(
   request: Request,
-  courseId: number
+  courseId: number,
+  database: Db = db
 ): Promise<Access> {
-  const access = await getAccess(request, courseId);
+  const access = await getAccess(request, courseId, database);
 
   if (!access.userId) {
     throw data("Select a user from the DevUI panel.", { status: 401 });
@@ -260,9 +264,13 @@ export function checkCourseStaff(
  * parseParams first, so a malformed id is a 400. Call it in every loader and
  * every action — loader guards don't protect actions.
  */
-export async function requireCourseStaff(request: Request, courseId: number) {
+export async function requireCourseStaff(
+  request: Request,
+  courseId: number,
+  database: Db = db
+) {
   const userId = await getCurrentUserId(request);
-  const result = checkCourseStaff(db, userId, courseId);
+  const result = checkCourseStaff(database, userId, courseId);
 
   if (!result.ok) {
     throw data(result.message, { status: result.status });
@@ -275,9 +283,9 @@ export async function requireCourseStaff(request: Request, courseId: number) {
  * Throws unless the user is an Instructor. Admins are refused: creating
  * courses, and the list of one's own courses, are for Instructors only.
  */
-export async function requireInstructor(request: Request) {
+export async function requireInstructor(request: Request, database: Db = db) {
   const userId = await requireUserId(request);
-  const user = getUserById(db, userId);
+  const user = getUserById(database, userId);
 
   if (!user || user.role !== UserRole.Instructor) {
     throw data("Only instructors can access this page.", { status: 403 });
@@ -290,9 +298,12 @@ export async function requireInstructor(request: Request) {
  * Throws unless the user is an instructor or an admin, without tying them to a
  * particular course — for pages that span all of someone's courses.
  */
-export async function requireInstructorOrAdmin(request: Request) {
+export async function requireInstructorOrAdmin(
+  request: Request,
+  database: Db = db
+) {
   const userId = await requireUserId(request);
-  const user = getUserById(db, userId);
+  const user = getUserById(database, userId);
 
   if (
     !user ||
@@ -308,9 +319,9 @@ export async function requireInstructorOrAdmin(request: Request) {
  * Throws unless the user is an Admin — for pages that run the platform, such
  * as Resolving Refund Requests.
  */
-export async function requireAdmin(request: Request) {
+export async function requireAdmin(request: Request, database: Db = db) {
   const userId = await requireUserId(request);
-  const user = getUserById(db, userId);
+  const user = getUserById(database, userId);
 
   if (!user || user.role !== UserRole.Admin) {
     throw data("Only admins can access this page.", { status: 403 });

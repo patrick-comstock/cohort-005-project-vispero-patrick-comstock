@@ -2,7 +2,7 @@ import { data } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/api.video-tracking";
 import { getCurrentUserId } from "~/lib/session";
-import { requireContentAccess } from "~/lib/access.server";
+import { requireContentAccess } from "~/modules/access/index.server";
 import { getCourseIdForLesson } from "~/lib/lesson-page.server";
 import { parseJsonBody } from "~/lib/validation";
 import { db } from "~/db";

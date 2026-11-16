@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import type { Route } from "./+types/instructor.$courseId.students";
-import { requireCourseStaff } from "~/lib/access.server";
+import { requireCourseStaff } from "~/modules/access/index.server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { AlertTriangle, ArrowLeft, Users, Award } from "lucide-react";

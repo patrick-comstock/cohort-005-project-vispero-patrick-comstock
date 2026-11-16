@@ -3,13 +3,13 @@ import { eq } from "drizzle-orm";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
 import { RefundRequestStatus, UserRole } from "~/db/schema";
+import { makeRefundRequest } from "~/lib/refund-eligibility.server";
+import { resolveRefundRequest } from "~/lib/refund-request-resolve.server";
 import {
   checkCourseStaff,
   findPurchaseForAccess,
   resolveAccess,
-} from "./access.server";
-import { makeRefundRequest } from "./refund-eligibility.server";
-import { resolveRefundRequest } from "./refund-request-resolve.server";
+} from "../index.server";
 
 type TestDb = ReturnType<typeof createTestDb>;
 
