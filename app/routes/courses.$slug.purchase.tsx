@@ -15,7 +15,6 @@ import {
   getLessonCount,
 } from "~/lib/courses.server";
 import {
-  courses,
   enrollments,
   purchases,
   teams,
@@ -54,38 +53,10 @@ function getEnrollmentCountForCourse(courseId: number) {
   return result?.count ?? 0;
 }
 
-function enrollUser(
-  userId: number,
-  courseId: number,
-  sendEmail: boolean,
-  skipValidation: boolean
-) {
-  if (!skipValidation) {
-    if (isEnrolled(db, userId, courseId)) {
-      throw new Error("User is already enrolled in this course");
-    }
-
-    const course = db
-      .select()
-      .from(courses)
-      .where(eq(courses.id, courseId))
-      .get();
-    if (!course) {
-      throw new Error("Course not found");
-    }
-  }
-
-  const enrollment = db
-    .insert(enrollments)
-    .values({ userId, courseId })
-    .returning()
-    .get();
-
-  if (sendEmail) {
-    // Would send welcome email here
-  }
-
-  return enrollment;
+// Trusts the caller: the action has already loaded the course and asked
+// isEnrolled before recording the Purchase, so there is nothing to re-check.
+function enrollUser(userId: number, courseId: number) {
+  return db.insert(enrollments).values({ userId, courseId }).returning().get();
 }
 
 function createPurchase(
@@ -276,7 +247,7 @@ export async function action({ params, request }: Route.ActionArgs) {
       throw redirect(`/courses/${slug}`);
     }
     createPurchase(currentUserId, course.id, pppPrice, country);
-    enrollUser(currentUserId, course.id, false, false);
+    enrollUser(currentUserId, course.id);
     throw redirect(`/courses/${slug}/welcome`);
   }
 
