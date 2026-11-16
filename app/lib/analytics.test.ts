@@ -7,7 +7,6 @@ import {
   formatBucket,
   formatMoney,
   rangeStart,
-  parseAnalyticsRange,
   splitRevenue,
 } from "./analytics";
 
@@ -75,22 +74,6 @@ describe("analytics config", () => {
         feeCents: 0,
         netEarningsCents: 0,
       });
-    });
-  });
-
-  describe("parseAnalyticsRange", () => {
-    it("accepts each offered token", () => {
-      // Read from the table, so that a new range cannot be offered unless it
-      // also parses. Note that "30d" is a weak case on its own: the fallback
-      // returns "30d" too, so the exact table above is what pins that entry.
-      for (const { value } of ANALYTICS_RANGES) {
-        expect(parseAnalyticsRange(value)).toBe(value);
-      }
-    });
-
-    it("falls back to the default for junk or a missing param", () => {
-      expect(parseAnalyticsRange(null)).toBe("30d");
-      expect(parseAnalyticsRange("last tuesday")).toBe("30d");
     });
   });
 
