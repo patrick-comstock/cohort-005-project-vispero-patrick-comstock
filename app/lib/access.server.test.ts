@@ -62,6 +62,15 @@ function setCoursePricing(pppEnabled = true) {
     .run();
 }
 
+/** The course's owner loses the Instructor role but still owns the course. */
+function demoteOwner() {
+  testDb
+    .update(schema.users)
+    .set({ role: UserRole.Student })
+    .where(eq(schema.users.id, base.instructor.id))
+    .run();
+}
+
 function approveRefund(purchaseId: number) {
   resolveRefundRequest(testDb, {
     refundRequestId: requestRefund(purchaseId).id,
@@ -167,6 +176,47 @@ describe("resolveAccess", () => {
     expect(access.canViewContent).toBe(true);
   });
 
+  it("does not let a demoted owner view content without an Enrollment", () => {
+    demoteOwner();
+
+    const access = resolveAccess(
+      testDb,
+      base.instructor.id,
+      base.course.id,
+      "US"
+    );
+
+    expect(access).toMatchObject({
+      userId: base.instructor.id,
+      isOwningInstructor: false,
+      isStaff: false,
+      enrolled: false,
+      canViewContent: false,
+    });
+  });
+
+  it("applies the PPP rules to a demoted owner who is enrolled", () => {
+    setCoursePricing();
+    demoteOwner();
+    buyCourse(base.instructor.id, 2999, "IN");
+
+    const access = resolveAccess(
+      testDb,
+      base.instructor.id,
+      base.course.id,
+      "US"
+    );
+
+    expect(access).toMatchObject({
+      isStaff: false,
+      enrolled: true,
+      pppBlocked: true,
+      pppBlockedCountry: "US",
+      pppPurchaseCountry: "IN",
+      canViewContent: false,
+    });
+  });
+
   it("never blocks an Admin", () => {
     setCoursePricing();
     buyCourse(admin.id, 2999, "IN");
@@ -245,11 +295,20 @@ describe("checkCourseStaff", () => {
   });
 
   it("refuses with 404 an owner whose role is no longer Instructor", () => {
-    testDb
-      .update(schema.users)
-      .set({ role: UserRole.Student })
-      .where(eq(schema.users.id, base.instructor.id))
-      .run();
+    demoteOwner();
+
+    expect(checkCourseStaff(testDb, base.instructor.id, base.course.id)).toEqual(
+      {
+        ok: false,
+        status: 404,
+        message: "Course not found.",
+      }
+    );
+  });
+
+  it("refuses with 404 a demoted owner who is enrolled", () => {
+    demoteOwner();
+    buyCourse(base.instructor.id);
 
     expect(checkCourseStaff(testDb, base.instructor.id, base.course.id)).toEqual(
       {
