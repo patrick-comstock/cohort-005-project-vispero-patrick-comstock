@@ -173,7 +173,7 @@ describe("getRefundRequestOffer", () => {
     return getRefundRequestOffer(testDb, {
       userId: base.user.id,
       courseId: base.course.id,
-      now: new Date(`${day}T12:00:00`),
+      now: new Date(`${day}T12:00:00.000Z`),
     });
   }
 
@@ -181,7 +181,7 @@ describe("getRefundRequestOffer", () => {
     const purchase = buyCourse(base.user.id, amountPaid);
     testDb
       .update(schema.purchases)
-      .set({ createdAt: new Date(`${day}T09:00:00`).toISOString() })
+      .set({ createdAt: new Date(`${day}T09:00:00.000Z`).toISOString() })
       .where(eq(schema.purchases.id, purchase.id))
       .run();
     return purchase;
@@ -415,7 +415,7 @@ describe("getRefundRequestOffer", () => {
         userId: base.user.id,
         courseId: base.course.id,
         reason: "The course was not what I expected.",
-        now: new Date(`${day}T12:00:00`),
+        now: new Date(`${day}T12:00:00.000Z`),
       });
     }
 
@@ -501,7 +501,7 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
         courseId: base.course.id,
         amountPaid,
         country: "US",
-        createdAt: new Date(`${day}T09:00:00`).toISOString(),
+        createdAt: new Date(`${day}T09:00:00.000Z`).toISOString(),
       })
       .returning()
       .get();
@@ -523,7 +523,7 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
     return getTeamPurchaseRefundRequestOffer(testDb, {
       userId,
       purchaseId,
-      now: new Date(`${day}T12:00:00`),
+      now: new Date(`${day}T12:00:00.000Z`),
     });
   }
 
@@ -640,7 +640,7 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
         userId: base.user.id,
         purchaseId: purchase.id,
         reason: "The team changed direction.",
-        now: new Date("2026-03-02T12:00:00"),
+        now: new Date("2026-03-02T12:00:00.000Z"),
       });
 
       expect(result).toMatchObject({
@@ -660,7 +660,7 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
         userId: base.user.id,
         purchaseId: purchase.id,
         reason: "The team changed direction.",
-        now: new Date("2026-03-02T12:00:00"),
+        now: new Date("2026-03-02T12:00:00.000Z"),
       });
       if (!made.ok) throw new Error(made.error);
 
@@ -694,7 +694,7 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
         userId: base.user.id,
         purchaseId: purchase.id,
         reason: "The team changed direction.",
-        now: new Date("2026-03-02T12:00:00"),
+        now: new Date("2026-03-02T12:00:00.000Z"),
       });
 
       expect(result).toMatchObject({ ok: false, code: "coupon-redeemed" });
@@ -712,7 +712,7 @@ describe("getTeamPurchaseRefundRequestOffer", () => {
 
       const listed = listTeamPurchasesForBuyer(testDb, {
         userId: base.user.id,
-        now: new Date("2026-03-02T12:00:00"),
+        now: new Date("2026-03-02T12:00:00.000Z"),
       });
 
       expect(listed).toMatchObject([
