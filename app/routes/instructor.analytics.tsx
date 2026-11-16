@@ -27,8 +27,10 @@ import {
   lessonProgress,
   lessons,
   modules,
+  purchases,
   quizAttempts,
   quizzes,
+  refundRequests,
   users,
 } from "~/db/schema";
 import type { AnalyticsRange } from "~/lib/analytics";
@@ -42,6 +44,7 @@ import {
   getRevenueSummary,
   getStudentRevenue,
   getTopBuyers,
+  resolvedRefundRequest,
   type CourseCountryRevenue,
   type RevenueSeries,
 } from "~/lib/revenue.server";
@@ -52,6 +55,7 @@ import {
   formatMoney,
   parseAnalyticsRange,
   rangeStart,
+  splitRevenue,
 } from "~/lib/analytics";
 import { countryName } from "~/lib/ppp";
 import { Button } from "~/components/ui/button";
@@ -427,6 +431,48 @@ function getCourseQuizPassRates(
   });
 }
 
+// ─── Refund exposure ───
+// Revenue is reported the moment a Purchase lands, but a Refund Request can be
+// made for fourteen days, so some of what this page calls Revenue is still the
+// learner's money. This panel says how much of it is. Purchases already
+// Refunded are out of Revenue, so they are not exposed either. Nor are
+// Purchases whose Refund Request was Declined: a Resolution is final and a
+// Purchase has at most one Refund Request, so that money is kept. A Pending
+// Refund Request still counts as exposed.
+const REFUND_WINDOW_DAYS = 14;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Whole days, not hours — someone who buys at 23:00 gets the whole of their
+// fourteenth day.
+function calendarDay(when: Date): string {
+  const month = String(when.getMonth() + 1).padStart(2, "0");
+  const day = String(when.getDate()).padStart(2, "0");
+  return `${when.getFullYear()}-${month}-${day}`;
+}
+
+function lastDayOfRefundWindow(purchasedAtIso: string): string {
+  const deadline = new Date(purchasedAtIso);
+  deadline.setDate(deadline.getDate() + REFUND_WINDOW_DAYS);
+  return calendarDay(deadline);
+}
+
+type ExposedCourse = {
+  courseId: number;
+  title: string;
+  revenueCents: number;
+  purchaseCount: number;
+  daysLeft: number;
+};
+
+type RefundExposure = {
+  revenueCents: number;
+  netEarningsCents: number;
+  purchaseCount: number;
+  sharePercent: number;
+  closingTodayCount: number;
+  courses: ExposedCourse[];
+};
+
 export async function loader({ request, url }: Route.LoaderArgs) {
   const { userId, isAdmin } = await requireInstructorOrAdmin(request);
 
@@ -578,6 +624,81 @@ export async function loader({ request, url }: Route.LoaderArgs) {
           )
           .get();
 
+  // Refund exposure. Every Purchase in the range with no Resolved Refund
+  // Request (none, or one still Pending), then the ones still inside their
+  // Refund Window, grouped up. Today is read from the clock right here.
+  const exposureRows = db
+    .select({
+      courseId: courses.id,
+      title: courses.title,
+      amountPaid: purchases.amountPaid,
+      createdAt: purchases.createdAt,
+    })
+    .from(purchases)
+    .innerJoin(courses, eq(purchases.courseId, courses.id))
+    .leftJoin(refundRequests, resolvedRefundRequest)
+    .where(
+      and(
+        scopeOn(purchases.createdAt, instructorId, range),
+        isNull(refundRequests.id)
+      )
+    )
+    .all();
+
+  const today = calendarDay(new Date());
+  const exposedByCourse = new Map<number, ExposedCourse>();
+  let exposedRevenueCents = 0;
+  let exposedPurchaseCount = 0;
+  let closingTodayCount = 0;
+
+  for (const row of exposureRows) {
+    const lastDay = lastDayOfRefundWindow(row.createdAt);
+    if (today > lastDay) continue;
+
+    // Whole days between today and the last day the learner may still ask.
+    const daysLeft = Math.round(
+      (new Date(`${lastDay}T00:00:00.000Z`).getTime() -
+        new Date(`${today}T00:00:00.000Z`).getTime()) /
+        MS_PER_DAY
+    );
+
+    // Not Refunded, so all of what was paid is still in Revenue.
+    exposedRevenueCents += row.amountPaid;
+    exposedPurchaseCount += 1;
+    if (daysLeft === 0) closingTodayCount += 1;
+
+    const existing = exposedByCourse.get(row.courseId);
+
+    if (existing === undefined) {
+      exposedByCourse.set(row.courseId, {
+        courseId: row.courseId,
+        title: row.title,
+        revenueCents: row.amountPaid,
+        purchaseCount: 1,
+        daysLeft,
+      });
+    } else {
+      existing.revenueCents += row.amountPaid;
+      existing.purchaseCount += 1;
+      // The course's headline is its most urgent purchase, not its newest.
+      existing.daysLeft = Math.min(existing.daysLeft, daysLeft);
+    }
+  }
+
+  const refundExposure: RefundExposure = {
+    revenueCents: exposedRevenueCents,
+    netEarningsCents: splitRevenue(exposedRevenueCents).netEarningsCents,
+    purchaseCount: exposedPurchaseCount,
+    sharePercent:
+      summary.revenueCents === 0
+        ? 0
+        : Math.round((exposedRevenueCents / summary.revenueCents) * 100),
+    closingTodayCount,
+    courses: [...exposedByCourse.values()].sort(
+      (a, b) => b.revenueCents - a.revenueCents
+    ),
+  };
+
   return {
     // Split rather than filtered: the range applies, but questions older than
     // it are still reported, because months of silence is the urgent case.
@@ -614,6 +735,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
         ? null
         : getCourseRevenueByCountry(db, selectedCourseId, range),
     instructors,
+    refundExposure,
     unpublished: instructorId !== null && publishedRow === undefined,
   };
 }
@@ -1105,6 +1227,72 @@ function RevenueByCountry({ breakdown }: { breakdown: CourseCountryRevenue }) {
 const NO_SALES_YET = "No sales in this period yet.";
 const ALL_SALES_REFUNDED = "All sales in this period were Refunded.";
 
+function RefundExposurePanel({ exposure }: { exposure: RefundExposure }) {
+  if (exposure.purchaseCount === 0) {
+    return (
+      <p className="py-8 text-center text-sm text-muted-foreground">
+        Nothing in this period could still be Refunded. All the Revenue above is
+        money you have kept.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+        <span className="text-3xl font-bold">
+          {formatMoney(exposure.revenueCents)}
+        </span>
+        <span className="text-sm text-muted-foreground">
+          {exposure.sharePercent}% of Revenue, across {exposure.purchaseCount}{" "}
+          {exposure.purchaseCount === 1 ? "purchase" : "purchases"} —{" "}
+          {formatMoney(exposure.netEarningsCents)} of it Net Earnings.
+        </span>
+      </div>
+
+      {exposure.closingTodayCount > 0 && (
+        <p className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <AlertTriangle className="size-4" />
+          {exposure.closingTodayCount}{" "}
+          {exposure.closingTodayCount === 1
+            ? "purchase leaves"
+            : "purchases leave"}{" "}
+          the Refund Window today.
+        </p>
+      )}
+
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left text-muted-foreground">
+            <th className="pb-2 font-medium">Course</th>
+            <th className="pb-2 text-right font-medium">At risk</th>
+            <th className="pb-2 text-right font-medium">Purchases</th>
+            <th className="pb-2 text-right font-medium">Soonest to close</th>
+          </tr>
+        </thead>
+        <tbody>
+          {exposure.courses.map((course) => (
+            <tr key={course.courseId} className="border-b last:border-0">
+              <td className="py-3">{course.title}</td>
+              <td className="py-3 text-right tabular-nums">
+                {formatMoney(course.revenueCents)}
+              </td>
+              <td className="py-3 text-right tabular-nums">
+                {course.purchaseCount}
+              </td>
+              <td className="py-3 text-right tabular-nums">
+                {course.daysLeft === 0
+                  ? "Today"
+                  : `${course.daysLeft} ${course.daysLeft === 1 ? "day" : "days"}`}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
 export default function InstructorAnalytics({
   loaderData,
 }: Route.ComponentProps) {
@@ -1129,6 +1317,7 @@ export default function InstructorAnalytics({
     buyers,
     questions,
     ratings,
+    refundExposure,
   } = loaderData;
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1365,6 +1554,18 @@ export default function InstructorAnalytics({
                   people worth reaching out to.
                 </p>
                 <TopBuyers buyers={buyers} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <h2 className="text-lg font-semibold">Refund exposure</h2>
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Revenue in this period that could still go back out as a
+                  Refund: Purchases inside their {REFUND_WINDOW_DAYS}-day Refund
+                  Window with no Refund Request yet, or one still Pending.
+                </p>
+                <RefundExposurePanel exposure={refundExposure} />
               </CardContent>
             </Card>
           </TabsContent>
