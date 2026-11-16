@@ -361,26 +361,26 @@ describe("checkCourseStaff", () => {
   it("refuses with 404 an owner whose role is no longer Instructor", () => {
     demoteOwner();
 
-    expect(checkCourseStaff(testDb, base.instructor.id, base.course.id)).toEqual(
-      {
-        ok: false,
-        status: 404,
-        message: "Course not found.",
-      }
-    );
+    expect(
+      checkCourseStaff(testDb, base.instructor.id, base.course.id)
+    ).toEqual({
+      ok: false,
+      status: 404,
+      message: "Course not found.",
+    });
   });
 
   it("refuses with 404 a demoted owner who is enrolled", () => {
     demoteOwner();
     buyCourse(base.instructor.id);
 
-    expect(checkCourseStaff(testDb, base.instructor.id, base.course.id)).toEqual(
-      {
-        ok: false,
-        status: 404,
-        message: "Course not found.",
-      }
-    );
+    expect(
+      checkCourseStaff(testDb, base.instructor.id, base.course.id)
+    ).toEqual({
+      ok: false,
+      status: 404,
+      message: "Course not found.",
+    });
   });
 
   it("lets the owning Instructor through", () => {

@@ -84,11 +84,7 @@ export default function Welcome({ loaderData }: Route.ComponentProps) {
                 rel="noopener noreferrer"
                 className="block"
               >
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="w-full max-w-sm"
-                >
+                <Button variant="outline" size="lg" className="w-full max-w-sm">
                   <MessageCircle className="mr-2 size-5" />
                   Join the Discord Community
                 </Button>

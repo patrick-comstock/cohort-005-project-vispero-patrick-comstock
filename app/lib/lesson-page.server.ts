@@ -16,7 +16,10 @@ import { getLessonProgressMap } from "~/lib/course-progress.server";
 import { renderMarkdown } from "~/lib/markdown.server";
 
 /** The parts of Access that decide what the lesson page may send. */
-export type LessonViewer = Pick<Access, "userId" | "enrolled" | "canViewContent">;
+export type LessonViewer = Pick<
+  Access,
+  "userId" | "enrolled" | "canViewContent"
+>;
 
 /** The course a lesson belongs to, through its module. */
 export function getCourseIdForLesson(
@@ -257,7 +260,9 @@ export async function loadLessonPage(
 
   const quiz = getQuizForLesson(database, lessonId);
   const bestAttempt =
-    quiz && viewer.userId ? getBestAttempt(database, viewer.userId, quiz.id) : null;
+    quiz && viewer.userId
+      ? getBestAttempt(database, viewer.userId, quiz.id)
+      : null;
 
   let lessonStatus: LessonProgressStatus | null = null;
   let lastWatchPosition = 0;
@@ -265,8 +270,11 @@ export async function loadLessonPage(
   let lessonProgressMap: Record<number, LessonProgressStatus> = {};
 
   if (viewer.userId && viewer.enrolled) {
-    lessonStatus = markLessonInProgress(database, viewer.userId, lessonId)
-      .status;
+    lessonStatus = markLessonInProgress(
+      database,
+      viewer.userId,
+      lessonId
+    ).status;
 
     lessonProgressMap = getLessonProgressMap(database, viewer.userId, courseId);
 

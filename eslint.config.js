@@ -40,7 +40,7 @@ export default tseslint.config(
         {
           selector: `${loaderOrAction} ReturnStatement Property[key.name="ok"]:matches([value.value=false], [value.expression.value=false])`,
           message:
-            "Loaders and actions throw on failure (e.g. throw data(\"Not found\", { status: 404 })). A refusal the user can fix in the form is returned as data({ error }, { status: 400 }). See CODING_STANDARDS.md.",
+            'Loaders and actions throw on failure (e.g. throw data("Not found", { status: 404 })). A refusal the user can fix in the form is returned as data({ error }, { status: 400 }). See CODING_STANDARDS.md.',
         },
         // "Parse untrusted input with a schema"
         {

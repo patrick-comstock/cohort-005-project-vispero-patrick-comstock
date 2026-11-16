@@ -212,12 +212,7 @@ export async function action({ request }: Route.ActionArgs) {
   const { user } = await requireCourseStaff(request, course.courseId);
 
   try {
-    createComment(
-      user.id,
-      question.lessonId,
-      question.id,
-      parsed.data.body
-    );
+    createComment(user.id, question.lessonId, question.id, parsed.data.body);
   } catch (error) {
     if (error instanceof Error) {
       return data({ error: error.message }, { status: 400 });

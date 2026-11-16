@@ -22,7 +22,9 @@ export async function resolveCountry(request: Request): Promise<string | null> {
   try {
     const ip = request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim();
     if (ip) {
-      const response = await fetch(`http://ip-api.com/json/${ip}?fields=countryCode`);
+      const response = await fetch(
+        `http://ip-api.com/json/${ip}?fields=countryCode`
+      );
       if (response.ok) {
         const data = await response.json();
         if (data.countryCode && typeof data.countryCode === "string") {
