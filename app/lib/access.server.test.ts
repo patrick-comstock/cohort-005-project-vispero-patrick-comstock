@@ -3,7 +3,11 @@ import { eq } from "drizzle-orm";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
 import { RefundRequestStatus, UserRole } from "~/db/schema";
-import { findPurchaseForAccess, resolveAccess } from "./access.server";
+import {
+  checkCourseStaff,
+  findPurchaseForAccess,
+  resolveAccess,
+} from "./access.server";
 import { makeRefundRequest } from "./refund-eligibility.server";
 import { resolveRefundRequest } from "./refund-request-resolve.server";
 
@@ -175,6 +179,82 @@ describe("resolveAccess", () => {
       enrolled: true,
       pppBlocked: false,
       canViewContent: true,
+    });
+  });
+});
+
+describe("checkCourseStaff", () => {
+  it("refuses with 401 when no one is signed in", () => {
+    expect(checkCourseStaff(testDb, null, base.course.id)).toEqual({
+      ok: false,
+      status: 401,
+      message: "Select a user from the DevUI panel.",
+    });
+  });
+
+  it("refuses with 401 when the user id is unknown", () => {
+    expect(checkCourseStaff(testDb, 9999, base.course.id)).toEqual({
+      ok: false,
+      status: 401,
+      message: "Select a user from the DevUI panel.",
+    });
+  });
+
+  it("refuses with 404 when the course does not exist", () => {
+    expect(checkCourseStaff(testDb, base.instructor.id, 9999)).toEqual({
+      ok: false,
+      status: 404,
+      message: "Course not found.",
+    });
+  });
+
+  it("refuses with 403 an Instructor who does not own the course", () => {
+    const other = testDb
+      .insert(schema.users)
+      .values({
+        name: "Other Instructor",
+        email: "other@example.com",
+        role: UserRole.Instructor,
+      })
+      .returning()
+      .get();
+
+    expect(checkCourseStaff(testDb, other.id, base.course.id)).toEqual({
+      ok: false,
+      status: 403,
+      message: "Only this course's instructor can do that.",
+    });
+  });
+
+  it("refuses with 403 a Student, even an enrolled one", () => {
+    buyCourse(base.user.id);
+
+    expect(checkCourseStaff(testDb, base.user.id, base.course.id)).toEqual({
+      ok: false,
+      status: 403,
+      message: "Only this course's instructor can do that.",
+    });
+  });
+
+  it("lets the owning Instructor through", () => {
+    const result = checkCourseStaff(testDb, base.instructor.id, base.course.id);
+
+    expect(result).toMatchObject({
+      ok: true,
+      user: { id: base.instructor.id },
+      course: { id: base.course.id },
+      isAdmin: false,
+    });
+  });
+
+  it("lets an Admin through on a course they do not own", () => {
+    const result = checkCourseStaff(testDb, admin.id, base.course.id);
+
+    expect(result).toMatchObject({
+      ok: true,
+      user: { id: admin.id },
+      course: { id: base.course.id },
+      isAdmin: true,
     });
   });
 });
