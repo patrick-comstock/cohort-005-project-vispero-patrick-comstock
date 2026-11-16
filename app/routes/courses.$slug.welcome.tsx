@@ -2,7 +2,7 @@ import { Link, redirect } from "react-router";
 import type { Route } from "./+types/courses.$slug.welcome";
 import { db } from "~/db";
 import { getCourseBySlug, getCourseOutline } from "~/lib/courses.server";
-import { getAccess } from "~/lib/access.server";
+import { getAccess } from "~/modules/access/index.server";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { PppRestrictedNotice } from "~/components/ppp-restricted-notice";
@@ -25,10 +25,11 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Course not found.", { status: 404 });
   }
 
-  // The welcome page is for an Enrollment; staff previewing without one may
-  // see it too. A PPP-blocked Student is enrolled but can't start a lesson.
+  // The welcome page is for an Enrollment; a Course Manager previewing without
+  // one may see it too. A PPP-blocked Student is enrolled but can't start a
+  // lesson.
   const access = await getAccess(request, course.id);
-  if (!access.enrolled && !access.isStaff) {
+  if (!access.enrolled && !access.isCourseManager) {
     throw redirect(`/courses/${slug}`);
   }
 

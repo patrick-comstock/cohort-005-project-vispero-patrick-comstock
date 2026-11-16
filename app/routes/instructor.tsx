@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import type { Route } from "./+types/instructor";
-import { requireInstructor } from "~/lib/access.server";
+import { requireInstructor } from "~/modules/access/index.server";
 import {
   Card,
   CardContent,

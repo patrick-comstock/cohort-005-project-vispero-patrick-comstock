@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useFetcher, useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/instructor.$courseId.lessons.$lessonId.quiz";
-import { requireCourseStaff } from "~/lib/access.server";
+import { requireCourseManager } from "~/modules/access/index.server";
 import {
   QuestionType,
   modules,
@@ -266,7 +266,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const { courseId, lessonId } = parseParams(params, quizParamsSchema);
-  const { course } = await requireCourseStaff(request, courseId);
+  const { course } = await requireCourseManager(request, courseId);
 
   const lesson = getLessonById(lessonId);
   if (!lesson) {
@@ -291,7 +291,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
 export async function action({ params, request }: Route.ActionArgs) {
   const { courseId, lessonId } = parseParams(params, quizParamsSchema);
-  await requireCourseStaff(request, courseId);
+  await requireCourseManager(request, courseId);
 
   const lesson = getLessonById(lessonId);
   if (!lesson) {

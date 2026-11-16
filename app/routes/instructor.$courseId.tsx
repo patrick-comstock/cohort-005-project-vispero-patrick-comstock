@@ -8,7 +8,7 @@ import {
   type DropResult,
 } from "@hello-pangea/dnd";
 import type { Route } from "./+types/instructor.$courseId";
-import { requireCourseStaff } from "~/lib/access.server";
+import { requireCourseManager } from "~/modules/access/index.server";
 import { CourseStatus } from "~/db/schema";
 import { db } from "~/db";
 import { courses, modules, lessons, enrollments } from "~/db/schema";
@@ -372,7 +372,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const { courseId } = parseParams(params, courseEditorParamsSchema);
-  await requireCourseStaff(request, courseId);
+  await requireCourseManager(request, courseId);
 
   const course = getCourseWithDetails(db, courseId);
 
@@ -439,7 +439,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
 export async function action({ params, request }: Route.ActionArgs) {
   const { courseId } = parseParams(params, courseEditorParamsSchema);
-  const { course } = await requireCourseStaff(request, courseId);
+  const { course } = await requireCourseManager(request, courseId);
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, courseEditorActionSchema);

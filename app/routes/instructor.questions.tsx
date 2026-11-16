@@ -4,9 +4,9 @@ import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/instructor.questions";
 import {
-  requireCourseStaff,
+  requireCourseManager,
   requireInstructorOrAdmin,
-} from "~/lib/access.server";
+} from "~/modules/access/index.server";
 import { renderComment } from "~/lib/comment-markdown.server";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
@@ -209,7 +209,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   // Answering as the course's voice — so it must be the course's own
   // instructor, or an admin.
-  const { user } = await requireCourseStaff(request, course.courseId);
+  const { user } = await requireCourseManager(request, course.courseId);
 
   try {
     createComment(user.id, question.lessonId, question.id, parsed.data.body);

@@ -4,7 +4,7 @@ status: accepted
 
 # Approving a Refund Request deletes the Enrollment
 
-Access (`app/lib/access.server.ts`) and other readers treat a Student as enrolled purely when an Enrollment row exists. So when an Admin Resolves a Refund Request as Approved, we delete the Student's Enrollment row for that course rather than keeping it and marking it as ended. Lesson progress is kept, so if the Student makes a new Purchase, their progress comes back.
+Access (`app/modules/access/`) and other readers treat a Student as enrolled purely when an Enrollment row exists. So when an Admin Resolves a Refund Request as Approved, we delete the Student's Enrollment row for that course rather than keeping it and marking it as ended. Lesson progress is kept, so if the Student makes a new Purchase, their progress comes back.
 
 ## Considered Options
 

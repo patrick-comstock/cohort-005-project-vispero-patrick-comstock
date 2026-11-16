@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import type { Route } from "./+types/courses.$slug.$moduleId";
-import { getAccess } from "~/lib/access.server";
+import { getAccess } from "~/modules/access/index.server";
 import { loadModulePage } from "~/lib/module-page.server";
 import { db } from "~/db";
 import { getCourseBySlug } from "~/lib/courses.server";

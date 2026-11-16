@@ -3,7 +3,6 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/redeem.$code";
-import { getCurrentUserId } from "~/lib/session";
 import { resolveCountry } from "~/lib/country.server";
 import { parseParams, parseFormData } from "~/lib/validation";
 import { Card, CardContent } from "~/components/ui/card";
@@ -13,7 +12,7 @@ import { data } from "react-router";
 import { db } from "~/db";
 import { getCourseById } from "~/lib/courses.server";
 import { purchases, coupons } from "~/db/schema";
-import { getAccess } from "~/lib/access.server";
+import { getAccess, requireUserId } from "~/modules/access/index.server";
 import {
   REFUND_REQUEST_PENDING_MESSAGE,
   redeemCoupon,
@@ -49,8 +48,11 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Coupon not found.", { status: 404 });
   }
 
-  const currentUserId = await getCurrentUserId(request);
-  if (!currentUserId) {
+  const { userId, enrolled: alreadyEnrolled } = await getAccess(
+    request,
+    coupon.courseId
+  );
+  if (!userId) {
     throw redirect(
       `/login?redirectTo=${encodeURIComponent(`/redeem/${code}`)}`
     );
@@ -68,10 +70,6 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const refundRequestPending = hasPendingRefundRequest(db, coupon.purchaseId)
     ? REFUND_REQUEST_PENDING_MESSAGE
     : null;
-  const { enrolled: alreadyEnrolled } = await getAccess(
-    request,
-    coupon.courseId
-  );
 
   // Check country mismatch upfront so we can show a clear message
   let countryMismatch = false;
@@ -106,10 +104,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 export async function action({ params, request }: Route.ActionArgs) {
   const { code } = parseParams(params, redeemParamsSchema);
 
-  const currentUserId = await getCurrentUserId(request);
-  if (!currentUserId) {
-    throw data("You must be logged in.", { status: 401 });
-  }
+  const currentUserId = await requireUserId(request);
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, redeemActionSchema);

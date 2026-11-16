@@ -166,7 +166,7 @@ describe("loadModulePage", () => {
     expectNoLessonBody(page);
   });
 
-  it("shows staff without an Enrollment unlocked lessons but no progress", () => {
+  it("shows a Course Manager without an Enrollment unlocked lessons but no progress", () => {
     const page = load({
       userId: base.instructor.id,
       enrolled: false,

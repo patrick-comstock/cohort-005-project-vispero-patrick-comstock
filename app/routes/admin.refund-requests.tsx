@@ -1,6 +1,6 @@
 import { Link, isRouteErrorResponse } from "react-router";
 import type { Route } from "./+types/admin.refund-requests";
-import { requireAdmin } from "~/lib/access.server";
+import { requireAdmin } from "~/modules/access/index.server";
 import { listRefundRequests } from "~/lib/refund-request-resolve.server";
 import { db } from "~/db";
 import { Button } from "~/components/ui/button";

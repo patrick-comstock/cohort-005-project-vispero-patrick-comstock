@@ -17,11 +17,7 @@ import { getCourseById, getUserById } from "~/lib/courses.server";
  * The Purchase that the PPP check in Access looks at. A Purchase that was
  * Refunded (its Refund Request was Approved) no longer counts.
  */
-export function findPurchaseForAccess(
-  database: Db,
-  userId: number,
-  courseId: number
-) {
+function findPurchaseForAccess(database: Db, userId: number, courseId: number) {
   return database
     .select()
     .from(purchases)
@@ -59,12 +55,7 @@ function isUserEnrolled(database: Db, userId: number, courseId: number) {
 
 // ─── Access Resolution ───
 // One place that answers "who is this, and what may they do with this course?".
-//
-// getAccess never throws — the lesson page needs to render a paywall preview for
-// signed-out and unenrolled visitors rather than erroring. The require* wrappers
-// are built on it for the routes that should just reject.
-//
-// Uses positional parameters (project convention).
+// See the entry point for why getAccess never throws.
 
 type User = NonNullable<ReturnType<typeof getUserById>>;
 type Course = ReturnType<typeof getCourseById>;
@@ -75,38 +66,32 @@ function isOwningInstructor(user: User, course: Course) {
 }
 
 /**
- * The one course-staff rule: an Admin, or the course's owner who still holds
- * the Instructor role. Shared by resolveAccess and checkCourseStaff.
+ * The one Course Manager rule: an Admin, or the course's owner who still holds
+ * the Instructor role. Shared by resolveAccess and requireCourseManager.
  */
-function isCourseStaff(user: User, course: Course) {
+function isCourseManager(user: User, course: Course) {
   return user.role === UserRole.Admin || isOwningInstructor(user, course);
 }
 
 export type Access = {
   userId: number | null;
-  user: ReturnType<typeof getUserById>;
-  isAdmin: boolean;
-  /** The course's owner who still holds the Instructor role. */
-  isOwningInstructor: boolean;
-  /** Owning Instructor or Admin — the people who speak for the course. */
-  isStaff: boolean;
+  /** The owning Instructor or an Admin: the people who speak for the course. */
+  isCourseManager: boolean;
   enrolled: boolean;
   pppBlocked: boolean;
   pppBlockedCountry: string | null;
   pppPurchaseCountry: string | null;
   /**
    * May they read the course's content (lesson bodies, comments)?
-   * Staff always can. Students need an enrollment that isn't PPP-blocked.
+   * A Course Manager always can. Students need an Enrollment that isn't
+   * PPP-blocked.
    */
   canViewContent: boolean;
 };
 
 const SIGNED_OUT: Access = {
   userId: null,
-  user: undefined,
-  isAdmin: false,
-  isOwningInstructor: false,
-  isStaff: false,
+  isCourseManager: false,
   enrolled: false,
   pppBlocked: false,
   pppBlockedCountry: null,
@@ -117,10 +102,10 @@ const SIGNED_OUT: Access = {
 /**
  * The Access rules, given who is asking and where from. Never throws: an
  * unknown or null user gets the signed-out result. `getCountry` is called only
- * for an enrolled user who isn't staff, the one case PPP can restrict: it may
+ * for an enrolled user who isn't a Course Manager, the one case PPP can restrict: it may
  * call out to an IP lookup service.
  */
-export async function resolveAccess(
+async function resolveAccess(
   database: Db,
   userId: number | null,
   courseId: number,
@@ -132,17 +117,18 @@ export async function resolveAccess(
   if (!user) return SIGNED_OUT;
 
   const course = getCourseById(database, courseId);
-  const isStaff = isCourseStaff(user, course);
+  const isManager = isCourseManager(user, course);
   const enrolled = isUserEnrolled(database, userId, courseId);
 
-  // PPP only restricts students who bought at a discount — staff are exempt.
+  // PPP only restricts students who bought at a discount; a Course Manager is
+  // exempt.
   let ppp = {
     blocked: false,
     blockedCountry: null as string | null,
     purchaseCountry: null as string | null,
   };
 
-  if (enrolled && !isStaff && course) {
+  if (enrolled && !isManager && course) {
     // A Refunded Purchase no longer decides where the Student may watch from.
     const purchase = findPurchaseForAccess(database, userId, courseId);
     ppp = checkPppAccess(
@@ -155,15 +141,12 @@ export async function resolveAccess(
 
   return {
     userId,
-    user,
-    isAdmin: user.role === UserRole.Admin,
-    isOwningInstructor: isOwningInstructor(user, course),
-    isStaff,
+    isCourseManager: isManager,
     enrolled,
     pppBlocked: ppp.blocked,
     pppBlockedCountry: ppp.blockedCountry,
     pppPurchaseCountry: ppp.purchaseCountry,
-    canViewContent: isStaff || (enrolled && !ppp.blocked),
+    canViewContent: isManager || (enrolled && !ppp.blocked),
   };
 }
 
@@ -173,10 +156,20 @@ export async function resolveAccess(
  */
 export async function getAccess(
   request: Request,
-  courseId: number
+  courseId: number,
+  database: Db = db
 ): Promise<Access> {
   const userId = await getCurrentUserId(request);
-  return resolveAccess(db, userId, courseId, () => resolveCountry(request));
+  return resolveAccess(database, userId, courseId, () =>
+    resolveCountry(request)
+  );
+}
+
+const SIGNED_OUT_MESSAGE = "Select a user from the DevUI panel.";
+
+/** The one refusal every require* check gives a signed-out visitor. */
+function signedOut() {
+  return data(SIGNED_OUT_MESSAGE, { status: 401 });
 }
 
 /**
@@ -185,99 +178,69 @@ export async function getAccess(
 export async function requireUserId(request: Request): Promise<number> {
   const userId = await getCurrentUserId(request);
   if (!userId) {
-    throw data("Select a user from the DevUI panel.", { status: 401 });
+    throw signedOut();
   }
   return userId;
 }
 
 /**
  * Throws 401 when signed out, 403 when the user can't see the course's content.
+ * Hands back their Access, with the user ID the route uses for its own work.
  * Use in actions — loader guards don't protect actions.
  */
 export async function requireContentAccess(
   request: Request,
-  courseId: number
-): Promise<Access> {
-  const access = await getAccess(request, courseId);
+  courseId: number,
+  database: Db = db
+): Promise<Access & { userId: number }> {
+  const access = await getAccess(request, courseId, database);
+  const { userId } = access;
 
-  if (!access.userId) {
-    throw data("Select a user from the DevUI panel.", { status: 401 });
+  if (!userId) {
+    throw signedOut();
   }
 
   if (!access.canViewContent) {
     throw data("You must be enrolled in this course.", { status: 403 });
   }
 
-  return access;
+  return { ...access, userId };
 }
 
-export type CourseStaffCheck =
-  | {
-      ok: true;
-      user: NonNullable<Access["user"]>;
-      course: NonNullable<ReturnType<typeof getCourseById>>;
-      isAdmin: boolean;
-    }
-  | { ok: false; status: 401 | 404; message: string };
-
 /**
- * Is this user staff on this course: an Admin, or the course's owner who
- * still holds the Instructor role? Never throws. Signed out or unknown user
- * is 401. Anyone else who isn't staff gets 404, whether or not the course
- * exists, so its existence isn't revealed.
+ * Throws unless the session's user is the course's Course Manager: an Admin,
+ * or the course's owner who still holds the Instructor role. Signed out or
+ * unknown user is 401. Anyone else gets 404, whether or not the course exists,
+ * so its existence isn't revealed. Parse the course id with parseParams first,
+ * so a malformed id is a 400. Call it in every loader and every action —
+ * loader guards don't protect actions.
  */
-export function checkCourseStaff(
-  database: Db,
-  userId: number | null,
-  courseId: number
-): CourseStaffCheck {
+export async function requireCourseManager(
+  request: Request,
+  courseId: number,
+  database: Db = db
+) {
+  const userId = await getCurrentUserId(request);
   const user = userId ? getUserById(database, userId) : undefined;
   if (!user) {
-    return {
-      ok: false,
-      status: 401,
-      message: "Select a user from the DevUI panel.",
-    };
+    throw signedOut();
   }
 
   const course = getCourseById(database, courseId);
-
-  if (!course || !isCourseStaff(user, course)) {
-    return { ok: false, status: 404, message: "Course not found." };
+  if (!course || !isCourseManager(user, course)) {
+    throw data("Course not found.", { status: 404 });
   }
 
-  return {
-    ok: true,
-    user,
-    course,
-    isAdmin: user.role === UserRole.Admin,
-  };
-}
-
-/**
- * Throws 401 or 404 (see checkCourseStaff) unless the session's user is an
- * Admin or the course's owner who is still an Instructor. Parse the course id with
- * parseParams first, so a malformed id is a 400. Call it in every loader and
- * every action — loader guards don't protect actions.
- */
-export async function requireCourseStaff(request: Request, courseId: number) {
-  const userId = await getCurrentUserId(request);
-  const result = checkCourseStaff(db, userId, courseId);
-
-  if (!result.ok) {
-    throw data(result.message, { status: result.status });
-  }
-
-  return { user: result.user, course: result.course, isAdmin: result.isAdmin };
+  return { user, course };
 }
 
 /**
  * Throws unless the user is an Instructor. Admins are refused: creating
  * courses, and the list of one's own courses, are for Instructors only.
  */
-export async function requireInstructor(request: Request) {
+export async function requireInstructor(request: Request, database: Db = db) {
   const userId = await requireUserId(request);
-  const user = getUserById(db, userId);
+  const user = getUserById(database, userId);
 
   if (!user || user.role !== UserRole.Instructor) {
     throw data("Only instructors can access this page.", { status: 403 });
@@ -290,9 +253,12 @@ export async function requireInstructor(request: Request) {
  * Throws unless the user is an instructor or an admin, without tying them to a
  * particular course — for pages that span all of someone's courses.
  */
-export async function requireInstructorOrAdmin(request: Request) {
+export async function requireInstructorOrAdmin(
+  request: Request,
+  database: Db = db
+) {
   const userId = await requireUserId(request);
-  const user = getUserById(db, userId);
+  const user = getUserById(database, userId);
 
   if (
     !user ||
@@ -308,9 +274,9 @@ export async function requireInstructorOrAdmin(request: Request) {
  * Throws unless the user is an Admin — for pages that run the platform, such
  * as Resolving Refund Requests.
  */
-export async function requireAdmin(request: Request) {
+export async function requireAdmin(request: Request, database: Db = db) {
   const userId = await requireUserId(request);
-  const user = getUserById(db, userId);
+  const user = getUserById(database, userId);
 
   if (!user || user.role !== UserRole.Admin) {
     throw data("Only admins can access this page.", { status: 403 });

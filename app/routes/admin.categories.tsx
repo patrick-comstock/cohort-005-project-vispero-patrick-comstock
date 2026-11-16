@@ -3,7 +3,7 @@ import { useFetcher } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/admin.categories";
-import { requireAdmin } from "~/lib/access.server";
+import { requireAdmin } from "~/modules/access/index.server";
 import { parseFormData } from "~/lib/validation";
 import { categories, courses } from "~/db/schema";
 import { db } from "~/db";

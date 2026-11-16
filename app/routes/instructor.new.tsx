@@ -3,7 +3,7 @@ import { Link, redirect, useFetcher } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/instructor.new";
-import { requireInstructor } from "~/lib/access.server";
+import { requireInstructor } from "~/modules/access/index.server";
 import { parseFormData } from "~/lib/validation";
 import { db } from "~/db";
 import { getCourseBySlug } from "~/lib/courses.server";

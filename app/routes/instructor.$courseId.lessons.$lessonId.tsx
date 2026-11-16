@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useFetcher, useBlocker } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/instructor.$courseId.lessons.$lessonId";
-import { requireCourseStaff } from "~/lib/access.server";
+import { requireCourseManager } from "~/modules/access/index.server";
 import { modules, lessons } from "~/db/schema";
 import { db } from "~/db";
 import { getQuizByLessonId } from "~/lib/courses.server";
@@ -85,7 +85,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     params,
     instructorLessonParamsSchema
   );
-  const { course } = await requireCourseStaff(request, courseId);
+  const { course } = await requireCourseManager(request, courseId);
 
   const lesson = getLessonById(lessonId);
   if (!lesson) {
@@ -107,7 +107,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     params,
     instructorLessonParamsSchema
   );
-  await requireCourseStaff(request, courseId);
+  await requireCourseManager(request, courseId);
 
   const lesson = getLessonById(lessonId);
   if (!lesson) {

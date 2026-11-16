@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import type { Route } from "./+types/instructor.$courseId.students";
-import { requireCourseStaff } from "~/lib/access.server";
+import { requireCourseManager } from "~/modules/access/index.server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { AlertTriangle, ArrowLeft, Users, Award } from "lucide-react";
@@ -44,7 +44,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const { courseId } = parseParams(params, studentsParamsSchema);
-  const { course } = await requireCourseStaff(request, courseId);
+  const { course } = await requireCourseManager(request, courseId);
 
   // Get all enrolled students
   const enrolledStudents = getCourseEnrolledStudents(courseId);

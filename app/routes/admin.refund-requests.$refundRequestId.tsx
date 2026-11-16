@@ -3,7 +3,7 @@ import { Link, data, isRouteErrorResponse, useFetcher } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/admin.refund-requests.$refundRequestId";
-import { requireAdmin } from "~/lib/access.server";
+import { requireAdmin } from "~/modules/access/index.server";
 import {
   getRefundRequestDetail,
   resolveRefundRequest,

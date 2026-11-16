@@ -80,7 +80,7 @@ describe("loadCourseProgress", () => {
     ).toEqual(NO_PROGRESS);
   });
 
-  it("gives staff without an Enrollment no progress", () => {
+  it("gives a Course Manager without an Enrollment no progress", () => {
     expect(
       load({
         userId: base.instructor.id,

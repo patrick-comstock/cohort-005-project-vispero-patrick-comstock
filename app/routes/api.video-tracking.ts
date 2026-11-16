@@ -1,8 +1,10 @@
 import { data } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/api.video-tracking";
-import { getCurrentUserId } from "~/lib/session";
-import { requireContentAccess } from "~/lib/access.server";
+import {
+  requireContentAccess,
+  requireUserId,
+} from "~/modules/access/index.server";
 import { getCourseIdForLesson } from "~/lib/lesson-page.server";
 import { parseJsonBody } from "~/lib/validation";
 import { db } from "~/db";
@@ -15,10 +17,9 @@ const videoTrackingSchema = z.object({
 });
 
 export async function action({ request }: Route.ActionArgs) {
-  const currentUserId = await getCurrentUserId(request);
-  if (!currentUserId) {
-    throw data("Unauthorized", { status: 401 });
-  }
+  // Sign-in first, so a signed-out caller always gets the 401: never a 400,
+  // a 500 from a bad body, or a 404 that reveals whether a lesson exists.
+  await requireUserId(request);
 
   const parsed = await parseJsonBody(request, videoTrackingSchema);
 
@@ -34,11 +35,11 @@ export async function action({ request }: Route.ActionArgs) {
   if (courseId === undefined) {
     throw data("Lesson not found", { status: 404 });
   }
-  await requireContentAccess(request, courseId);
+  const { userId } = await requireContentAccess(request, courseId);
 
   db.insert(videoWatchEvents)
     .values({
-      userId: currentUserId,
+      userId,
       lessonId,
       eventType,
       positionSeconds,

@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, useFetcher, useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/courses.$slug.lessons.$lessonId";
-import { getCurrentUserId } from "~/lib/session";
-import { getAccess, requireContentAccess } from "~/lib/access.server";
+import { getAccess, requireContentAccess } from "~/modules/access/index.server";
 import {
   getCourseIdForLesson,
   loadLessonPage,
@@ -262,12 +261,16 @@ function updateComment(commentId: number, userId: number, body: string) {
     .get();
 }
 
-function deleteComment(commentId: number, userId: number, isStaff: boolean) {
+function deleteComment(
+  commentId: number,
+  userId: number,
+  isCourseManager: boolean
+) {
   const existing = getCommentById(commentId);
   if (!existing) {
     throw new Error("Comment not found");
   }
-  if (existing.userId !== userId && !isStaff) {
+  if (existing.userId !== userId && !isCourseManager) {
     throw new Error("You can only delete your own comments");
   }
   if (existing.deletedAt !== null) {
@@ -556,7 +559,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppPurchaseCountry,
     comments,
     canViewContent,
-    canModerate: access.isStaff,
+    canModerate: access.isCourseManager,
     instructorName: instructor?.name ?? "your instructor",
   };
 }
@@ -575,15 +578,11 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("Lesson not found in this course", { status: 404 });
   }
 
-  const currentUserId = await getCurrentUserId(request);
-  if (!currentUserId) {
-    throw data("You must be logged in", { status: 401 });
-  }
-
   // Every intent writes to the course's content (comments, progress, quiz
   // attempts), so all of them re-check access here rather than relying on the
   // loader — loader guards don't protect actions.
   const access = await requireContentAccess(request, course.id);
+  const currentUserId = access.userId;
 
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -640,7 +639,11 @@ export async function action({ params, request }: Route.ActionArgs) {
       if (!existing || existing.lessonId !== lessonId) {
         throw data("Comment not found", { status: 404 });
       }
-      deleteComment(parsed.data.commentId, currentUserId, access.isStaff);
+      deleteComment(
+        parsed.data.commentId,
+        currentUserId,
+        access.isCourseManager
+      );
       return { ok: true };
     } catch (error) {
       // Service validation failures are user-correctable; anything thrown as a

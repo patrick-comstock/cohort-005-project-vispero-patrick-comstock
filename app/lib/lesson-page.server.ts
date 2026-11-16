@@ -11,7 +11,7 @@ import {
   quizzes,
   videoWatchEvents,
 } from "~/db/schema";
-import type { Access } from "~/lib/access.server";
+import type { Access } from "~/modules/access/index.server";
 import { getLessonProgressMap } from "~/lib/course-progress.server";
 import { renderMarkdown } from "~/lib/markdown.server";
 
@@ -214,7 +214,7 @@ function getBestAttempt(database: Db, userId: number, quizId: number) {
  * Someone who can't view the course's content gets only the lesson's metadata:
  * no body, video, code link or quiz leaves the server, no markdown is rendered,
  * and no progress is read or written. Progress is recorded only for an enrolled
- * viewer who can view the content, so staff previews don't create any.
+ * viewer who can view the content, so Course Manager previews don't create any.
  *
  * Expects the caller to have checked that the lesson belongs to the course.
  */

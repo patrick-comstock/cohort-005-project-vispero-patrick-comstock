@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import type { Route } from "./+types/instructor.$courseId.modules.$moduleId";
-import { requireCourseStaff } from "~/lib/access.server";
+import { requireCourseManager } from "~/modules/access/index.server";
 import { modules, lessons } from "~/db/schema";
 import { db } from "~/db";
 import { getCourseWithDetails } from "~/lib/courses.server";
@@ -51,7 +51,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const { courseId, moduleId } = parseParams(params, paramsSchema);
-  await requireCourseStaff(request, courseId);
+  await requireCourseManager(request, courseId);
 
   const courseWithDetails = getCourseWithDetails(db, courseId);
   if (!courseWithDetails) {
