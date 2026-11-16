@@ -2,24 +2,12 @@ import { Link, redirect } from "react-router";
 import type { Route } from "./+types/courses.$slug.welcome";
 import { db } from "~/db";
 import { getCourseBySlug, getCourseOutline } from "~/lib/courses.server";
-import { enrollments } from "~/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getCurrentUserId } from "~/lib/session";
+import { getAccess } from "~/lib/access.server";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
+import { PppRestrictedNotice } from "~/components/ppp-restricted-notice";
 import { PartyPopper, MessageCircle, PlayCircle } from "lucide-react";
 import { data } from "react-router";
-
-function isUserEnrolled(userId: number, courseId: number) {
-  const enrollment = db
-    .select()
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
-    )
-    .get();
-  return !!enrollment;
-}
 
 export function meta({ loaderData }: Route.MetaArgs) {
   const title = loaderData?.course?.title ?? "Welcome";
@@ -37,12 +25,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Course not found.", { status: 404 });
   }
 
-  const currentUserId = await getCurrentUserId(request);
-  if (!currentUserId) {
-    throw redirect(`/courses/${slug}`);
-  }
-
-  if (!isUserEnrolled(currentUserId, course.id)) {
+  // The welcome page is for an Enrollment; staff previewing without one may
+  // see it too. A PPP-blocked Student is enrolled but can't start a lesson.
+  const access = await getAccess(request, course.id);
+  if (!access.enrolled && !access.isStaff) {
     throw redirect(`/courses/${slug}`);
   }
 
@@ -58,11 +44,13 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   return {
     course: courseWithDetails,
     discordInviteUrl,
+    enrolled: access.enrolled,
+    canViewContent: access.canViewContent,
   };
 }
 
 export default function Welcome({ loaderData }: Route.ComponentProps) {
-  const { course, discordInviteUrl } = loaderData;
+  const { course, discordInviteUrl, enrolled, canViewContent } = loaderData;
 
   const firstLessonId =
     course.modules.length > 0 && course.modules[0].lessons.length > 0
@@ -81,7 +69,11 @@ export default function Welcome({ loaderData }: Route.ComponentProps) {
             Welcome to {course.title}!
           </h1>
           <p className="mb-8 text-lg text-muted-foreground">
-            You&apos;re officially enrolled. Here&apos;s how to get started.
+            {!enrolled
+              ? "You're previewing the page new Students see."
+              : canViewContent
+                ? "You're officially enrolled. Here's how to get started."
+                : "You're enrolled, but you can't view the course from where you are."}
           </p>
 
           <div className="space-y-4">
@@ -103,7 +95,18 @@ export default function Welcome({ loaderData }: Route.ComponentProps) {
               </a>
             )}
 
-            {firstLessonId ? (
+            {!canViewContent ? (
+              <>
+                <div className="mx-auto max-w-sm">
+                  <PppRestrictedNotice />
+                </div>
+                <Link to={`/courses/${course.slug}`}>
+                  <Button size="lg" className="w-full max-w-sm">
+                    Go to Course
+                  </Button>
+                </Link>
+              </>
+            ) : firstLessonId ? (
               <Link to={`/courses/${course.slug}/lessons/${firstLessonId}`}>
                 <Button size="lg" className="w-full max-w-sm">
                   <PlayCircle className="mr-2 size-5" />

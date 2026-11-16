@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/courses.$slug.purchase";
 import { getCurrentUserId } from "~/lib/session";
+import { getAccess } from "~/lib/access.server";
 import { db } from "~/db";
 import {
   getCourseBySlug,
@@ -48,10 +49,6 @@ function findEnrollment(userId: number, courseId: number) {
       and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
     )
     .get();
-}
-
-function isUserEnrolled(userId: number, courseId: number) {
-  return !!findEnrollment(userId, courseId);
 }
 
 function getEnrollmentCountForCourse(courseId: number) {
@@ -218,7 +215,8 @@ export async function loader({ params, request, url }: Route.LoaderArgs) {
 
   const mode = url.searchParams.get("mode");
 
-  const enrolled = isUserEnrolled(currentUserId, course.id);
+  // A PPP-blocked Student is still enrolled: don't send them to buy again.
+  const { enrolled } = await getAccess(request, course.id);
 
   if (enrolled && mode !== "team") {
     throw redirect(`/courses/${slug}?already_enrolled=1`);
@@ -287,7 +285,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     : course.price;
 
   if (parsed.data.intent === "confirm-purchase") {
-    if (isUserEnrolled(currentUserId, course.id)) {
+    if ((await getAccess(request, course.id)).enrolled) {
       throw redirect(`/courses/${slug}`);
     }
     createPurchase(currentUserId, course.id, pppPrice, country);

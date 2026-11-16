@@ -46,18 +46,15 @@ export function findPurchaseForAccess(
     .get();
 }
 
-function findEnrollment(userId: number, courseId: number) {
-  return db
-    .select()
+function isUserEnrolled(database: Db, userId: number, courseId: number) {
+  const enrollment = database
+    .select({ id: enrollments.id })
     .from(enrollments)
     .where(
       and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
     )
     .get();
-}
-
-function isUserEnrolled(userId: number, courseId: number) {
-  return !!findEnrollment(userId, courseId);
+  return !!enrollment;
 }
 
 // ─── Access Resolution ───
@@ -101,21 +98,27 @@ const SIGNED_OUT: Access = {
   canViewContent: false,
 };
 
-export async function getAccess(
-  request: Request,
-  courseId: number
-): Promise<Access> {
-  const userId = await getCurrentUserId(request);
+/**
+ * The Access rules, given who is asking and where from. Never throws: an
+ * unknown or null user gets the signed-out result. `currentCountry` is only
+ * read for an enrolled Student, the one case PPP can restrict.
+ */
+export function resolveAccess(
+  database: Db,
+  userId: number | null,
+  courseId: number,
+  currentCountry: string | null
+): Access {
   if (!userId) return SIGNED_OUT;
 
-  const user = getUserById(db, userId);
+  const user = getUserById(database, userId);
   if (!user) return SIGNED_OUT;
 
-  const course = getCourseById(db, courseId);
+  const course = getCourseById(database, courseId);
   const isAdmin = user.role === UserRole.Admin;
   const isOwningInstructor = course?.instructorId === userId;
   const isStaff = isAdmin || isOwningInstructor;
-  const enrolled = isUserEnrolled(userId, courseId);
+  const enrolled = isUserEnrolled(database, userId, courseId);
 
   // PPP only restricts students who bought at a discount — staff are exempt.
   let ppp = {
@@ -126,8 +129,7 @@ export async function getAccess(
 
   if (enrolled && !isStaff && course) {
     // A Refunded Purchase no longer decides where the Student may watch from.
-    const purchase = findPurchaseForAccess(db, userId, courseId);
-    const currentCountry = await resolveCountry(request);
+    const purchase = findPurchaseForAccess(database, userId, courseId);
     ppp = checkPppAccess(
       course.price,
       course.pppEnabled,
@@ -148,6 +150,22 @@ export async function getAccess(
     pppPurchaseCountry: ppp.purchaseCountry,
     canViewContent: isStaff || (enrolled && !ppp.blocked),
   };
+}
+
+/**
+ * Access for the user in the request's session. The country is resolved only
+ * when it can matter (an enrolled Student), as before: resolving it may call
+ * out to an IP lookup service.
+ */
+export async function getAccess(
+  request: Request,
+  courseId: number
+): Promise<Access> {
+  const userId = await getCurrentUserId(request);
+  const access = resolveAccess(db, userId, courseId, null);
+  if (!access.enrolled || access.isStaff) return access;
+
+  return resolveAccess(db, userId, courseId, await resolveCountry(request));
 }
 
 /**

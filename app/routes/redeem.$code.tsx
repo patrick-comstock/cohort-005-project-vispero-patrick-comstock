@@ -12,28 +12,17 @@ import { Ticket, AlertCircle, CheckCircle2, Globe } from "lucide-react";
 import { data } from "react-router";
 import { db } from "~/db";
 import { getCourseById } from "~/lib/courses.server";
-import { purchases, coupons, enrollments } from "~/db/schema";
+import { purchases, coupons } from "~/db/schema";
+import { getAccess } from "~/lib/access.server";
 import {
   REFUND_REQUEST_PENDING_MESSAGE,
   redeemCoupon,
 } from "~/lib/coupons.server";
 import { hasPendingRefundRequest } from "~/lib/refund-eligibility.server";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 function getCouponByCode(code: string) {
   return db.select().from(coupons).where(eq(coupons.code, code)).get();
-}
-
-function isUserEnrolled(userId: number, courseId: number) {
-  const existing = db
-    .select()
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
-    )
-    .get();
-
-  return !!existing;
 }
 
 const redeemParamsSchema = z.object({
@@ -79,7 +68,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const refundRequestPending = hasPendingRefundRequest(db, coupon.purchaseId)
     ? REFUND_REQUEST_PENDING_MESSAGE
     : null;
-  const alreadyEnrolled = isUserEnrolled(currentUserId, coupon.courseId);
+  const { enrolled: alreadyEnrolled } = await getAccess(
+    request,
+    coupon.courseId
+  );
 
   // Check country mismatch upfront so we can show a clear message
   let countryMismatch = false;

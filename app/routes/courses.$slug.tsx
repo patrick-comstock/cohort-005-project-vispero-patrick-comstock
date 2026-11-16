@@ -10,16 +10,10 @@ import {
   getCourseOutline,
   getLessonCount,
 } from "~/lib/courses.server";
-import {
-  getCourseProgress,
-  getLessonProgressMap,
-} from "~/lib/course-progress.server";
+import { getAccess } from "~/lib/access.server";
+import { loadCourseProgress } from "~/lib/course-page.server";
 import {
   courses,
-  modules,
-  lessons,
-  enrollments,
-  lessonProgress,
   courseRatings,
   purchases,
   coupons,
@@ -54,6 +48,7 @@ import {
   Users,
 } from "lucide-react";
 import { CourseImage } from "~/components/course-image";
+import { PppRestrictedNotice } from "~/components/ppp-restricted-notice";
 import { UserAvatar } from "~/components/user-avatar";
 import { Textarea } from "~/components/ui/textarea";
 import { data, isRouteErrorResponse } from "react-router";
@@ -65,55 +60,6 @@ import { parseFormData } from "~/lib/validation";
 import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
 import { StarRating, StarRatingInput } from "~/components/star-rating";
 import { getTeamPurchaseButtonLabel } from "~/lib/team-purchase";
-
-function isUserEnrolled(userId: number, courseId: number) {
-  const enrollment = db
-    .select()
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
-    )
-    .get();
-  return !!enrollment;
-}
-
-function getNextIncompleteLesson(userId: number, courseId: number) {
-  const courseModules = db
-    .select()
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .orderBy(modules.position)
-    .all();
-
-  if (courseModules.length === 0) return null;
-
-  for (const mod of courseModules) {
-    const moduleLessons = db
-      .select()
-      .from(lessons)
-      .where(eq(lessons.moduleId, mod.id))
-      .orderBy(lessons.position)
-      .all();
-
-    for (const lesson of moduleLessons) {
-      const progress = db
-        .select()
-        .from(lessonProgress)
-        .where(
-          and(
-            eq(lessonProgress.userId, userId),
-            eq(lessonProgress.lessonId, lesson.id)
-          )
-        )
-        .get();
-      if (!progress || progress.status !== LessonProgressStatus.Completed) {
-        return lesson;
-      }
-    }
-  }
-
-  return null;
-}
 
 type CourseRatingSummary = {
   average: number | null;
@@ -228,13 +174,15 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   }
 
   const lessonCount = getLessonCount(db, course.id);
-  const currentUserId = await getCurrentUserId(request);
+  const access = await getAccess(request, course.id);
+  const currentUserId = access.userId;
+  // Enrolled decides buying; canViewContent decides lesson links and progress.
+  // A PPP-blocked Student is enrolled but can't view content.
+  const { enrolled, canViewContent } = access;
+  const { tracksProgress, progress, lessonProgressMap, nextLessonId } =
+    loadCourseProgress(db, course.id, access);
 
-  let enrolled = false;
   let hasTeamPurchase = false;
-  let progress = 0;
-  let lessonProgressMap: Record<number, string> = {};
-  let nextLessonId: number | null = null;
   let refundRequestOffer: {
     amount: number;
     lastDayInWindow: string;
@@ -243,7 +191,6 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   let refundRequest: ReturnType<typeof getStudentRefundRequest> = null;
 
   if (currentUserId) {
-    enrolled = isUserEnrolled(currentUserId, course.id);
     hasTeamPurchase = hasTeamPurchaseForCourse(currentUserId, course.id);
     // Shown with or without an Enrollment: an Approval ends the Enrollment.
     refundRequest = getStudentRefundRequest(db, {
@@ -263,12 +210,6 @@ export async function loader({ params, request }: Route.LoaderArgs) {
           }
         : null;
       refundRequestRefusal = offer.ok ? null : refusalReasonForStudent(offer);
-
-      progress = getCourseProgress(db, currentUserId, course.id).percent;
-      lessonProgressMap = getLessonProgressMap(db, currentUserId, course.id);
-
-      const nextLesson = getNextIncompleteLesson(currentUserId, course.id);
-      nextLessonId = nextLesson?.id ?? null;
     }
   }
 
@@ -291,7 +232,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     salesCopyHtml,
     lessonCount,
     enrolled,
+    canViewContent,
     hasTeamPurchase,
+    tracksProgress,
     progress,
     lessonProgressMap,
     nextLessonId,
@@ -320,7 +263,9 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("Course not found", { status: 404 });
   }
 
-  if (!isUserEnrolled(currentUserId, course.id)) {
+  // Rating asks "are you enrolled?", so a PPP-blocked Student may still rate.
+  const access = await getAccess(request, course.id);
+  if (!access.userId || !access.enrolled) {
     throw data("You must be enrolled in this course to rate it.", {
       status: 403,
     });
@@ -333,7 +278,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     return { ok: false as const, error: "Please choose a rating from 1 to 5." };
   }
 
-  rateCourse(currentUserId, course.id, parsed.data.rating);
+  rateCourse(access.userId, course.id, parsed.data.rating);
 
   return { ok: true as const, error: null };
 }
@@ -395,7 +340,9 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     salesCopyHtml,
     lessonCount,
     enrolled,
+    canViewContent,
     hasTeamPurchase,
+    tracksProgress,
     progress,
     lessonProgressMap,
     nextLessonId,
@@ -615,7 +562,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
           <div className="mt-8">
             <CourseContent
               course={course}
-              enrolled={enrolled}
+              canViewContent={canViewContent}
               isInstructor={isInstructor}
               lessonProgressMap={lessonProgressMap}
             />
@@ -644,16 +591,23 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                 </Link>
               ) : enrolled ? (
                 <>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span>{progress}% complete</span>
-                  </div>
-                  <div className="mb-4 h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  {course.modules.length > 0 &&
+                  {tracksProgress ? (
+                    <>
+                      <div className="mb-2 flex items-center justify-between text-sm">
+                        <span>{progress}% complete</span>
+                      </div>
+                      <div className="mb-4 h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <PppRestrictedNotice />
+                  )}
+                  {tracksProgress &&
+                    course.modules.length > 0 &&
                     (() => {
                       const targetLessonId =
                         nextLessonId ?? course.modules[0].lessons[0]?.id;
@@ -832,7 +786,7 @@ function RefundRequestForm({
 
 function CourseContent({
   course,
-  enrolled,
+  canViewContent,
   isInstructor,
   lessonProgressMap,
 }: {
@@ -849,7 +803,7 @@ function CourseContent({
       }>;
     }>;
   };
-  enrolled: boolean;
+  canViewContent: boolean;
   isInstructor: boolean;
   lessonProgressMap: Record<number, string>;
 }) {
@@ -908,7 +862,7 @@ function CourseContent({
 
                     return (
                       <li key={lesson.id}>
-                        {enrolled ? (
+                        {canViewContent ? (
                           <Link
                             to={`/courses/${course.slug}/lessons/${lesson.id}`}
                             className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-muted"
