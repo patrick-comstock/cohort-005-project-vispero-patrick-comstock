@@ -3,7 +3,6 @@ import type { Db } from "~/db";
 import {
   coupons,
   courses,
-  enrollments,
   lessonProgress,
   LessonProgressStatus,
   lessons,
@@ -22,6 +21,7 @@ import {
   isWithinRefundWindow,
   lastDayOfRefundWindow,
 } from "~/lib/refund-window";
+import { isEnrolled } from "~/modules/access/index.server";
 
 // Refund Eligibility = Refund Window + Watch-Time Limit + Completion Limit.
 const WATCH_TIME_LIMIT_SECONDS = 2 * 60 * 60;
@@ -337,17 +337,6 @@ export type RefundRequestRefusalCode =
   | "outside-refund-window"
   | "completion-limit"
   | "watch-time-limit";
-
-function isEnrolled(database: Db, userId: number, courseId: number) {
-  const enrollment = database
-    .select({ id: enrollments.id })
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
-    )
-    .get();
-  return !!enrollment;
-}
 
 /**
  * The Refund Request a Student may make for a course: their Refund Request

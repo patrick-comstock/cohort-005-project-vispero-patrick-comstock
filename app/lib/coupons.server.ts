@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { coupons, enrollments, purchases } from "~/db/schema";
 import type { Db } from "~/db";
 import { hasPendingRefundRequest } from "~/lib/refund-eligibility.server";
+import { isEnrolled } from "~/modules/access/index.server";
 
 type RedeemRefusalCode =
   | "not-found"
@@ -64,18 +65,7 @@ export function redeemCoupon(
       };
     }
 
-    const existingEnrollment = tx
-      .select({ id: enrollments.id })
-      .from(enrollments)
-      .where(
-        and(
-          eq(enrollments.userId, input.userId),
-          eq(enrollments.courseId, coupon.courseId)
-        )
-      )
-      .get();
-
-    if (existingEnrollment) {
+    if (isEnrolled(tx, input.userId, coupon.courseId)) {
       return {
         ok: false,
         code: "already-enrolled",

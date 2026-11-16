@@ -7,8 +7,12 @@
 // getAccess never throws: it gives a signed-out visitor a null user ID, for
 // routes that redirect or render a preview. Every require* check refuses a
 // signed-out visitor with the same 401.
+//
+// isEnrolled is the one "is enrolled" check. It takes a database or a
+// transaction, so code that enrolls can ask it inside its own transaction.
 export {
   getAccess,
+  isEnrolled,
   requireAdmin,
   requireContentAccess,
   requireCourseManager,

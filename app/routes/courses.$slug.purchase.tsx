@@ -3,7 +3,11 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/courses.$slug.purchase";
-import { getAccess, requireUserId } from "~/modules/access/index.server";
+import {
+  getAccess,
+  isEnrolled,
+  requireUserId,
+} from "~/modules/access/index.server";
 import { db } from "~/db";
 import {
   getCourseBySlug,
@@ -40,16 +44,6 @@ import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice, getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { parseFormData, parseParams } from "~/lib/validation";
 
-function findEnrollment(userId: number, courseId: number) {
-  return db
-    .select()
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
-    )
-    .get();
-}
-
 function getEnrollmentCountForCourse(courseId: number) {
   const result = db
     .select({ count: sql<number>`count(*)` })
@@ -67,8 +61,7 @@ function enrollUser(
   skipValidation: boolean
 ) {
   if (!skipValidation) {
-    const existing = findEnrollment(userId, courseId);
-    if (existing) {
+    if (isEnrolled(db, userId, courseId)) {
       throw new Error("User is already enrolled in this course");
     }
 
@@ -279,7 +272,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     : course.price;
 
   if (parsed.data.intent === "confirm-purchase") {
-    if ((await getAccess(request, course.id)).enrolled) {
+    if (isEnrolled(db, currentUserId, course.id)) {
       throw redirect(`/courses/${slug}`);
     }
     createPurchase(currentUserId, course.id, pppPrice, country);
