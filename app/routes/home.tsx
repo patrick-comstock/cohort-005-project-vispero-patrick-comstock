@@ -9,9 +9,13 @@ import { CourseImage } from "~/components/course-image";
 import { DevUI } from "~/components/dev-ui";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
-import { eq, like, and, or, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db } from "~/db";
-import { getLessonCount, getUserById } from "~/lib/courses.server";
+import {
+  courseSearchCondition,
+  getLessonCount,
+  getUserById,
+} from "~/lib/courses.server";
 import { courses, categories, users } from "~/db/schema";
 
 function getAllUsers() {
@@ -36,11 +40,9 @@ function buildCourseQuery(
     conditions.push(eq(courses.status, status));
   }
 
-  if (search) {
-    const term = `%${search}%`;
-    conditions.push(
-      or(like(courses.title, term), like(courses.description, term))!
-    );
+  const searchCondition = courseSearchCondition(search);
+  if (searchCondition) {
+    conditions.push(searchCondition);
   }
 
   const query = db

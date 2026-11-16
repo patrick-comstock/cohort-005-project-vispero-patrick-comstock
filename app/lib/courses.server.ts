@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "~/db";
 import {
   categories,
@@ -13,6 +13,16 @@ import {
 // Lookups that many routes share. Each returns undefined (or null, for
 // getCourseWithDetails and getCourseOutline) when nothing matches; none of
 // them throws, so the caller decides what a miss means.
+
+/**
+ * The course search filter: a substring match on the title or description.
+ * Returns undefined for an empty or missing term, meaning "don't filter".
+ */
+export function courseSearchCondition(search: string | null): SQL | undefined {
+  if (!search) return undefined;
+  const term = `%${search}%`;
+  return or(like(courses.title, term), like(courses.description, term));
+}
 
 export function getUserById(database: Db, id: number) {
   return database.select().from(users).where(eq(users.id, id)).get();
