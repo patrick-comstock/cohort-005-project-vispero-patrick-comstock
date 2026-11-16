@@ -67,52 +67,10 @@ function getCourseLessonIds(courseId: number): number[] {
   return courseLessons.map((l) => l.id);
 }
 
-function calculateProgress(
-  userId: number,
-  courseId: number,
-  weightByDuration: boolean
-) {
+function calculateProgress(userId: number, courseId: number) {
   const lessonIds = getCourseLessonIds(courseId);
 
   if (lessonIds.length === 0) return 0;
-
-  if (weightByDuration) {
-    const courseLessons = db
-      .select({
-        id: lessons.id,
-        durationMinutes: lessons.durationMinutes,
-      })
-      .from(lessons)
-      .where(or(...lessonIds.map((id) => eq(lessons.id, id)))!)
-      .all();
-
-    const totalDuration = courseLessons.reduce(
-      (sum, l) => sum + (l.durationMinutes ?? 1),
-      0
-    );
-
-    if (totalDuration === 0) return 0;
-
-    const completed = db
-      .select()
-      .from(lessonProgress)
-      .where(
-        and(
-          eq(lessonProgress.userId, userId),
-          eq(lessonProgress.status, LessonProgressStatus.Completed),
-          or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-        )
-      )
-      .all();
-
-    const completedIds = new Set(completed.map((p) => p.lessonId));
-
-    const completedDuration = courseLessons
-      .filter((l) => completedIds.has(l.id))
-      .reduce((sum, l) => sum + (l.durationMinutes ?? 1), 0);
-
-    return Math.round((completedDuration / totalDuration) * 100);
-  }
 
   const completedCount = db
     .select({ count: sql<number>`count(*)` })
@@ -193,7 +151,7 @@ export async function loader({ request }: Route.LoaderArgs) {
           course.courseId
         );
         const totalLessons = getTotalLessonCount(course.courseId);
-        const progress = calculateProgress(currentUserId, course.courseId, false);
+        const progress = calculateProgress(currentUserId, course.courseId);
         return {
           courseId: course.courseId,
           title: course.courseTitle,

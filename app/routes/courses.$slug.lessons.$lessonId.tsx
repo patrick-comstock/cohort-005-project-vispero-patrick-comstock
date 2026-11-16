@@ -1135,7 +1135,7 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
             {lesson.durationMinutes && (
               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                 <Clock className="size-4" />
-                {formatDuration(lesson.durationMinutes, true, false, false)}
+                {formatDuration(lesson.durationMinutes)}
               </div>
             )}
             {lesson.githubRepoUrl && (

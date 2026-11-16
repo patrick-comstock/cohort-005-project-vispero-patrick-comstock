@@ -2,14 +2,14 @@
 // Hardcoded tier definitions and country-to-tier mappings.
 // Tiers determine the discount percentage applied at purchase time.
 
-export const PPP_TIERS = {
+const PPP_TIERS = {
   1: { discount: 0, label: "Full Price" },
   2: { discount: 0.3, label: "30% off" },
   3: { discount: 0.5, label: "50% off" },
   4: { discount: 0.7, label: "70% off" },
 } as const;
 
-export type PppTier = keyof typeof PPP_TIERS;
+type PppTier = keyof typeof PPP_TIERS;
 
 const COUNTRY_TIER_MAP: Record<string, PppTier> = {
   // Tier 1 — Full price

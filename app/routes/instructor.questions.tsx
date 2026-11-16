@@ -11,7 +11,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { Textarea } from "~/components/ui/textarea";
 import { UserAvatar } from "~/components/user-avatar";
 import { AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
-import { cn, daysSince, formatRelativeTime } from "~/lib/utils";
+import { formatTimeAgo } from "~/lib/time-ago";
+import { cn, daysSince } from "~/lib/utils";
 import { MIN_COMMENT_LENGTH, MAX_COMMENT_LENGTH } from "~/lib/comments";
 import { parseFormData } from "~/lib/validation";
 import { db } from "~/db";
@@ -289,7 +290,7 @@ function QuestionCard({ question }: { question: Question }) {
                 className="text-xs text-muted-foreground"
                 suppressHydrationWarning
               >
-                {formatRelativeTime(question.createdAt)}
+                {formatTimeAgo(question.createdAt)}
               </span>
             </div>
             <div

@@ -26,7 +26,7 @@ export type Resolution =
 export type ResolveErrorCode =
   "not-found" | "not-admin" | "already-resolved" | "note-required";
 
-export type ResolveResult =
+type ResolveResult =
   | { ok: true; refundRequest: RefundRequest }
   | { ok: false; code: ResolveErrorCode; error: string };
 
