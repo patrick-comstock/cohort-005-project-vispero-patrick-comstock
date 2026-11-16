@@ -101,6 +101,10 @@ _Avoid_: Net revenue, sales, income
 The instructor's share of Revenue, after the platform fee.
 _Avoid_: Net, payout, profit, take-home
 
+**Refund exposure**:
+The Revenue that could still be Refunded: Purchases inside their Refund Window with no Refund Request, or one still Pending. Refunded and Declined Purchases are not exposed, and neither is a Purchase dated after today.
+_Avoid_: At-risk revenue, refundable revenue, pending revenue
+
 ### Notifications
 
 **Notification**:
