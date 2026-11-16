@@ -3,16 +3,11 @@ import { useFetcher } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/admin.courses";
-import { getCurrentUserId } from "~/lib/session";
+import { requireAdmin } from "~/lib/access.server";
 import { parseFormData } from "~/lib/validation";
-import {
-  UserRole,
-  CourseStatus,
-  courses,
-  enrollments,
-} from "~/db/schema";
+import { CourseStatus, courses, enrollments } from "~/db/schema";
 import { db } from "~/db";
-import { getLessonCount, getUserById } from "~/lib/courses.server";
+import { getLessonCount } from "~/lib/courses.server";
 import { eq, sql } from "drizzle-orm";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -66,21 +61,7 @@ export function meta() {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const currentUserId = await getCurrentUserId(request);
-
-  if (!currentUserId) {
-    throw data("Select a user from the DevUI panel to manage courses.", {
-      status: 401,
-    });
-  }
-
-  const currentUser = getUserById(db, currentUserId);
-
-  if (!currentUser || currentUser.role !== UserRole.Admin) {
-    throw data("Only admins can access this page.", {
-      status: 403,
-    });
-  }
+  await requireAdmin(request);
 
   const allCourses = getAllCourses();
 
@@ -94,16 +75,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const currentUserId = await getCurrentUserId(request);
-
-  if (!currentUserId) {
-    throw data("You must be logged in.", { status: 401 });
-  }
-
-  const currentUser = getUserById(db, currentUserId);
-  if (!currentUser || currentUser.role !== UserRole.Admin) {
-    throw data("Only admins can manage courses.", { status: 403 });
-  }
+  await requireAdmin(request);
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, adminCourseActionSchema);
