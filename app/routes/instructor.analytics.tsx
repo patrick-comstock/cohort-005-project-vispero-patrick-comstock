@@ -11,7 +11,7 @@ import {
   type FunnelLesson,
   type QuizPassRate,
   type RefundExposure,
-} from "~/lib/analytics-page.server";
+} from "~/modules/instructor-analytics/index.server";
 import type { CourseCountryRevenue, RevenueSeries } from "~/lib/revenue.server";
 import {
   ANALYTICS_RANGES,
