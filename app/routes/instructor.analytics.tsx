@@ -157,7 +157,8 @@ type QuizPassRate = {
 
 function getRatingSummary(
   instructorId: number | null,
-  range: AnalyticsRange
+  range: AnalyticsRange,
+  now: Date
 ): RatingSummary {
   const row = db
     .select({
@@ -166,7 +167,7 @@ function getRatingSummary(
     })
     .from(courseRatings)
     .innerJoin(courses, eq(courseRatings.courseId, courses.id))
-    .where(scopeOn(courseRatings.createdAt, instructorId, range))
+    .where(scopeOn(courseRatings.createdAt, instructorId, range, now))
     .get();
 
   if (!row || row.count === 0 || row.average === null) {
@@ -351,7 +352,8 @@ function getCourseDropOff(courseId: number): CourseFunnel {
 
 function getCourseQuizPassRates(
   courseId: number,
-  range: AnalyticsRange
+  range: AnalyticsRange,
+  now: Date
 ): QuizPassRate[] {
   const quizRows = db
     .select({
@@ -387,7 +389,7 @@ function getCourseQuizPassRates(
     .where(
       and(
         inArray(quizAttempts.quizId, quizIds),
-        sinceRange(quizAttempts.attemptedAt, range)
+        sinceRange(quizAttempts.attemptedAt, range, now)
       )
     )
     .groupBy(quizAttempts.quizId, quizAttempts.userId)
@@ -475,6 +477,8 @@ type RefundExposure = {
 
 export async function loader({ request, url }: Route.LoaderArgs) {
   const { userId, isAdmin } = await requireInstructorOrAdmin(request);
+  // Read once, so every panel on the page agrees on what "now" is.
+  const now = new Date();
 
   const range = parseAnalyticsRange(url.searchParams.get("range"));
   const tab: AnalyticsTab =
@@ -507,7 +511,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
   // Unanswered questions. A question qualifies when it is top-level, not
   // deleted, not written by staff, and has no reply from the course's
   // instructor or an admin.
-  const questionsSince = rangeStart(range);
+  const questionsSince = rangeStart(range, now);
   const questionAuthor = alias(users, "author");
   const reply = alias(comments, "reply");
   const replyAuthor = alias(users, "reply_author");
@@ -566,7 +570,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
 
   // Gross Sales, Refunds, Revenue, the platform's fee and Net Earnings for
   // the range. Every breakdown below is in Revenue, after Refunds.
-  const scope = { instructorId, range };
+  const scope = { instructorId, range, now };
   const summary = getRevenueSummary(db, scope);
 
   // Revenue broken down by course, biggest earner first.
@@ -639,13 +643,13 @@ export async function loader({ request, url }: Route.LoaderArgs) {
     .leftJoin(refundRequests, resolvedRefundRequest)
     .where(
       and(
-        scopeOn(purchases.createdAt, instructorId, range),
+        scopeOn(purchases.createdAt, instructorId, range, now),
         isNull(refundRequests.id)
       )
     )
     .all();
 
-  const today = calendarDay(new Date());
+  const today = calendarDay(now);
   const exposedByCourse = new Map<number, ExposedCourse>();
   let exposedRevenueCents = 0;
   let exposedPurchaseCount = 0;
@@ -705,7 +709,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
     questions,
     audience,
     buyers: getTopBuyers(db, scope),
-    ratings: getRatingSummary(instructorId, range),
+    ratings: getRatingSummary(instructorId, range, now),
     tab,
     range,
     isAdmin,
@@ -729,11 +733,11 @@ export async function loader({ request, url }: Route.LoaderArgs) {
     quizzes:
       selectedCourseId === null
         ? null
-        : getCourseQuizPassRates(selectedCourseId, range),
+        : getCourseQuizPassRates(selectedCourseId, range, now),
     countries:
       selectedCourseId === null
         ? null
-        : getCourseRevenueByCountry(db, selectedCourseId, range),
+        : getCourseRevenueByCountry(db, selectedCourseId, range, now),
     instructors,
     refundExposure,
     unpublished: instructorId !== null && publishedRow === undefined,

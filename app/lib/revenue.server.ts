@@ -85,7 +85,7 @@ type RevenueSummary = {
 /** Gross Sales, Refunds, Revenue, the platform fee and Net Earnings. */
 export function getRevenueSummary(
   database: Db,
-  { instructorId, range }: AnalyticsScope
+  { instructorId, range, now }: AnalyticsScope
 ): RevenueSummary {
   const row = database
     .select({
@@ -98,7 +98,7 @@ export function getRevenueSummary(
     .from(purchases)
     .innerJoin(courses, eq(purchases.courseId, courses.id))
     .leftJoin(refundRequests, approvedRefundRequest)
-    .where(scopeOn(purchases.createdAt, instructorId, range))
+    .where(scopeOn(purchases.createdAt, instructorId, range, now))
     .get();
 
   // sum() returns null over an empty set, and a string when SQLite has rows.
@@ -127,7 +127,7 @@ type CourseRevenue = {
  */
 export function getRevenueByCourse(
   database: Db,
-  { instructorId, range }: AnalyticsScope
+  { instructorId, range, now }: AnalyticsScope
 ): CourseRevenue[] {
   return database
     .select({
@@ -139,7 +139,7 @@ export function getRevenueByCourse(
     .from(purchases)
     .innerJoin(courses, eq(purchases.courseId, courses.id))
     .leftJoin(refundRequests, approvedRefundRequest)
-    .where(scopeOn(purchases.createdAt, instructorId, range))
+    .where(scopeOn(purchases.createdAt, instructorId, range, now))
     .groupBy(courses.id)
     .all()
     .map((row) => ({
@@ -159,14 +159,14 @@ export function getRevenueByCourse(
  */
 export function getFullyRefundedCourseIds(
   database: Db,
-  { instructorId, range }: AnalyticsScope
+  { instructorId, range, now }: AnalyticsScope
 ): number[] {
   return database
     .select({ courseId: courses.id })
     .from(purchases)
     .innerJoin(courses, eq(purchases.courseId, courses.id))
     .leftJoin(refundRequests, approvedRefundRequest)
-    .where(scopeOn(purchases.createdAt, instructorId, range))
+    .where(scopeOn(purchases.createdAt, instructorId, range, now))
     .groupBy(courses.id)
     .having(sql`${keptPurchaseCount} = 0`)
     .orderBy(courses.id)
@@ -216,7 +216,7 @@ function bucketRange(
 /** Revenue and Net Earnings per day, or per month for all time. */
 export function getRevenueOverTime(
   database: Db,
-  { instructorId, range }: AnalyticsScope
+  { instructorId, range, now }: AnalyticsScope
 ): RevenueSeries {
   const granularity = range === "all" ? "month" : "day";
   const bucketExpr = sql<string>`substr(${purchases.createdAt}, 1, ${
@@ -228,7 +228,7 @@ export function getRevenueOverTime(
     .from(purchases)
     .innerJoin(courses, eq(purchases.courseId, courses.id))
     .leftJoin(refundRequests, approvedRefundRequest)
-    .where(scopeOn(purchases.createdAt, instructorId, range))
+    .where(scopeOn(purchases.createdAt, instructorId, range, now))
     .groupBy(bucketExpr)
     .orderBy(bucketExpr)
     .all();
@@ -239,14 +239,13 @@ export function getRevenueOverTime(
     rows.map((row) => [row.bucket, Number(row.revenue)])
   );
 
-  const now = new Date().toISOString();
   // A fixed range always spans its whole window, even before the first sale;
   // all time can only start where the data does.
-  const start = rangeStart(range) ?? rows[0].bucket;
+  const start = rangeStart(range, now) ?? rows[0].bucket;
 
   const points = bucketRange(
     bucketOf(start, granularity),
-    bucketOf(now, granularity),
+    bucketOf(now.toISOString(), granularity),
     granularity
   ).map((bucket) => {
     const { revenueCents, netEarningsCents } = splitRevenue(
@@ -264,7 +263,7 @@ export function getRevenueOverTime(
  */
 export function getBuyerCount(
   database: Db,
-  { instructorId, range }: AnalyticsScope
+  { instructorId, range, now }: AnalyticsScope
 ): number {
   const row = database
     .select({ buyerCount: countDistinct(purchases.userId) })
@@ -273,7 +272,7 @@ export function getBuyerCount(
     .leftJoin(refundRequests, approvedRefundRequest)
     .where(
       and(
-        scopeOn(purchases.createdAt, instructorId, range),
+        scopeOn(purchases.createdAt, instructorId, range, now),
         isNull(refundRequests.id)
       )
     )
@@ -301,7 +300,7 @@ const TOP_BUYER_LIMIT = 10;
  */
 export function getTopBuyers(
   database: Db,
-  { instructorId, range }: AnalyticsScope
+  { instructorId, range, now }: AnalyticsScope
 ): TopBuyer[] {
   const buyers = database
     .select({
@@ -315,7 +314,7 @@ export function getTopBuyers(
     .innerJoin(courses, eq(purchases.courseId, courses.id))
     .innerJoin(users, eq(users.id, purchases.userId))
     .leftJoin(refundRequests, approvedRefundRequest)
-    .where(scopeOn(purchases.createdAt, instructorId, range))
+    .where(scopeOn(purchases.createdAt, instructorId, range, now))
     .groupBy(users.id)
     .having(sql`${revenueSum} > 0`)
     .orderBy(desc(revenueSum))
@@ -343,7 +342,7 @@ export function getTopBuyers(
     .where(
       and(
         inArray(purchases.userId, buyerIds),
-        scopeOn(purchases.createdAt, instructorId, range),
+        scopeOn(purchases.createdAt, instructorId, range, now),
         isNull(refundRequests.id)
       )
     )
@@ -388,14 +387,14 @@ type StudentRevenue = {
  */
 export function getStudentRevenue(
   database: Db,
-  { instructorId, range }: AnalyticsScope
+  { instructorId, range, now }: AnalyticsScope
 ): StudentRevenue[] {
   const students = database
     .selectDistinct({ userId: users.id, name: users.name })
     .from(enrollments)
     .innerJoin(courses, eq(enrollments.courseId, courses.id))
     .innerJoin(users, eq(users.id, enrollments.userId))
-    .where(scopeOn(enrollments.enrolledAt, instructorId, range))
+    .where(scopeOn(enrollments.enrolledAt, instructorId, range, now))
     .orderBy(users.name)
     .all();
 
@@ -496,7 +495,8 @@ export type CourseCountryRevenue = {
 export function getCourseRevenueByCountry(
   database: Db,
   courseId: number,
-  range: AnalyticsRange
+  range: AnalyticsRange,
+  now: Date
 ): CourseCountryRevenue {
   const rows = database
     .select({
@@ -509,7 +509,7 @@ export function getCourseRevenueByCountry(
     .where(
       and(
         eq(purchases.courseId, courseId),
-        sinceRange(purchases.createdAt, range)
+        sinceRange(purchases.createdAt, range, now)
       )
     )
     .groupBy(purchases.country)

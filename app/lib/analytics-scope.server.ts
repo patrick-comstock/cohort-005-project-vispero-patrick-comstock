@@ -7,16 +7,21 @@ import { rangeStart, type AnalyticsRange } from "~/lib/analytics";
 // The filters every analytics query shares: whose courses, and since when.
 // Each one expects `courses` to be in the query.
 
-/** One instructor's figures, or every instructor's when null. */
+/**
+ * One instructor's figures, or every instructor's when null, for a range
+ * ending at `now`.
+ */
 export type AnalyticsScope = {
   instructorId: number | null;
   range: AnalyticsRange;
+  now: Date;
 };
 
 export function scopeOn(
   dateColumn: SQLiteColumn,
   instructorId: number | null,
-  range: AnalyticsRange
+  range: AnalyticsRange,
+  now: Date
 ) {
   const conditions = [];
 
@@ -24,7 +29,7 @@ export function scopeOn(
     conditions.push(eq(courses.instructorId, instructorId));
   }
 
-  const start = rangeStart(range);
+  const start = rangeStart(range, now);
   if (start !== null) {
     conditions.push(gte(dateColumn, start));
   }
@@ -32,8 +37,12 @@ export function scopeOn(
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
-export function sinceRange(dateColumn: SQLiteColumn, range: AnalyticsRange) {
-  const start = rangeStart(range);
+export function sinceRange(
+  dateColumn: SQLiteColumn,
+  range: AnalyticsRange,
+  now: Date
+) {
+  const start = rangeStart(range, now);
   return start === null ? undefined : gte(dateColumn, start);
 }
 
