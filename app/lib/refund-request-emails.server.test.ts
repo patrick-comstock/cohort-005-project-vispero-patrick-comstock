@@ -34,7 +34,9 @@ describe("buildRefundRequestResolvedEmail", () => {
 
     expect(email.subject).toContain("declined");
     expect(email.body).toContain("Coupons");
-    expect(email.body).toContain("Its unredeemed Coupons can still be Redeemed.");
+    expect(email.body).toContain(
+      "Its unredeemed Coupons can still be Redeemed."
+    );
     expect(email.body).not.toContain("access");
   });
 

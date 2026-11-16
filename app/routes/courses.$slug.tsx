@@ -656,9 +656,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="size-4" />
-                  <span>
-                    {formatDuration(totalDuration)} total
-                  </span>
+                  <span>{formatDuration(totalDuration)} total</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <UserAvatar

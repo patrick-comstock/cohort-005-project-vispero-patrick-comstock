@@ -765,9 +765,9 @@ describe("resolveRefundRequest — the Requester is Notified", () => {
     const purchase = buyCourse(base.user.id);
     resolve(requestRefund(purchase.id).id, RefundRequestStatus.Approved);
 
-    expect(
-      listNotifications(testDb, admin.id).map((n) => n.kind)
-    ).toEqual([NotificationKind.RefundRequestMade]);
+    expect(listNotifications(testDb, admin.id).map((n) => n.kind)).toEqual([
+      NotificationKind.RefundRequestMade,
+    ]);
     expect(listNotifications(testDb, base.user.id)).toHaveLength(1);
   });
 

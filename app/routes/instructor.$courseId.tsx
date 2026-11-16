@@ -11,12 +11,7 @@ import type { Route } from "./+types/instructor.$courseId";
 import { requireCourseStaff } from "~/lib/access.server";
 import { CourseStatus } from "~/db/schema";
 import { db } from "~/db";
-import {
-  courses,
-  modules,
-  lessons,
-  enrollments,
-} from "~/db/schema";
+import { courses, modules, lessons, enrollments } from "~/db/schema";
 import { eq, and, sql, gt, gte } from "drizzle-orm";
 import { getCourseProgress } from "~/lib/course-progress.server";
 import { formatDuration, formatPrice } from "~/lib/utils";

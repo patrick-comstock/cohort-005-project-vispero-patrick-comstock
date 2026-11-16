@@ -36,8 +36,7 @@ export async function action({ request }: Route.ActionArgs) {
   }
   await requireContentAccess(request, courseId);
 
-  db
-    .insert(videoWatchEvents)
+  db.insert(videoWatchEvents)
     .values({
       userId: currentUserId,
       lessonId,

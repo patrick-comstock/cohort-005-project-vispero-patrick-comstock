@@ -121,9 +121,9 @@ describe("getCourseProgress", () => {
     addProgress(base.user.id, first.id, LessonProgressStatus.Completed);
     addProgress(base.user.id, second.id, LessonProgressStatus.Completed);
 
-    expect(getCourseProgress(testDb, base.user.id, base.course.id).percent).toBe(
-      67
-    );
+    expect(
+      getCourseProgress(testDb, base.user.id, base.course.id).percent
+    ).toBe(67);
   });
 
   it("counts lessons across every module", () => {

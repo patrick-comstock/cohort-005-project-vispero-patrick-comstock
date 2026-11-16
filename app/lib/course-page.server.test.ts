@@ -82,7 +82,11 @@ describe("loadCourseProgress", () => {
 
   it("gives staff without an Enrollment no progress", () => {
     expect(
-      load({ userId: base.instructor.id, enrolled: false, canViewContent: true })
+      load({
+        userId: base.instructor.id,
+        enrolled: false,
+        canViewContent: true,
+      })
     ).toEqual(NO_PROGRESS);
   });
 

@@ -1,4 +1,10 @@
-import { Form, Link, useSearchParams, useNavigation, isRouteErrorResponse } from "react-router";
+import {
+  Form,
+  Link,
+  useSearchParams,
+  useNavigation,
+  isRouteErrorResponse,
+} from "react-router";
 import type { Route } from "./+types/courses";
 import { db } from "~/db";
 import { courseSearchCondition, getLessonCount } from "~/lib/courses.server";
@@ -12,7 +18,12 @@ import {
   CourseStatus,
 } from "~/db/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { AlertTriangle, BookOpen, Search } from "lucide-react";
@@ -64,7 +75,10 @@ function buildCourseQuery(
     })
     .from(coursesTable)
     .innerJoin(users, eq(coursesTable.instructorId, users.id))
-    .innerJoin(categoriesTable, eq(coursesTable.categoryId, categoriesTable.id));
+    .innerJoin(
+      categoriesTable,
+      eq(coursesTable.categoryId, categoriesTable.id)
+    );
 
   if (category) {
     conditions.push(eq(categoriesTable.slug, category));
@@ -84,11 +98,7 @@ function buildCourseQuery(
 }
 
 function getAllCategories() {
-  return db
-    .select()
-    .from(categoriesTable)
-    .orderBy(categoriesTable.name)
-    .all();
+  return db.select().from(categoriesTable).orderBy(categoriesTable.name).all();
 }
 
 function getUserEnrolledCourses(userId: number) {
@@ -214,7 +224,13 @@ export async function loader({ request, url }: Route.LoaderArgs) {
 
   const categories = getAllCategories();
 
-  return { courses: coursesWithLessonCount, categories, search, category, currentUserId };
+  return {
+    courses: coursesWithLessonCount,
+    categories,
+    search,
+    category,
+    currentUserId,
+  };
 }
 
 function CourseCardSkeleton() {
@@ -339,11 +355,12 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
                 <CardHeader>
                   <div className="mb-1 flex items-center gap-2 text-xs font-medium">
                     <span className="text-primary">{course.categoryName}</span>
-                    {currentUserId !== null && course.instructorId === currentUserId && (
-                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                        Your Course
-                      </span>
-                    )}
+                    {currentUserId !== null &&
+                      course.instructorId === currentUserId && (
+                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                          Your Course
+                        </span>
+                      )}
                   </div>
                   <h3 className="text-lg font-semibold leading-tight group-hover:text-primary">
                     {course.title}

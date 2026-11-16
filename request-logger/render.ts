@@ -80,7 +80,10 @@ export function decodeRequestBody(body: Buffer, encoding?: string): string {
     );
   }
 
-  return decodeFailureWarning(body, `content-encoding "${kind}" is not one this tool decodes`);
+  return decodeFailureWarning(
+    body,
+    `content-encoding "${kind}" is not one this tool decodes`
+  );
 }
 
 function decodeFailureWarning(body: Buffer, reason: string): string {
@@ -92,7 +95,10 @@ function decodeFailureWarning(body: Buffer, reason: string): string {
 }
 
 export function renderMarkdown(input: RenderInput): string {
-  const requestText = decodeRequestBody(input.requestBody, input.requestEncoding);
+  const requestText = decodeRequestBody(
+    input.requestBody,
+    input.requestEncoding
+  );
 
   let reqJson: unknown = null;
   try {
@@ -107,7 +113,9 @@ export function renderMarkdown(input: RenderInput): string {
     [
       renderMeta(input, model),
       renderHeaders(input.headers),
-      "<request>\n\n" + renderRequest(input, reqJson, requestText) + "\n\n</request>",
+      "<request>\n\n" +
+        renderRequest(input, reqJson, requestText) +
+        "\n\n</request>",
       "<response>\n\n" + renderResponse(input, reqJson) + "\n\n</response>",
     ].join("\n\n") + "\n"
   );
@@ -225,8 +233,7 @@ function renderParams(reqJson: Wire, keys: string[]): string {
     .filter((k) => reqJson[k] !== undefined)
     .map((k) => {
       const v = reqJson[k];
-      const shown =
-        typeof v === "object" ? JSON.stringify(v) : String(v);
+      const shown = typeof v === "object" ? JSON.stringify(v) : String(v);
       return `- **${k}**: ${shown}`;
     });
   if (present.length === 0) return "";
@@ -254,9 +261,13 @@ function renderAnthropicRequest(rawJson: unknown): string {
 
   if (j.system != null) {
     parts.push(
-      ["<system-prompt>", "", renderAnthropicSystem(j.system), "", "</system-prompt>"].join(
-        "\n"
-      )
+      [
+        "<system-prompt>",
+        "",
+        renderAnthropicSystem(j.system),
+        "",
+        "</system-prompt>",
+      ].join("\n")
     );
   }
 
@@ -345,7 +356,9 @@ function renderToolResultContent(content: unknown): string {
   if (Array.isArray(content)) {
     return content
       .map((b: unknown) =>
-        wire(b ?? {}).type === "image" ? imagePlaceholder(b) : blockText(b) || fenceJson(b)
+        wire(b ?? {}).type === "image"
+          ? imagePlaceholder(b)
+          : blockText(b) || fenceJson(b)
       )
       .join("\n\n");
   }
@@ -392,7 +405,19 @@ function renderOpenAIRequest(rawJson: unknown): string {
   if (Array.isArray(j.messages)) {
     parts.push(renderMessages(j.messages, renderOpenAIChatContent));
   } else if (typeof j.input === "string") {
-    parts.push(["<messages>", "", "<message role=\"user\">", "", j.input, "", "</message>", "", "</messages>"].join("\n"));
+    parts.push(
+      [
+        "<messages>",
+        "",
+        '<message role="user">',
+        "",
+        j.input,
+        "",
+        "</message>",
+        "",
+        "</messages>",
+      ].join("\n")
+    );
   } else if (Array.isArray(j.input)) {
     parts.push(renderMessages(j.input, renderOpenAIResponsesContent));
   }
@@ -425,7 +450,9 @@ function renderOpenAIChatContent(message: unknown): string {
     out.push(
       content
         .map((b: unknown) =>
-          wire(b ?? {}).type === "image_url" ? "`[image_url]`" : blockText(b) || fenceJson(b)
+          wire(b ?? {}).type === "image_url"
+            ? "`[image_url]`"
+            : blockText(b) || fenceJson(b)
         )
         .join("\n\n")
     );
@@ -467,7 +494,9 @@ function renderOpenAIResponsesContent(raw: unknown): string {
       const content = wire(raw).content;
       if (typeof content === "string") return content;
       if (Array.isArray(content)) {
-        return content.map((b: unknown) => blockText(b) || fenceJson(b)).join("\n\n");
+        return content
+          .map((b: unknown) => blockText(b) || fenceJson(b))
+          .join("\n\n");
       }
       return fenceJson(raw);
     }
@@ -551,7 +580,9 @@ function renderGeminiRequest(rawJson: unknown): string {
       [
         "<system-prompt>",
         "",
-        renderGeminiParts(wire(j.systemInstruction).parts ?? j.systemInstruction),
+        renderGeminiParts(
+          wire(j.systemInstruction).parts ?? j.systemInstruction
+        ),
         "",
         "</system-prompt>",
       ].join("\n")
@@ -563,7 +594,10 @@ function renderGeminiRequest(rawJson: unknown): string {
   }
 
   parts.push(
-    renderMessages(Array.isArray(j.contents) ? j.contents : [], renderGeminiContent)
+    renderMessages(
+      Array.isArray(j.contents) ? j.contents : [],
+      renderGeminiContent
+    )
   );
 
   return parts.join("\n\n");
@@ -678,8 +712,12 @@ function renderGeminiResponse(raw: string): string {
   if (finish) out.push(`- **finish reason**: ${finish}`);
   if (usage) out.push(`- **usage**: ${JSON.stringify(usage)}`);
   if (out.length) out.push("");
-  if (thinking) out.push(["<thinking>", "", thinking, "", "</thinking>"].join("\n"));
-  if (text) out.push(["<assistant-text>", "", text, "", "</assistant-text>"].join("\n"));
+  if (thinking)
+    out.push(["<thinking>", "", thinking, "", "</thinking>"].join("\n"));
+  if (text)
+    out.push(
+      ["<assistant-text>", "", text, "", "</assistant-text>"].join("\n")
+    );
   for (const call of toolCalls) {
     out.push(
       [
@@ -717,7 +755,9 @@ function renderMessages(
       "</message>",
     ].join("\n");
   });
-  return ["<messages>", "", rendered.join("\n\n"), "", "</messages>"].join("\n");
+  return ["<messages>", "", rendered.join("\n\n"), "", "</messages>"].join(
+    "\n"
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -785,7 +825,10 @@ function sseData(raw: string): unknown[] {
 
 function renderAnthropicResponse(raw: string): string {
   const events = sseData(raw);
-  const blocks: Record<string, { type: unknown; text: string; name?: unknown; id?: unknown }> = {};
+  const blocks: Record<
+    string,
+    { type: unknown; text: string; name?: unknown; id?: unknown }
+  > = {};
   let stopReason: unknown;
   let usage: unknown;
 
@@ -807,7 +850,9 @@ function renderAnthropicResponse(raw: string): string {
       case "content_block_delta":
         if (blocks[index]) {
           const d = wire(ev.delta ?? {});
-          blocks[index].text += String(d.text ?? d.partial_json ?? d.thinking ?? "");
+          blocks[index].text += String(
+            d.text ?? d.partial_json ?? d.thinking ?? ""
+          );
         }
         break;
       case "message_delta": {
@@ -818,7 +863,8 @@ function renderAnthropicResponse(raw: string): string {
       }
       case "message_start": {
         const messageUsage = wire(ev.message ?? {}).usage;
-        if (messageUsage) usage = { ...wire(messageUsage), ...wire(usage ?? {}) };
+        if (messageUsage)
+          usage = { ...wire(messageUsage), ...wire(usage ?? {}) };
         break;
       }
     }
@@ -835,7 +881,9 @@ function renderAnthropicResponse(raw: string): string {
   for (const i of ordered) {
     const b = blocks[i];
     if (b.type === "text") {
-      parts.push(["<assistant-text>", "", b.text, "", "</assistant-text>"].join("\n"));
+      parts.push(
+        ["<assistant-text>", "", b.text, "", "</assistant-text>"].join("\n")
+      );
     } else if (b.type === "thinking") {
       parts.push(["<thinking>", "", b.text, "", "</thinking>"].join("\n"));
     } else if (b.type === "tool_use") {
@@ -867,16 +915,17 @@ function renderOpenAIResponse(raw: string, reqJson: unknown): string {
 
 function renderOpenAIChatStream(events: unknown[]): string {
   let text = "";
-  const toolCalls: Record<string, { name: string; args: string; id?: unknown }> = {};
+  const toolCalls: Record<
+    string,
+    { name: string; args: string; id?: unknown }
+  > = {};
   let finish: unknown;
   let usage: unknown;
 
   for (const e of events) {
     const ev = wire(e);
     const choices = ev.choices;
-    const choice = wire(
-      (choices == null ? undefined : wire(choices)[0]) ?? {}
-    );
+    const choice = wire((choices == null ? undefined : wire(choices)[0]) ?? {});
     const delta = wire(choice.delta ?? {});
     if (typeof delta.content === "string") text += delta.content;
     if (Array.isArray(delta.tool_calls)) {
@@ -899,8 +948,13 @@ function renderOpenAIChatStream(events: unknown[]): string {
   if (finish) parts.push(`- **finish reason**: ${finish}`);
   if (usage) parts.push(`- **usage**: ${JSON.stringify(usage)}`);
   if (parts.length) parts.push("");
-  if (text) parts.push(["<assistant-text>", "", text, "", "</assistant-text>"].join("\n"));
-  for (const idx of Object.keys(toolCalls).map(Number).sort((a, b) => a - b)) {
+  if (text)
+    parts.push(
+      ["<assistant-text>", "", text, "", "</assistant-text>"].join("\n")
+    );
+  for (const idx of Object.keys(toolCalls)
+    .map(Number)
+    .sort((a, b) => a - b)) {
     const tc = toolCalls[idx];
     parts.push(
       [
@@ -956,7 +1010,10 @@ function renderOpenAIResponsesStream(events: unknown[]): string {
   if (status) parts.push(`- **status**: ${status}`);
   if (usage) parts.push(`- **usage**: ${JSON.stringify(usage)}`);
   if (parts.length) parts.push("");
-  if (text) parts.push(["<assistant-text>", "", text, "", "</assistant-text>"].join("\n"));
+  if (text)
+    parts.push(
+      ["<assistant-text>", "", text, "", "</assistant-text>"].join("\n")
+    );
   for (const key of Object.keys(toolCalls)) {
     const tc = toolCalls[key];
     parts.push(

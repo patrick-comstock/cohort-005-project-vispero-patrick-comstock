@@ -185,7 +185,9 @@ export function getBestAttempt(database: Db, userId: number, quizId: number) {
   return database
     .select()
     .from(quizAttempts)
-    .where(and(eq(quizAttempts.userId, userId), eq(quizAttempts.quizId, quizId)))
+    .where(
+      and(eq(quizAttempts.userId, userId), eq(quizAttempts.quizId, quizId))
+    )
     .orderBy(desc(quizAttempts.score))
     .limit(1)
     .get();

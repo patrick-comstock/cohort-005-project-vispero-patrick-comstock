@@ -6,6 +6,8 @@ Read `GLOSSARY.md` before naming anything (code, UI copy, routes, DB schema). Wh
 
 Run `npm run check` before you report a change to `app/` as complete.
 
+The pre-commit hook formats and lints staged files, so a commit never needs `--no-verify`.
+
 ## When something breaks
 
 | Symptom                                         | Cause                                                                                                  |
