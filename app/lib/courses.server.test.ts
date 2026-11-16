@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
 import {
+  courseSearchCondition,
   getBestAttempt,
   getCourseById,
   getCourseBySlug,
@@ -55,6 +56,45 @@ function addEmptyCourse() {
     .returning()
     .get();
 }
+
+describe("courseSearchCondition", () => {
+  // Base data has "Test Course" / "A test course"; addEmptyCourse adds
+  // "Empty Course" / "No modules yet".
+  function searchSlugs(term: string | null) {
+    const query = testDb
+      .select({ slug: schema.courses.slug })
+      .from(schema.courses);
+    const condition = courseSearchCondition(term);
+    const rows = condition ? query.where(condition).all() : query.all();
+    return rows.map((row) => row.slug).sort();
+  }
+
+  beforeEach(() => {
+    addEmptyCourse();
+  });
+
+  it("matches on the title", () => {
+    expect(searchSlugs("Empty")).toEqual(["empty-course"]);
+  });
+
+  it("matches on the description", () => {
+    expect(searchSlugs("modules yet")).toEqual(["empty-course"]);
+  });
+
+  it("matches a term in either field across courses", () => {
+    expect(searchSlugs("course")).toEqual(["empty-course", "test-course"]);
+  });
+
+  it("matches nothing for a term in neither field", () => {
+    expect(searchSlugs("zzz-no-match")).toEqual([]);
+  });
+
+  it("returns no condition for an empty or missing term", () => {
+    expect(courseSearchCondition("")).toBeUndefined();
+    expect(courseSearchCondition(null)).toBeUndefined();
+    expect(searchSlugs("")).toEqual(["empty-course", "test-course"]);
+  });
+});
 
 describe("getUserById", () => {
   it("returns the user", () => {

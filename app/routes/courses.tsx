@@ -1,7 +1,7 @@
 import { Form, Link, useSearchParams, useNavigation, isRouteErrorResponse } from "react-router";
 import type { Route } from "./+types/courses";
 import { db } from "~/db";
-import { getLessonCount } from "~/lib/courses.server";
+import { courseSearchCondition, getLessonCount } from "~/lib/courses.server";
 import { getCourseProgress } from "~/lib/course-progress.server";
 import {
   courses as coursesTable,
@@ -11,7 +11,7 @@ import {
   courseRatings,
   CourseStatus,
 } from "~/db/schema";
-import { eq, like, and, or, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -38,11 +38,9 @@ function buildCourseQuery(
     conditions.push(eq(coursesTable.status, status));
   }
 
-  if (search) {
-    const term = `%${search}%`;
-    conditions.push(
-      or(like(coursesTable.title, term), like(coursesTable.description, term))!
-    );
+  const searchCondition = courseSearchCondition(search);
+  if (searchCondition) {
+    conditions.push(searchCondition);
   }
 
   const query = db
