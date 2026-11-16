@@ -57,7 +57,7 @@ const revenueSum = sql<number>`coalesce(sum(${purchases.amountPaid} - ${refundOf
 /** How many of the grouped Purchases were not Refunded. */
 const keptPurchaseCount = sql<number>`coalesce(sum(case when ${refundRequests.id} is null then 1 else 0 end), 0)`;
 
-export type RevenueSummary = {
+type RevenueSummary = {
   grossSalesCents: number;
   refundCents: number;
   refundCount: number;
@@ -97,7 +97,7 @@ export function getRevenueSummary(
   };
 }
 
-export type CourseRevenue = {
+type CourseRevenue = {
   courseId: number;
   title: string;
   revenueCents: number;
@@ -160,7 +160,7 @@ export function getFullyRefundedCourseIds(
     .map((row) => row.courseId);
 }
 
-export type RevenuePoint = {
+type RevenuePoint = {
   bucket: string;
   revenueCents: number;
   netEarningsCents: number;
@@ -268,7 +268,7 @@ export function getBuyerCount(
   return row?.buyerCount ?? 0;
 }
 
-export type TopBuyer = {
+type TopBuyer = {
   userId: number;
   name: string;
   email: string;
@@ -362,7 +362,7 @@ export function getTopBuyers(
   }));
 }
 
-export type StudentRevenue = {
+type StudentRevenue = {
   userId: number;
   name: string;
   revenueCents: number;
@@ -455,7 +455,7 @@ export function getStudentRevenue(
   }));
 }
 
-export type CountryRevenueRow = {
+type CountryRevenueRow = {
   country: string | null;
   purchaseCount: number;
   revenueCents: number;

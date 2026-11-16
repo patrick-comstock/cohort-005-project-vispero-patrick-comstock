@@ -3,7 +3,7 @@ import { coupons, enrollments, purchases } from "~/db/schema";
 import type { Db } from "~/db";
 import { hasPendingRefundRequest } from "~/lib/refund-eligibility.server";
 
-export type RedeemRefusalCode =
+type RedeemRefusalCode =
   | "not-found"
   | "voided"
   | "already-redeemed"
@@ -14,7 +14,7 @@ export type RedeemRefusalCode =
 export const REFUND_REQUEST_PENDING_MESSAGE =
   "This Coupon can't be Redeemed right now because its Team Purchase has a Pending Refund Request.";
 
-export type RedeemResult =
+type RedeemResult =
   | { ok: true; enrollment: typeof enrollments.$inferSelect }
   | { ok: false; code: RedeemRefusalCode; error: string };
 

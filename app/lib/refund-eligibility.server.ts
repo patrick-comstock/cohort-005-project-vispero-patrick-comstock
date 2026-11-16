@@ -19,16 +19,16 @@ import { notifyAdmins } from "~/lib/notifications.server";
 import { formatPrice } from "~/lib/utils";
 
 // Refund Eligibility = Refund Window + Watch-Time Limit + Completion Limit.
-export const REFUND_WINDOW_DAYS = 14;
-export const WATCH_TIME_LIMIT_SECONDS = 2 * 60 * 60;
-export const COMPLETION_LIMIT = 0.5;
+const REFUND_WINDOW_DAYS = 14;
+const WATCH_TIME_LIMIT_SECONDS = 2 * 60 * 60;
+const COMPLETION_LIMIT = 0.5;
 
 /**
  * The calendar day (YYYY-MM-DD, local time) a moment falls on. The Refund
  * Window is counted in whole days, not hours — a Purchase made at 23:00 still
  * gets the whole of its fourteenth day.
  */
-export function toCalendarDay(when: Date): string {
+function toCalendarDay(when: Date): string {
   const year = when.getFullYear();
   const month = String(when.getMonth() + 1).padStart(2, "0");
   const day = String(when.getDate()).padStart(2, "0");
@@ -36,7 +36,7 @@ export function toCalendarDay(when: Date): string {
 }
 
 /** The last calendar day of the Refund Window for a Purchase. */
-export function lastDayOfRefundWindow(purchasedAtIso: string): string {
+function lastDayOfRefundWindow(purchasedAtIso: string): string {
   const windowEnd = new Date(purchasedAtIso);
   windowEnd.setDate(windowEnd.getDate() + REFUND_WINDOW_DAYS);
   return toCalendarDay(windowEnd);

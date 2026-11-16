@@ -462,7 +462,7 @@ export default function PurchaseConfirmation({
             </span>
             <span className="flex items-center gap-2">
               <Clock className="size-4" />
-              {formatDuration(totalDuration, true, false, false)} total
+              {formatDuration(totalDuration)} total
             </span>
             <span className="flex items-center gap-2">
               <Users className="size-4" />

@@ -6,7 +6,8 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Textarea } from "~/components/ui/textarea";
 import { UserAvatar } from "~/components/user-avatar";
-import { cn, formatRelativeTime } from "~/lib/utils";
+import { formatTimeAgo } from "~/lib/time-ago";
+import { cn } from "~/lib/utils";
 import { MAX_COMMENT_LENGTH } from "~/lib/comments";
 
 // Bodies arrive pre-rendered from the server (renderComment), because comments
@@ -242,7 +243,7 @@ function CommentItem({
               className="text-xs text-muted-foreground"
               suppressHydrationWarning
             >
-              {formatRelativeTime(comment.createdAt)}
+              {formatTimeAgo(comment.createdAt)}
             </span>
             {comment.editedAt && (
               <span

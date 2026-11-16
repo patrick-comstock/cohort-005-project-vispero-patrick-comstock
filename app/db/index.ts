@@ -8,7 +8,7 @@ import * as schema from "./schema";
 // dragging better-sqlite3 into the browser. Keep this file side-effect free.
 let connection: Database.Database | undefined;
 
-export function getSqlite() {
+function getSqlite() {
   if (!connection) {
     connection = openDatabase("data.db");
     connection.pragma("journal_mode = WAL");

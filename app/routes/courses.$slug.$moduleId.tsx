@@ -302,7 +302,7 @@ export default function ModuleDetail({ loaderData }: Route.ComponentProps) {
         {totalDuration > 0 && (
           <span className="flex items-center gap-1">
             <Clock className="size-4" />
-            {formatDuration(totalDuration, true, false, false)}
+            {formatDuration(totalDuration)}
           </span>
         )}
       </div>
@@ -383,12 +383,7 @@ export default function ModuleDetail({ loaderData }: Route.ComponentProps) {
                   {lesson.durationMinutes && (
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="size-3" />
-                      {formatDuration(
-                        lesson.durationMinutes,
-                        true,
-                        false,
-                        false
-                      )}
+                      {formatDuration(lesson.durationMinutes)}
                     </span>
                   )}
                 </div>
