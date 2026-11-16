@@ -1,86 +1,14 @@
 import { Link, redirect } from "react-router";
 import type { Route } from "./+types/courses.$slug.welcome";
 import { db } from "~/db";
-import { getCourseBySlug } from "~/lib/courses.server";
-import {
-  courses,
-  categories,
-  users,
-  modules,
-  lessons,
-  enrollments,
-} from "~/db/schema";
-import { eq, and, or } from "drizzle-orm";
+import { getCourseBySlug, getCourseOutline } from "~/lib/courses.server";
+import { enrollments } from "~/db/schema";
+import { eq, and } from "drizzle-orm";
 import { getCurrentUserId } from "~/lib/session";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { PartyPopper, MessageCircle, PlayCircle } from "lucide-react";
 import { data } from "react-router";
-
-function getCourseWithDetails(id: number) {
-  const course = db
-    .select({
-      id: courses.id,
-      title: courses.title,
-      slug: courses.slug,
-      description: courses.description,
-      salesCopy: courses.salesCopy,
-      instructorId: courses.instructorId,
-      categoryId: courses.categoryId,
-      status: courses.status,
-      coverImageUrl: courses.coverImageUrl,
-      price: courses.price,
-      pppEnabled: courses.pppEnabled,
-      createdAt: courses.createdAt,
-      updatedAt: courses.updatedAt,
-      instructorName: users.name,
-      instructorAvatarUrl: users.avatarUrl,
-      instructorBio: users.bio,
-      categoryName: categories.name,
-    })
-    .from(courses)
-    .innerJoin(users, eq(courses.instructorId, users.id))
-    .innerJoin(categories, eq(courses.categoryId, categories.id))
-    .where(eq(courses.id, id))
-    .get();
-
-  if (!course) return null;
-
-  const courseModules = db
-    .select()
-    .from(modules)
-    .where(eq(modules.courseId, id))
-    .orderBy(modules.position)
-    .all();
-
-  const moduleIds = courseModules.map((m) => m.id);
-
-  const courseLessons =
-    moduleIds.length > 0
-      ? db
-          // Lesson metadata only: the welcome page links to the first lesson and
-          // needs no lesson body or video, which a PPP-blocked Student may not see.
-          .select({
-            id: lessons.id,
-            moduleId: lessons.moduleId,
-            title: lessons.title,
-            position: lessons.position,
-            durationMinutes: lessons.durationMinutes,
-          })
-          .from(lessons)
-          .where(or(...moduleIds.map((mid) => eq(lessons.moduleId, mid)))!)
-          .orderBy(lessons.position)
-          .all()
-      : [];
-
-  return {
-    ...course,
-    modules: courseModules.map((mod) => ({
-      ...mod,
-      lessons: courseLessons.filter((l) => l.moduleId === mod.id),
-    })),
-  };
-}
 
 function isUserEnrolled(userId: number, courseId: number) {
   const enrollment = db
@@ -118,7 +46,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw redirect(`/courses/${slug}`);
   }
 
-  const courseWithDetails = getCourseWithDetails(course.id);
+  // Outline only: the page links to the first lesson and needs no lesson body
+  // or video, which a PPP-blocked Student may not see.
+  const courseWithDetails = getCourseOutline(db, course.id);
   if (!courseWithDetails) {
     throw data("Course not found.", { status: 404 });
   }

@@ -16,10 +16,9 @@ import {
   modules,
   lessons,
   enrollments,
-  lessonProgress,
-  LessonProgressStatus,
 } from "~/db/schema";
-import { eq, and, or, sql, gt, gte } from "drizzle-orm";
+import { eq, and, sql, gt, gte } from "drizzle-orm";
+import { getCourseProgress } from "~/lib/course-progress.server";
 import { formatDuration, formatPrice } from "~/lib/utils";
 import { MonacoMarkdownEditor } from "~/components/monaco-markdown-editor";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -300,44 +299,6 @@ function getCourseEnrolledStudents(courseId: number) {
     .all();
 }
 
-function getCourseLessonIds(courseId: number): number[] {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .all();
-
-  return courseLessons.map((l) => l.id);
-}
-
-function calculateProgress(userId: number, courseId: number) {
-  const lessonIds = getCourseLessonIds(courseId);
-
-  if (lessonIds.length === 0) return 0;
-
-  const completedCount = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-      )
-    )
-    .get();
-
-  return Math.round(((completedCount?.count ?? 0) / lessonIds.length) * 100);
-}
-
 const courseEditorParamsSchema = z.object({
   courseId: z.coerce.number().int(),
 });
@@ -476,7 +437,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   const students = enrolledStudents.map((enrollment) => {
     const studentUser = getUserById(db, enrollment.userId);
-    const progress = calculateProgress(enrollment.userId, courseId);
+    const progress = getCourseProgress(db, enrollment.userId, courseId).percent;
 
     const quizScores = lessonQuizzes.map((lq) => {
       const bestAttempt = getBestAttempt(db, enrollment.userId, lq.quizId);

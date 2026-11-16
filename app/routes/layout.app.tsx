@@ -6,9 +6,10 @@ import { Toaster } from "sonner";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { countUnreadNotifications } from "~/lib/notifications.server";
-import { eq, and, or, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import { db } from "~/db";
 import { getUserById } from "~/lib/courses.server";
+import { getCourseProgress } from "~/lib/course-progress.server";
 import {
   users,
   courses,
@@ -18,7 +19,6 @@ import {
   teams,
   teamMembers,
   TeamMemberRole,
-  LessonProgressStatus,
 } from "~/db/schema";
 
 function getAllUsers() {
@@ -44,67 +44,6 @@ function getTeamForAdmin(userId: number) {
 
 function isTeamAdmin(userId: number) {
   return !!getTeamForAdmin(userId);
-}
-
-function getCourseLessonIds(courseId: number): number[] {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .all();
-
-  return courseLessons.map((l) => l.id);
-}
-
-function calculateProgress(userId: number, courseId: number) {
-  const lessonIds = getCourseLessonIds(courseId);
-
-  if (lessonIds.length === 0) return 0;
-
-  const completedCount = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-      )
-    )
-    .get();
-
-  return Math.round(((completedCount?.count ?? 0) / lessonIds.length) * 100);
-}
-
-function getCompletedLessonCount(userId: number, courseId: number) {
-  const lessonIds = getCourseLessonIds(courseId);
-  if (lessonIds.length === 0) return 0;
-
-  const result = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-      )
-    )
-    .get();
-
-  return result?.count ?? 0;
-}
-
-function getTotalLessonCount(courseId: number) {
-  return getCourseLessonIds(courseId).length;
 }
 
 function getRecentlyProgressedCourses(userId: number, limit: number = 3) {
@@ -143,12 +82,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   const recentCourses = currentUserId
     ? getRecentlyProgressedCourses(currentUserId).map((course) => {
-        const completedLessons = getCompletedLessonCount(
-          currentUserId,
-          course.courseId
-        );
-        const totalLessons = getTotalLessonCount(course.courseId);
-        const progress = calculateProgress(currentUserId, course.courseId);
+        const {
+          completedLessons,
+          totalLessons,
+          percent: progress,
+        } = getCourseProgress(db, currentUserId, course.courseId);
         return {
           courseId: course.courseId,
           title: course.courseTitle,

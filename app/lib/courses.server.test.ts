@@ -5,6 +5,7 @@ import {
   getBestAttempt,
   getCourseById,
   getCourseBySlug,
+  getCourseOutline,
   getCourseWithDetails,
   getLessonCount,
   getQuizByLessonId,
@@ -119,6 +120,70 @@ describe("getCourseWithDetails", () => {
 
   it("returns no modules for a course without any", () => {
     expect(getCourseWithDetails(testDb, base.course.id)?.modules).toEqual([]);
+  });
+});
+
+describe("getCourseOutline", () => {
+  it("returns null for an unknown id", () => {
+    expect(getCourseOutline(testDb, MISSING_ID)).toBeNull();
+  });
+
+  it("includes the Instructor and category", () => {
+    const course = getCourseOutline(testDb, base.course.id);
+    expect(course?.instructorName).toBe("Test Instructor");
+    expect(course?.categoryName).toBe("Programming");
+  });
+
+  it("orders modules and their lessons by position", () => {
+    const second = addModule(base.course.id, "Second", 2);
+    const first = addModule(base.course.id, "First", 1);
+    addLesson(first.id, "1.2", 2);
+    addLesson(first.id, "1.1", 1);
+    addLesson(second.id, "2.1", 1);
+
+    const course = getCourseOutline(testDb, base.course.id);
+
+    expect(
+      course?.modules.map((m) => ({
+        title: m.title,
+        lessons: m.lessons.map((l) => l.title),
+      }))
+    ).toEqual([
+      { title: "First", lessons: ["1.1", "1.2"] },
+      { title: "Second", lessons: ["2.1"] },
+    ]);
+  });
+
+  it("never returns a lesson's content, video or code link", () => {
+    const mod = addModule(base.course.id, "M", 1);
+    testDb
+      .insert(schema.lessons)
+      .values({
+        moduleId: mod.id,
+        title: "Secret",
+        position: 1,
+        content: "Paid content",
+        videoUrl: "https://example.com/video",
+        githubRepoUrl: "https://github.com/example/repo",
+        durationMinutes: 12,
+      })
+      .run();
+
+    const lessons = getCourseOutline(testDb, base.course.id)?.modules.flatMap(
+      (m) => m.lessons
+    );
+
+    expect(lessons).toHaveLength(1);
+    for (const lesson of lessons ?? []) {
+      expect(lesson).not.toHaveProperty("content");
+      expect(lesson).not.toHaveProperty("videoUrl");
+      expect(lesson).not.toHaveProperty("githubRepoUrl");
+    }
+    expect(lessons?.[0]?.durationMinutes).toBe(12);
+  });
+
+  it("returns no modules for a course without any", () => {
+    expect(getCourseOutline(testDb, base.course.id)?.modules).toEqual([]);
   });
 });
 

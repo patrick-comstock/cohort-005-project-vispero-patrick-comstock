@@ -13,14 +13,9 @@ import {
   getQuizByLessonId,
   getUserById,
 } from "~/lib/courses.server";
-import {
-  modules,
-  lessons,
-  enrollments,
-  lessonProgress,
-  LessonProgressStatus,
-} from "~/db/schema";
-import { eq, and, or, sql } from "drizzle-orm";
+import { getCourseProgress } from "~/lib/course-progress.server";
+import { modules, lessons, enrollments } from "~/db/schema";
+import { eq } from "drizzle-orm";
 
 function getCourseEnrolledStudents(courseId: number) {
   return db
@@ -33,44 +28,6 @@ function getCourseEnrolledStudents(courseId: number) {
     .from(enrollments)
     .where(eq(enrollments.courseId, courseId))
     .all();
-}
-
-function getCourseLessonIds(courseId: number): number[] {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .all();
-
-  return courseLessons.map((l) => l.id);
-}
-
-function calculateProgress(userId: number, courseId: number) {
-  const lessonIds = getCourseLessonIds(courseId);
-
-  if (lessonIds.length === 0) return 0;
-
-  const completedCount = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-      )
-    )
-    .get();
-
-  return Math.round(((completedCount?.count ?? 0) / lessonIds.length) * 100);
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -161,7 +118,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   // Build student data with progress and quiz scores
   const students = enrolledStudents.map((enrollment) => {
     const studentUser = getUserById(db, enrollment.userId);
-    const progress = calculateProgress(enrollment.userId, courseId);
+    const progress = getCourseProgress(db, enrollment.userId, courseId).percent;
 
     // Get best quiz attempt for each quiz in this course
     const quizScores = lessonQuizzes.map((lq) => {
