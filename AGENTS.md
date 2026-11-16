@@ -2,6 +2,10 @@
 
 Read `GLOSSARY.md` before naming anything (code, UI copy, routes, DB schema). When a term is settled, add or update it there.
 
+## Modules
+
+Modules under `app/modules/` are deep modules: read [app/modules/README.md](./app/modules/README.md) before adding one or importing from one.
+
 ## Verification checks
 
 Run `npm run check` before you report a change to `app/` as complete.
