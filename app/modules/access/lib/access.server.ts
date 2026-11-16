@@ -42,7 +42,16 @@ function findPurchaseForAccess(database: Db, userId: number, courseId: number) {
     .get();
 }
 
-function isUserEnrolled(database: Db, userId: number, courseId: number) {
+/**
+ * Is the user enrolled in the course? The one home for this question: an
+ * Enrollment row is the whole rule (ADR 0001). Pass a transaction to ask
+ * inside one.
+ */
+export function isEnrolled(
+  database: Db,
+  userId: number,
+  courseId: number
+): boolean {
   const enrollment = database
     .select({ id: enrollments.id })
     .from(enrollments)
@@ -118,7 +127,7 @@ async function resolveAccess(
 
   const course = getCourseById(database, courseId);
   const isManager = isCourseManager(user, course);
-  const enrolled = isUserEnrolled(database, userId, courseId);
+  const enrolled = isEnrolled(database, userId, courseId);
 
   // PPP only restricts students who bought at a discount; a Course Manager is
   // exempt.

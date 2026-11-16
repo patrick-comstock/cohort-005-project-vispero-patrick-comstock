@@ -17,6 +17,7 @@ import { resolveRefundRequest } from "~/lib/refund-request-resolve.server";
 import { setCurrentUserId, setDevCountry } from "~/lib/session";
 import {
   getAccess,
+  isEnrolled,
   requireAdmin,
   requireContentAccess,
   requireCourseManager,
@@ -741,5 +742,43 @@ describe("requireAdmin", () => {
     const result = await requireAdmin(await requestAs(admin.id), testDb);
 
     expect(result.userId).toBe(admin.id);
+  });
+});
+
+describe("isEnrolled", () => {
+  it("is true when the Student has an Enrollment in the course", () => {
+    buyCourse(base.user.id);
+
+    expect(isEnrolled(testDb, base.user.id, base.course.id)).toBe(true);
+  });
+
+  it("is false for a Student without an Enrollment, even when another Student has one", () => {
+    buyCourse(admin.id);
+
+    expect(isEnrolled(testDb, base.user.id, base.course.id)).toBe(false);
+  });
+
+  it("is false for the owning Instructor, who needs no Enrollment to view content", () => {
+    expect(isEnrolled(testDb, base.instructor.id, base.course.id)).toBe(false);
+  });
+
+  it("is false once a Refund Request for the Purchase is Approved", () => {
+    const purchase = buyCourse(base.user.id);
+    approveRefund(purchase.id);
+
+    expect(isEnrolled(testDb, base.user.id, base.course.id)).toBe(false);
+  });
+
+  it("sees an Enrollment created earlier in the same transaction", () => {
+    const seen = testDb.transaction((tx) => {
+      const before = isEnrolled(tx, base.user.id, base.course.id);
+      tx.insert(schema.enrollments)
+        .values({ userId: base.user.id, courseId: base.course.id })
+        .run();
+      const after = isEnrolled(tx, base.user.id, base.course.id);
+      return { before, after };
+    });
+
+    expect(seen).toEqual({ before: false, after: true });
   });
 });
