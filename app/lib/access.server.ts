@@ -66,13 +66,29 @@ function isUserEnrolled(database: Db, userId: number, courseId: number) {
 //
 // Uses positional parameters (project convention).
 
+type User = NonNullable<ReturnType<typeof getUserById>>;
+type Course = ReturnType<typeof getCourseById>;
+
+/** The course's owner, and still an Instructor. A demoted owner is not. */
+function isOwningInstructor(user: User, course: Course) {
+  return course?.instructorId === user.id && user.role === UserRole.Instructor;
+}
+
+/**
+ * The one course-staff rule: an Admin, or the course's owner who still holds
+ * the Instructor role. Shared by resolveAccess and checkCourseStaff.
+ */
+function isCourseStaff(user: User, course: Course) {
+  return user.role === UserRole.Admin || isOwningInstructor(user, course);
+}
+
 export type Access = {
   userId: number | null;
   user: ReturnType<typeof getUserById>;
   isAdmin: boolean;
-  /** The instructor who owns this specific course. */
+  /** The course's owner who still holds the Instructor role. */
   isOwningInstructor: boolean;
-  /** Owning instructor or admin — the people who speak for the course. */
+  /** Owning Instructor or Admin — the people who speak for the course. */
   isStaff: boolean;
   enrolled: boolean;
   pppBlocked: boolean;
@@ -100,24 +116,23 @@ const SIGNED_OUT: Access = {
 
 /**
  * The Access rules, given who is asking and where from. Never throws: an
- * unknown or null user gets the signed-out result. `currentCountry` is only
- * read for an enrolled Student, the one case PPP can restrict.
+ * unknown or null user gets the signed-out result. `getCountry` is called only
+ * for an enrolled user who isn't staff, the one case PPP can restrict: it may
+ * call out to an IP lookup service.
  */
-export function resolveAccess(
+export async function resolveAccess(
   database: Db,
   userId: number | null,
   courseId: number,
-  currentCountry: string | null
-): Access {
+  getCountry: () => Promise<string | null>
+): Promise<Access> {
   if (!userId) return SIGNED_OUT;
 
   const user = getUserById(database, userId);
   if (!user) return SIGNED_OUT;
 
   const course = getCourseById(database, courseId);
-  const isAdmin = user.role === UserRole.Admin;
-  const isOwningInstructor = course?.instructorId === userId;
-  const isStaff = isAdmin || isOwningInstructor;
+  const isStaff = isCourseStaff(user, course);
   const enrolled = isUserEnrolled(database, userId, courseId);
 
   // PPP only restricts students who bought at a discount — staff are exempt.
@@ -134,15 +149,15 @@ export function resolveAccess(
       course.price,
       course.pppEnabled,
       purchase?.country ?? null,
-      currentCountry
+      await getCountry()
     );
   }
 
   return {
     userId,
     user,
-    isAdmin,
-    isOwningInstructor,
+    isAdmin: user.role === UserRole.Admin,
+    isOwningInstructor: isOwningInstructor(user, course),
     isStaff,
     enrolled,
     pppBlocked: ppp.blocked,
@@ -154,18 +169,14 @@ export function resolveAccess(
 
 /**
  * Access for the user in the request's session. The country is resolved only
- * when it can matter (an enrolled Student), as before: resolving it may call
- * out to an IP lookup service.
+ * when it can matter (see resolveAccess).
  */
 export async function getAccess(
   request: Request,
   courseId: number
 ): Promise<Access> {
   const userId = await getCurrentUserId(request);
-  const access = resolveAccess(db, userId, courseId, null);
-  if (!access.enrolled || access.isStaff) return access;
-
-  return resolveAccess(db, userId, courseId, await resolveCountry(request));
+  return resolveAccess(db, userId, courseId, () => resolveCountry(request));
 }
 
 /**
@@ -220,8 +231,8 @@ export function checkCourseStaff(
   userId: number | null,
   courseId: number
 ): CourseStaffCheck {
-  const access = resolveAccess(database, userId, courseId, null);
-  if (!access.user) {
+  const user = userId ? getUserById(database, userId) : undefined;
+  if (!user) {
     return {
       ok: false,
       status: 401,
@@ -230,14 +241,17 @@ export function checkCourseStaff(
   }
 
   const course = getCourseById(database, courseId);
-  const isOwnerInstructor =
-    access.isOwningInstructor && access.user.role === UserRole.Instructor;
 
-  if (!course || !(access.isAdmin || isOwnerInstructor)) {
+  if (!course || !isCourseStaff(user, course)) {
     return { ok: false, status: 404, message: "Course not found." };
   }
 
-  return { ok: true, user: access.user, course, isAdmin: access.isAdmin };
+  return {
+    ok: true,
+    user,
+    course,
+    isAdmin: user.role === UserRole.Admin,
+  };
 }
 
 /**

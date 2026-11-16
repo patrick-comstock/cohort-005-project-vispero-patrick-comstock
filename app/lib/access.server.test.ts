@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createTestDb, seedBaseData } from "~/test/setup";
 import * as schema from "~/db/schema";
@@ -62,6 +62,15 @@ function setCoursePricing(pppEnabled = true) {
     .run();
 }
 
+/** The course's owner loses the Instructor role but still owns the course. */
+function demoteOwner() {
+  testDb
+    .update(schema.users)
+    .set({ role: UserRole.Student })
+    .where(eq(schema.users.id, base.instructor.id))
+    .run();
+}
+
 function approveRefund(purchaseId: number) {
   resolveRefundRequest(testDb, {
     refundRequestId: requestRefund(purchaseId).id,
@@ -70,9 +79,19 @@ function approveRefund(purchaseId: number) {
   });
 }
 
+/** A stub for the lazy country lookup, so a test can see whether it ran. */
+function countryGetter(country: string | null) {
+  return vi.fn(async () => country);
+}
+
 describe("resolveAccess", () => {
-  it("treats a null user as signed out", () => {
-    const access = resolveAccess(testDb, null, base.course.id, "US");
+  it("treats a null user as signed out", async () => {
+    const access = await resolveAccess(
+      testDb,
+      null,
+      base.course.id,
+      countryGetter("US")
+    );
 
     expect(access).toMatchObject({
       userId: null,
@@ -84,19 +103,24 @@ describe("resolveAccess", () => {
     });
   });
 
-  it("treats an unknown user as signed out", () => {
-    const access = resolveAccess(testDb, 9999, base.course.id, "US");
+  it("treats an unknown user as signed out", async () => {
+    const access = await resolveAccess(
+      testDb,
+      9999,
+      base.course.id,
+      countryGetter("US")
+    );
 
     expect(access.userId).toBeNull();
     expect(access.canViewContent).toBe(false);
   });
 
-  it("lets the owning Instructor view content without an Enrollment", () => {
-    const access = resolveAccess(
+  it("lets the owning Instructor view content without an Enrollment", async () => {
+    const access = await resolveAccess(
       testDb,
       base.instructor.id,
       base.course.id,
-      "US"
+      countryGetter("US")
     );
 
     expect(access).toMatchObject({
@@ -109,11 +133,16 @@ describe("resolveAccess", () => {
     });
   });
 
-  it("lets an enrolled Student view content from the same country", () => {
+  it("lets an enrolled Student view content from the same country", async () => {
     setCoursePricing();
     buyCourse(base.user.id, 2999, "IN");
 
-    const access = resolveAccess(testDb, base.user.id, base.course.id, "IN");
+    const access = await resolveAccess(
+      testDb,
+      base.user.id,
+      base.course.id,
+      countryGetter("IN")
+    );
 
     expect(access).toMatchObject({
       isStaff: false,
@@ -123,11 +152,19 @@ describe("resolveAccess", () => {
     });
   });
 
-  it("blocks a PPP Purchase viewed from a different country", () => {
+  it("blocks a PPP Purchase viewed from a different country", async () => {
     setCoursePricing();
     buyCourse(base.user.id, 2999, "IN");
+    const getCountry = countryGetter("US");
 
-    const access = resolveAccess(testDb, base.user.id, base.course.id, "US");
+    const access = await resolveAccess(
+      testDb,
+      base.user.id,
+      base.course.id,
+      getCountry
+    );
+
+    expect(getCountry).toHaveBeenCalledTimes(1);
 
     expect(access).toMatchObject({
       enrolled: true,
@@ -138,7 +175,7 @@ describe("resolveAccess", () => {
     });
   });
 
-  it("does not let a Refunded PPP Purchase block", () => {
+  it("does not let a Refunded PPP Purchase block", async () => {
     setCoursePricing();
     const refunded = buyCourse(base.user.id, 2999, "IN");
     approveRefund(refunded.id);
@@ -148,7 +185,12 @@ describe("resolveAccess", () => {
       .values({ userId: base.user.id, courseId: base.course.id })
       .run();
 
-    const access = resolveAccess(testDb, base.user.id, base.course.id, "BR");
+    const access = await resolveAccess(
+      testDb,
+      base.user.id,
+      base.course.id,
+      countryGetter("BR")
+    );
 
     expect(access).toMatchObject({
       enrolled: true,
@@ -157,21 +199,72 @@ describe("resolveAccess", () => {
     });
   });
 
-  it("never blocks when the course has PPP turned off", () => {
+  it("never blocks when the course has PPP turned off", async () => {
     setCoursePricing(false);
     buyCourse(base.user.id, 2999, "IN");
 
-    const access = resolveAccess(testDb, base.user.id, base.course.id, "US");
+    const access = await resolveAccess(
+      testDb,
+      base.user.id,
+      base.course.id,
+      countryGetter("US")
+    );
 
     expect(access.pppBlocked).toBe(false);
     expect(access.canViewContent).toBe(true);
   });
 
-  it("never blocks an Admin", () => {
+  it("does not let a demoted owner view content without an Enrollment", async () => {
+    demoteOwner();
+
+    const access = await resolveAccess(
+      testDb,
+      base.instructor.id,
+      base.course.id,
+      countryGetter("US")
+    );
+
+    expect(access).toMatchObject({
+      userId: base.instructor.id,
+      isOwningInstructor: false,
+      isStaff: false,
+      enrolled: false,
+      canViewContent: false,
+    });
+  });
+
+  it("applies the PPP rules to a demoted owner who is enrolled", async () => {
+    setCoursePricing();
+    demoteOwner();
+    buyCourse(base.instructor.id, 2999, "IN");
+
+    const access = await resolveAccess(
+      testDb,
+      base.instructor.id,
+      base.course.id,
+      countryGetter("US")
+    );
+
+    expect(access).toMatchObject({
+      isStaff: false,
+      enrolled: true,
+      pppBlocked: true,
+      pppBlockedCountry: "US",
+      pppPurchaseCountry: "IN",
+      canViewContent: false,
+    });
+  });
+
+  it("never blocks an Admin", async () => {
     setCoursePricing();
     buyCourse(admin.id, 2999, "IN");
 
-    const access = resolveAccess(testDb, admin.id, base.course.id, "US");
+    const access = await resolveAccess(
+      testDb,
+      admin.id,
+      base.course.id,
+      countryGetter("US")
+    );
 
     expect(access).toMatchObject({
       isAdmin: true,
@@ -180,6 +273,27 @@ describe("resolveAccess", () => {
       pppBlocked: false,
       canViewContent: true,
     });
+  });
+});
+
+describe("resolveAccess country lookup", () => {
+  it("does not look up the country for staff, signed-out or unenrolled users", async () => {
+    setCoursePricing();
+    buyCourse(admin.id, 2999, "IN");
+    const getCountry = countryGetter("US");
+
+    const callers = [
+      null, // signed out
+      9999, // unknown user
+      base.instructor.id, // owning Instructor
+      admin.id, // enrolled Admin with a PPP Purchase
+      base.user.id, // unenrolled Student
+    ];
+    for (const userId of callers) {
+      await resolveAccess(testDb, userId, base.course.id, getCountry);
+    }
+
+    expect(getCountry).not.toHaveBeenCalled();
   });
 });
 
@@ -245,11 +359,20 @@ describe("checkCourseStaff", () => {
   });
 
   it("refuses with 404 an owner whose role is no longer Instructor", () => {
-    testDb
-      .update(schema.users)
-      .set({ role: UserRole.Student })
-      .where(eq(schema.users.id, base.instructor.id))
-      .run();
+    demoteOwner();
+
+    expect(checkCourseStaff(testDb, base.instructor.id, base.course.id)).toEqual(
+      {
+        ok: false,
+        status: 404,
+        message: "Course not found.",
+      }
+    );
+  });
+
+  it("refuses with 404 a demoted owner who is enrolled", () => {
+    demoteOwner();
+    buyCourse(base.instructor.id);
 
     expect(checkCourseStaff(testDb, base.instructor.id, base.course.id)).toEqual(
       {
