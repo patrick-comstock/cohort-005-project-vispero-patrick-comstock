@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Link, useFetcher, useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/instructor.$courseId.lessons.$lessonId.quiz";
-import { getCurrentUserId } from "~/lib/session";
+import { requireCourseStaff } from "~/lib/access.server";
 import {
-  UserRole,
   QuestionType,
   modules,
   lessons,
@@ -15,11 +14,7 @@ import {
   quizAnswers,
 } from "~/db/schema";
 import { db } from "~/db";
-import {
-  getCourseById,
-  getQuizByLessonId,
-  getUserById,
-} from "~/lib/courses.server";
+import { getQuizByLessonId } from "~/lib/courses.server";
 import { eq, sql } from "drizzle-orm";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -269,40 +264,8 @@ export function meta({ loaderData }: Route.MetaArgs) {
 // ─── Loader ───
 
 export async function loader({ params, request }: Route.LoaderArgs) {
-  const currentUserId = await getCurrentUserId(request);
-
-  if (!currentUserId) {
-    throw data("Select a user from the DevUI panel.", { status: 401 });
-  }
-
-  const user = getUserById(db, currentUserId);
-  if (
-    !user ||
-    (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
-  ) {
-    throw data("Only instructors and admins can access this page.", {
-      status: 403,
-    });
-  }
-
-  const courseId = parseInt(params.courseId, 10);
-  if (isNaN(courseId)) {
-    throw data("Invalid course ID.", { status: 400 });
-  }
-
-  const course = getCourseById(db, courseId);
-  if (!course) {
-    throw data("Course not found.", { status: 404 });
-  }
-
-  if (course.instructorId !== currentUserId && user.role !== UserRole.Admin) {
-    throw data("You can only edit your own courses.", { status: 403 });
-  }
-
-  const lessonId = parseInt(params.lessonId, 10);
-  if (isNaN(lessonId)) {
-    throw data("Invalid lesson ID.", { status: 400 });
-  }
+  const { courseId, lessonId } = parseParams(params, quizParamsSchema);
+  const { course } = await requireCourseStaff(request, courseId);
 
   const lesson = getLessonById(lessonId);
   if (!lesson) {
@@ -326,31 +289,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 // ─── Action ───
 
 export async function action({ params, request }: Route.ActionArgs) {
-  const currentUserId = await getCurrentUserId(request);
-
-  if (!currentUserId) {
-    throw data("You must be logged in.", { status: 401 });
-  }
-
-  const user = getUserById(db, currentUserId);
-  if (
-    !user ||
-    (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
-  ) {
-    throw data("Only instructors and admins can manage quizzes.", {
-      status: 403,
-    });
-  }
-
   const { courseId, lessonId } = parseParams(params, quizParamsSchema);
-
-  const course = getCourseById(db, courseId);
-  if (
-    !course ||
-    (course.instructorId !== currentUserId && user.role !== UserRole.Admin)
-  ) {
-    throw data("Course not found or not yours.", { status: 403 });
-  }
+  await requireCourseStaff(request, courseId);
 
   const lesson = getLessonById(lessonId);
   if (!lesson) {

@@ -3,7 +3,10 @@ import { Link, data, isRouteErrorResponse, useFetcher } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/instructor.questions";
-import { requireInstructorOrAdmin, requireStaff } from "~/lib/access.server";
+import {
+  requireCourseStaff,
+  requireInstructorOrAdmin,
+} from "~/lib/access.server";
 import { renderComment } from "~/lib/comment-markdown.server";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
@@ -206,11 +209,11 @@ export async function action({ request }: Route.ActionArgs) {
 
   // Answering as the course's voice — so it must be the course's own
   // instructor, or an admin.
-  const access = await requireStaff(request, course.courseId);
+  const { user } = await requireCourseStaff(request, course.courseId);
 
   try {
     createComment(
-      access.userId!,
+      user.id,
       question.lessonId,
       question.id,
       parsed.data.body

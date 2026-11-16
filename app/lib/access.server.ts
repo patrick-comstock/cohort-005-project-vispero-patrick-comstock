@@ -200,24 +200,76 @@ export async function requireContentAccess(
   return access;
 }
 
+export type CourseStaffCheck =
+  | {
+      ok: true;
+      user: NonNullable<Access["user"]>;
+      course: NonNullable<ReturnType<typeof getCourseById>>;
+      isAdmin: boolean;
+    }
+  | { ok: false; status: 401 | 404; message: string };
+
 /**
- * Throws unless the user is the course's own instructor, or an admin.
+ * Is this user staff on this course: an Admin, or the course's owner who
+ * still holds the Instructor role? Never throws. Signed out or unknown user
+ * is 401. Anyone else who isn't staff gets 404, whether or not the course
+ * exists, so its existence isn't revealed.
  */
-export async function requireStaff(
-  request: Request,
+export function checkCourseStaff(
+  database: Db,
+  userId: number | null,
   courseId: number
-): Promise<Access> {
-  const access = await getAccess(request, courseId);
-
-  if (!access.userId) {
-    throw data("Select a user from the DevUI panel.", { status: 401 });
+): CourseStaffCheck {
+  const access = resolveAccess(database, userId, courseId, null);
+  if (!access.user) {
+    return {
+      ok: false,
+      status: 401,
+      message: "Select a user from the DevUI panel.",
+    };
   }
 
-  if (!access.isStaff) {
-    throw data("Only this course's instructor can do that.", { status: 403 });
+  const course = getCourseById(database, courseId);
+  const isOwnerInstructor =
+    access.isOwningInstructor && access.user.role === UserRole.Instructor;
+
+  if (!course || !(access.isAdmin || isOwnerInstructor)) {
+    return { ok: false, status: 404, message: "Course not found." };
   }
 
-  return access;
+  return { ok: true, user: access.user, course, isAdmin: access.isAdmin };
+}
+
+/**
+ * Throws 401 or 404 (see checkCourseStaff) unless the session's user is an
+ * Admin or the course's owner who is still an Instructor. Parse the course id with
+ * parseParams first, so a malformed id is a 400. Call it in every loader and
+ * every action — loader guards don't protect actions.
+ */
+export async function requireCourseStaff(request: Request, courseId: number) {
+  const userId = await getCurrentUserId(request);
+  const result = checkCourseStaff(db, userId, courseId);
+
+  if (!result.ok) {
+    throw data(result.message, { status: result.status });
+  }
+
+  return { user: result.user, course: result.course, isAdmin: result.isAdmin };
+}
+
+/**
+ * Throws unless the user is an Instructor. Admins are refused: creating
+ * courses, and the list of one's own courses, are for Instructors only.
+ */
+export async function requireInstructor(request: Request) {
+  const userId = await requireUserId(request);
+  const user = getUserById(db, userId);
+
+  if (!user || user.role !== UserRole.Instructor) {
+    throw data("Only instructors can access this page.", { status: 403 });
+  }
+
+  return { userId, user };
 }
 
 /**

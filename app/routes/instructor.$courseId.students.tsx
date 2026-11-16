@@ -1,7 +1,6 @@
 import { Link } from "react-router";
 import type { Route } from "./+types/instructor.$courseId.students";
-import { getCurrentUserId } from "~/lib/session";
-import { UserRole } from "~/db/schema";
+import { requireCourseStaff } from "~/lib/access.server";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { AlertTriangle, ArrowLeft, Users, Award } from "lucide-react";
@@ -9,13 +8,18 @@ import { data, isRouteErrorResponse } from "react-router";
 import { db } from "~/db";
 import {
   getBestAttempt,
-  getCourseById,
   getQuizByLessonId,
   getUserById,
 } from "~/lib/courses.server";
 import { getCourseProgress } from "~/lib/course-progress.server";
 import { modules, lessons, enrollments } from "~/db/schema";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { parseParams } from "~/lib/validation";
+
+const studentsParamsSchema = z.object({
+  courseId: z.coerce.number().int(),
+});
 
 function getCourseEnrolledStudents(courseId: number) {
   return db
@@ -39,41 +43,8 @@ export function meta({ loaderData }: Route.MetaArgs) {
 }
 
 export async function loader({ params, request }: Route.LoaderArgs) {
-  const currentUserId = await getCurrentUserId(request);
-
-  if (!currentUserId) {
-    throw data("Select a user from the DevUI panel to view student roster.", {
-      status: 401,
-    });
-  }
-
-  const user = getUserById(db, currentUserId);
-
-  if (
-    !user ||
-    (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
-  ) {
-    throw data("Only instructors and admins can access this page.", {
-      status: 403,
-    });
-  }
-
-  const courseId = parseInt(params.courseId, 10);
-  if (isNaN(courseId)) {
-    throw data("Invalid course ID.", { status: 400 });
-  }
-
-  const course = getCourseById(db, courseId);
-
-  if (!course) {
-    throw data("Course not found.", { status: 404 });
-  }
-
-  if (course.instructorId !== currentUserId && user.role !== UserRole.Admin) {
-    throw data("You can only view students for your own courses.", {
-      status: 403,
-    });
-  }
+  const { courseId } = parseParams(params, studentsParamsSchema);
+  const { course } = await requireCourseStaff(request, courseId);
 
   // Get all enrolled students
   const enrolledStudents = getCourseEnrolledStudents(courseId);

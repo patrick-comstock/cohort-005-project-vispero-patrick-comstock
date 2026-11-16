@@ -3,11 +3,10 @@ import { Link, redirect, useFetcher } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import type { Route } from "./+types/instructor.new";
-import { getCurrentUserId } from "~/lib/session";
+import { requireInstructor } from "~/lib/access.server";
 import { parseFormData } from "~/lib/validation";
-import { UserRole } from "~/db/schema";
 import { db } from "~/db";
-import { getCourseBySlug, getUserById } from "~/lib/courses.server";
+import { getCourseBySlug } from "~/lib/courses.server";
 import { categories, courses, CourseStatus } from "~/db/schema";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -80,21 +79,7 @@ export function meta() {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const currentUserId = await getCurrentUserId(request);
-
-  if (!currentUserId) {
-    throw data("Select a user from the DevUI panel to create a course.", {
-      status: 401,
-    });
-  }
-
-  const user = getUserById(db, currentUserId);
-
-  if (!user || user.role !== UserRole.Instructor) {
-    throw data("Only instructors can create courses.", {
-      status: 403,
-    });
-  }
+  await requireInstructor(request);
 
   const categories = getAllCategories();
 
@@ -102,17 +87,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const currentUserId = await getCurrentUserId(request);
-
-  if (!currentUserId) {
-    throw data("You must be logged in to create a course.", { status: 401 });
-  }
-
-  const user = getUserById(db, currentUserId);
-
-  if (!user || user.role !== UserRole.Instructor) {
-    throw data("Only instructors can create courses.", { status: 403 });
-  }
+  const { userId: currentUserId } = await requireInstructor(request);
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, newCourseSchema);
