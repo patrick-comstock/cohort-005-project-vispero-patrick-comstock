@@ -102,17 +102,18 @@ export async function loader({ request }: Route.LoaderArgs) {
   >();
 
   for (const coupon of allCoupons) {
-    if (!courseMap.has(coupon.courseId)) {
+    let entry = courseMap.get(coupon.courseId);
+    if (!entry) {
       const course = getCourseById(db, coupon.courseId);
-      courseMap.set(coupon.courseId, {
+      entry = {
         courseId: coupon.courseId,
         courseTitle: course?.title ?? "Unknown Course",
         courseSlug: course?.slug ?? "",
         total: 0,
         redeemed: 0,
-      });
+      };
+      courseMap.set(coupon.courseId, entry);
     }
-    const entry = courseMap.get(coupon.courseId)!;
     entry.total++;
     if (coupon.redeemedByUserId !== null) {
       entry.redeemed++;

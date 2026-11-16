@@ -128,13 +128,14 @@ function createModule(
   title: string,
   position: number | null
 ) {
+  // An aggregate query always yields one row; `?? 0` only satisfies the type.
   const pos =
     position ??
-    db
+    (db
       .select({ max: sql<number>`coalesce(max(${modules.position}), 0)` })
       .from(modules)
       .where(eq(modules.courseId, courseId))
-      .get()!.max + 1;
+      .get()?.max ?? 0) + 1;
 
   return db
     .insert(modules)
@@ -189,13 +190,14 @@ function createLesson(
   position: number | null,
   durationMinutes: number | null
 ) {
+  // An aggregate query always yields one row; `?? 0` only satisfies the type.
   const pos =
     position ??
-    db
+    (db
       .select({ max: sql<number>`coalesce(max(${lessons.position}), 0)` })
       .from(lessons)
       .where(eq(lessons.moduleId, moduleId))
-      .get()!.max + 1;
+      .get()?.max ?? 0) + 1;
 
   return db
     .insert(lessons)
