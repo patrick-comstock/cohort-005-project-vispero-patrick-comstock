@@ -1,13 +1,10 @@
 import { Link } from "react-router";
 import type { Route } from "./+types/instructor.$courseId.modules.$moduleId";
-import { getCurrentUserId } from "~/lib/session";
-import { UserRole, modules, lessons } from "~/db/schema";
+import { requireCourseStaff } from "~/lib/access.server";
+import { modules, lessons } from "~/db/schema";
 import { db } from "~/db";
-import {
-  getCourseById,
-  getCourseWithDetails,
-  getUserById,
-} from "~/lib/courses.server";
+import { getCourseWithDetails } from "~/lib/courses.server";
+import { parseParams } from "~/lib/validation";
 import { eq } from "drizzle-orm";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -53,40 +50,8 @@ export function meta({ loaderData }: Route.MetaArgs) {
 }
 
 export async function loader({ params, request }: Route.LoaderArgs) {
-  const currentUserId = await getCurrentUserId(request);
-
-  if (!currentUserId) {
-    throw data("Select a user from the DevUI panel to manage courses.", {
-      status: 401,
-    });
-  }
-
-  const user = getUserById(db, currentUserId);
-
-  if (
-    !user ||
-    (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
-  ) {
-    throw data("Only instructors and admins can access this page.", {
-      status: 403,
-    });
-  }
-
-  const parsed = paramsSchema.safeParse(params);
-  if (!parsed.success) {
-    throw data("Invalid parameters", { status: 400 });
-  }
-
-  const { courseId, moduleId } = parsed.data;
-
-  const course = getCourseById(db, courseId);
-  if (!course) {
-    throw data("Course not found.", { status: 404 });
-  }
-
-  if (course.instructorId !== currentUserId && user.role !== UserRole.Admin) {
-    throw data("You can only view your own courses.", { status: 403 });
-  }
+  const { courseId, moduleId } = parseParams(params, paramsSchema);
+  await requireCourseStaff(request, courseId);
 
   const courseWithDetails = getCourseWithDetails(db, courseId);
   if (!courseWithDetails) {
