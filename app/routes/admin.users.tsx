@@ -7,6 +7,7 @@ import { getCurrentUserId } from "~/lib/session";
 import { parseFormData } from "~/lib/validation";
 import { UserRole, users } from "~/db/schema";
 import { db } from "~/db";
+import { getUserById } from "~/lib/courses.server";
 import { eq } from "drizzle-orm";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -37,10 +38,6 @@ const adminUserActionSchema = z.discriminatedUnion("intent", [
 
 function getAllUsers() {
   return db.select().from(users).all();
-}
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
 }
 
 function updateUser(
@@ -82,7 +79,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     });
   }
 
-  const currentUser = getUserById(currentUserId);
+  const currentUser = getUserById(db, currentUserId);
 
   if (!currentUser || currentUser.role !== UserRole.Admin) {
     throw data("Only admins can access this page.", {
@@ -102,7 +99,7 @@ export async function action({ request }: Route.ActionArgs) {
     throw data("You must be logged in.", { status: 401 });
   }
 
-  const currentUser = getUserById(currentUserId);
+  const currentUser = getUserById(db, currentUserId);
   if (!currentUser || currentUser.role !== UserRole.Admin) {
     throw data("Only admins can manage users.", { status: 403 });
   }
@@ -118,7 +115,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "update-user") {
     const { userId, name, email } = parsed.data;
-    const user = getUserById(userId);
+    const user = getUserById(db, userId);
     updateUser(userId, name, email, user?.bio ?? null);
     return { success: true };
   }

@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { Route } from "./+types/courses.$slug.refund-request";
 import { getCurrentUserId } from "~/lib/session";
 import { db } from "~/db";
-import { courses, users } from "~/db/schema";
+import { getCourseBySlug } from "~/lib/courses.server";
+import { users } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { makeStudentRefundRequest } from "~/lib/refund-eligibility.server";
@@ -20,10 +21,6 @@ const refundRequestParamsSchema = z.object({
   slug: z.string().min(1),
 });
 
-function getCourseBySlug(slug: string) {
-  return db.select().from(courses).where(eq(courses.slug, slug)).get();
-}
-
 export async function action({ params, request }: Route.ActionArgs) {
   const currentUserId = await getCurrentUserId(request);
 
@@ -32,7 +29,7 @@ export async function action({ params, request }: Route.ActionArgs) {
   }
 
   const { slug } = parseParams(params, refundRequestParamsSchema);
-  const course = getCourseBySlug(slug);
+  const course = getCourseBySlug(db, slug);
 
   if (!course) {
     throw data("Course not found", { status: 404 });

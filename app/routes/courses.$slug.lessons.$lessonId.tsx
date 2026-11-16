@@ -17,7 +17,11 @@ import {
 import { MIN_COMMENT_LENGTH, MAX_COMMENT_LENGTH } from "~/lib/comments";
 import { db } from "~/db";
 import {
-  categories,
+  getCourseBySlug,
+  getCourseWithDetails,
+  getUserById,
+} from "~/lib/courses.server";
+import {
   comments,
   courses,
   lessons,
@@ -31,7 +35,7 @@ import {
   LessonProgressStatus,
   UserRole,
 } from "~/db/schema";
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import {
@@ -102,77 +106,12 @@ type ThreadComment = {
   replies: ThreadComment[];
 };
 
-function getCourseBySlug(slug: string) {
-  return db.select().from(courses).where(eq(courses.slug, slug)).get();
-}
-
-function getCourseWithDetails(id: number) {
-  const course = db
-    .select({
-      id: courses.id,
-      title: courses.title,
-      slug: courses.slug,
-      description: courses.description,
-      salesCopy: courses.salesCopy,
-      instructorId: courses.instructorId,
-      categoryId: courses.categoryId,
-      status: courses.status,
-      coverImageUrl: courses.coverImageUrl,
-      price: courses.price,
-      pppEnabled: courses.pppEnabled,
-      createdAt: courses.createdAt,
-      updatedAt: courses.updatedAt,
-      instructorName: users.name,
-      instructorAvatarUrl: users.avatarUrl,
-      instructorBio: users.bio,
-      categoryName: categories.name,
-    })
-    .from(courses)
-    .innerJoin(users, eq(courses.instructorId, users.id))
-    .innerJoin(categories, eq(courses.categoryId, categories.id))
-    .where(eq(courses.id, id))
-    .get();
-
-  if (!course) return null;
-
-  const courseModules = db
-    .select()
-    .from(modules)
-    .where(eq(modules.courseId, id))
-    .orderBy(modules.position)
-    .all();
-
-  const moduleIds = courseModules.map((m) => m.id);
-
-  const courseLessons =
-    moduleIds.length > 0
-      ? db
-          .select()
-          .from(lessons)
-          .where(or(...moduleIds.map((mid) => eq(lessons.moduleId, mid)))!)
-          .orderBy(lessons.position)
-          .all()
-      : [];
-
-  return {
-    ...course,
-    modules: courseModules.map((mod) => ({
-      ...mod,
-      lessons: courseLessons.filter((l) => l.moduleId === mod.id),
-    })),
-  };
-}
-
 function getLessonById(id: number) {
   return db.select().from(lessons).where(eq(lessons.id, id)).get();
 }
 
 function getModuleById(id: number) {
   return db.select().from(modules).where(eq(modules.id, id)).get();
-}
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
 }
 
 function getCourseForLesson(lessonId: number) {
@@ -528,12 +467,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Invalid lesson ID", { status: 400 });
   }
 
-  const course = getCourseBySlug(slug);
+  const course = getCourseBySlug(db, slug);
   if (!course) {
     throw data("Course not found", { status: 404 });
   }
 
-  const courseWithDetails = getCourseWithDetails(course.id);
+  const courseWithDetails = getCourseWithDetails(db, course.id);
   if (!courseWithDetails) {
     throw data("Course not found", { status: 404 });
   }
@@ -568,7 +507,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   // Comments are confidential to the course: only people who can read the
   // lesson can read the discussion on it.
-  const instructor = getUserById(course.instructorId);
+  const instructor = getUserById(db, course.instructorId);
   const comments = canViewContent
     ? await renderThread(getLessonThread(lessonId))
     : [];
@@ -616,7 +555,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 export async function action({ params, request }: Route.ActionArgs) {
   const { slug, lessonId } = parseParams(params, lessonParamsSchema);
 
-  const course = getCourseBySlug(slug);
+  const course = getCourseBySlug(db, slug);
   if (!course) {
     throw data("Course not found", { status: 404 });
   }

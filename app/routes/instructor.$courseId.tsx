@@ -13,17 +13,13 @@ import { CourseStatus, UserRole } from "~/db/schema";
 import { db } from "~/db";
 import {
   courses,
-  categories,
-  users,
   modules,
   lessons,
   enrollments,
   lessonProgress,
   LessonProgressStatus,
-  quizzes,
-  quizAttempts,
 } from "~/db/schema";
-import { eq, and, or, sql, desc, gt, gte } from "drizzle-orm";
+import { eq, and, or, sql, gt, gte } from "drizzle-orm";
 import { formatDuration, formatPrice } from "~/lib/utils";
 import { MonacoMarkdownEditor } from "~/components/monaco-markdown-editor";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -58,89 +54,14 @@ import {
 import { data, isRouteErrorResponse } from "react-router";
 import { z } from "zod";
 import { parseFormData, parseParams } from "~/lib/validation";
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
-
-function getCourseById(id: number) {
-  return db.select().from(courses).where(eq(courses.id, id)).get();
-}
-
-function getCourseWithDetails(id: number) {
-  const course = db
-    .select({
-      id: courses.id,
-      title: courses.title,
-      slug: courses.slug,
-      description: courses.description,
-      salesCopy: courses.salesCopy,
-      instructorId: courses.instructorId,
-      categoryId: courses.categoryId,
-      status: courses.status,
-      coverImageUrl: courses.coverImageUrl,
-      price: courses.price,
-      pppEnabled: courses.pppEnabled,
-      createdAt: courses.createdAt,
-      updatedAt: courses.updatedAt,
-      instructorName: users.name,
-      instructorAvatarUrl: users.avatarUrl,
-      instructorBio: users.bio,
-      categoryName: categories.name,
-    })
-    .from(courses)
-    .innerJoin(users, eq(courses.instructorId, users.id))
-    .innerJoin(categories, eq(courses.categoryId, categories.id))
-    .where(eq(courses.id, id))
-    .get();
-
-  if (!course) return null;
-
-  const courseModules = db
-    .select()
-    .from(modules)
-    .where(eq(modules.courseId, id))
-    .orderBy(modules.position)
-    .all();
-
-  const moduleIds = courseModules.map((m) => m.id);
-
-  const courseLessons =
-    moduleIds.length > 0
-      ? db
-          .select()
-          .from(lessons)
-          .where(or(...moduleIds.map((mid) => eq(lessons.moduleId, mid)))!)
-          .orderBy(lessons.position)
-          .all()
-      : [];
-
-  return {
-    ...course,
-    modules: courseModules.map((mod) => ({
-      ...mod,
-      lessons: courseLessons.filter((l) => l.moduleId === mod.id),
-    })),
-  };
-}
-
-function getLessonCountForCourse(courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return 0;
-
-  const count = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .get();
-
-  return count?.count ?? 0;
-}
+import {
+  getBestAttempt,
+  getCourseById,
+  getCourseWithDetails,
+  getLessonCount,
+  getQuizByLessonId,
+  getUserById,
+} from "~/lib/courses.server";
 
 function updateCourse(id: number, title: string, description: string) {
   return db
@@ -417,22 +338,6 @@ function calculateProgress(userId: number, courseId: number) {
   return Math.round(((completedCount?.count ?? 0) / lessonIds.length) * 100);
 }
 
-function getQuizByLessonId(lessonId: number) {
-  return db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).get();
-}
-
-function getBestAttempt(userId: number, quizId: number) {
-  return db
-    .select()
-    .from(quizAttempts)
-    .where(
-      and(eq(quizAttempts.userId, userId), eq(quizAttempts.quizId, quizId))
-    )
-    .orderBy(desc(quizAttempts.score))
-    .limit(1)
-    .get();
-}
-
 const courseEditorParamsSchema = z.object({
   courseId: z.coerce.number().int(),
 });
@@ -517,7 +422,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
 
   if (
     !user ||
@@ -533,7 +438,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Invalid course ID.", { status: 400 });
   }
 
-  const course = getCourseWithDetails(courseId);
+  const course = getCourseWithDetails(db, courseId);
 
   if (!course) {
     throw data("Course not found.", { status: 404 });
@@ -543,7 +448,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("You can only edit your own courses.", { status: 403 });
   }
 
-  const lessonCount = getLessonCountForCourse(courseId);
+  const lessonCount = getLessonCount(db, courseId);
   const enrollmentCount = getEnrollmentCountForCourse(courseId);
 
   // Student roster data
@@ -558,7 +463,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     quizTitle: string;
   }[] = [];
   for (const lesson of allCourseLessons) {
-    const quiz = getQuizByLessonId(lesson.id);
+    const quiz = getQuizByLessonId(db, lesson.id);
     if (quiz) {
       lessonQuizzes.push({
         lessonId: lesson.id,
@@ -570,11 +475,11 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   }
 
   const students = enrolledStudents.map((enrollment) => {
-    const studentUser = getUserById(enrollment.userId);
+    const studentUser = getUserById(db, enrollment.userId);
     const progress = calculateProgress(enrollment.userId, courseId);
 
     const quizScores = lessonQuizzes.map((lq) => {
-      const bestAttempt = getBestAttempt(enrollment.userId, lq.quizId);
+      const bestAttempt = getBestAttempt(db, enrollment.userId, lq.quizId);
       return {
         quizId: lq.quizId,
         quizTitle: lq.quizTitle,
@@ -607,7 +512,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("You must be logged in.", { status: 401 });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
   if (
     !user ||
     (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
@@ -619,7 +524,7 @@ export async function action({ params, request }: Route.ActionArgs) {
 
   const { courseId } = parseParams(params, courseEditorParamsSchema);
 
-  const course = getCourseById(courseId);
+  const course = getCourseById(db, courseId);
   if (!course) {
     throw data("Course not found.", { status: 404 });
   }

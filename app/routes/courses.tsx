@@ -1,6 +1,7 @@
 import { Form, Link, useSearchParams, useNavigation, isRouteErrorResponse } from "react-router";
 import type { Route } from "./+types/courses";
 import { db } from "~/db";
+import { getLessonCount } from "~/lib/courses.server";
 import {
   courses as coursesTable,
   categories as categoriesTable,
@@ -85,24 +86,6 @@ function buildCourseQuery(
         : filtered.orderBy(sql`${coursesTable.createdAt} DESC`);
 
   return sorted.limit(limit).offset(offset).all();
-}
-
-function getLessonCountForCourse(courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return 0;
-
-  const count = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .get();
-
-  return count?.count ?? 0;
 }
 
 function getAllCategories() {
@@ -277,7 +260,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
     const rating = ratingSummaries.get(course.id);
     return {
       ...course,
-      lessonCount: getLessonCountForCourse(course.id),
+      lessonCount: getLessonCount(db, course.id),
       progress: userProgress?.progress ?? null,
       completedLessons: userProgress?.completedLessons ?? null,
       pppPrice,

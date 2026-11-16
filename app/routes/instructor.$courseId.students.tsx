@@ -8,25 +8,19 @@ import { AlertTriangle, ArrowLeft, Users, Award } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
 import { db } from "~/db";
 import {
+  getBestAttempt,
+  getCourseById,
+  getQuizByLessonId,
+  getUserById,
+} from "~/lib/courses.server";
+import {
   modules,
   lessons,
-  users,
-  courses,
   enrollments,
-  quizzes,
-  quizAttempts,
   lessonProgress,
   LessonProgressStatus,
 } from "~/db/schema";
-import { eq, and, or, sql, desc } from "drizzle-orm";
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
-
-function getCourseById(id: number) {
-  return db.select().from(courses).where(eq(courses.id, id)).get();
-}
+import { eq, and, or, sql } from "drizzle-orm";
 
 function getCourseEnrolledStudents(courseId: number) {
   return db
@@ -39,22 +33,6 @@ function getCourseEnrolledStudents(courseId: number) {
     .from(enrollments)
     .where(eq(enrollments.courseId, courseId))
     .all();
-}
-
-function getQuizByLessonId(lessonId: number) {
-  return db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).get();
-}
-
-function getBestAttempt(userId: number, quizId: number) {
-  return db
-    .select()
-    .from(quizAttempts)
-    .where(
-      and(eq(quizAttempts.userId, userId), eq(quizAttempts.quizId, quizId))
-    )
-    .orderBy(desc(quizAttempts.score))
-    .limit(1)
-    .get();
 }
 
 function getCourseLessonIds(courseId: number): number[] {
@@ -112,7 +90,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
 
   if (
     !user ||
@@ -128,7 +106,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Invalid course ID.", { status: 400 });
   }
 
-  const course = getCourseById(courseId);
+  const course = getCourseById(db, courseId);
 
   if (!course) {
     throw data("Course not found.", { status: 404 });
@@ -169,7 +147,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     quizTitle: string;
   }[] = [];
   for (const lesson of allCourseLessons) {
-    const quiz = getQuizByLessonId(lesson.id);
+    const quiz = getQuizByLessonId(db, lesson.id);
     if (quiz) {
       lessonQuizzes.push({
         lessonId: lesson.id,
@@ -182,12 +160,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   // Build student data with progress and quiz scores
   const students = enrolledStudents.map((enrollment) => {
-    const studentUser = getUserById(enrollment.userId);
+    const studentUser = getUserById(db, enrollment.userId);
     const progress = calculateProgress(enrollment.userId, courseId);
 
     // Get best quiz attempt for each quiz in this course
     const quizScores = lessonQuizzes.map((lq) => {
-      const bestAttempt = getBestAttempt(enrollment.userId, lq.quizId);
+      const bestAttempt = getBestAttempt(db, enrollment.userId, lq.quizId);
       return {
         quizId: lq.quizId,
         quizTitle: lq.quizTitle,

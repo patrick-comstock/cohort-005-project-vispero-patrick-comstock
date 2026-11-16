@@ -20,12 +20,9 @@ import { CourseImage } from "~/components/course-image";
 import { data, isRouteErrorResponse } from "react-router";
 import { CourseStatus, UserRole } from "~/db/schema";
 import { db } from "~/db";
-import { users, courses, modules, lessons, enrollments } from "~/db/schema";
-import { eq, or, sql } from "drizzle-orm";
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
+import { getLessonCount, getUserById } from "~/lib/courses.server";
+import { courses, enrollments } from "~/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 function getCoursesByInstructor(instructorId: number) {
   return db
@@ -33,24 +30,6 @@ function getCoursesByInstructor(instructorId: number) {
     .from(courses)
     .where(eq(courses.instructorId, instructorId))
     .all();
-}
-
-function getLessonCountForCourse(courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return 0;
-
-  const count = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .get();
-
-  return count?.count ?? 0;
 }
 
 function getEnrollmentCountForCourse(courseId: number) {
@@ -79,7 +58,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
 
   if (!user || user.role !== UserRole.Instructor) {
     throw data("Only instructors can access this page.", {
@@ -90,7 +69,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const instructorCourses = getCoursesByInstructor(currentUserId);
 
   const coursesWithStats = instructorCourses.map((course) => {
-    const lessonCount = getLessonCountForCourse(course.id);
+    const lessonCount = getLessonCount(db, course.id);
     const enrollmentCount = getEnrollmentCountForCourse(course.id);
 
     return {

@@ -7,8 +7,8 @@ import { getCurrentUserId } from "~/lib/session";
 import { parseFormData } from "~/lib/validation";
 import { UserRole } from "~/db/schema";
 import { db } from "~/db";
-import { users, categories, courses, CourseStatus } from "~/db/schema";
-import { eq } from "drizzle-orm";
+import { getCourseBySlug, getUserById } from "~/lib/courses.server";
+import { categories, courses, CourseStatus } from "~/db/schema";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -24,10 +24,6 @@ import {
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
 
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
-
 function getAllCategories() {
   return db.select().from(categories).orderBy(categories.name).all();
 }
@@ -37,10 +33,6 @@ function generateSlug(name: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-}
-
-function getCourseBySlug(slug: string) {
-  return db.select().from(courses).where(eq(courses.slug, slug)).get();
 }
 
 function createCourse(
@@ -96,7 +88,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
 
   if (!user || user.role !== UserRole.Instructor) {
     throw data("Only instructors can create courses.", {
@@ -116,7 +108,7 @@ export async function action({ request }: Route.ActionArgs) {
     throw data("You must be logged in to create a course.", { status: 401 });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
 
   if (!user || user.role !== UserRole.Instructor) {
     throw data("Only instructors can create courses.", { status: 403 });
@@ -134,7 +126,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   const slug = generateSlug(title);
 
-  const existingCourse = getCourseBySlug(slug);
+  const existingCourse = getCourseBySlug(db, slug);
   if (existingCourse) {
     return data(
       {

@@ -9,13 +9,11 @@ import {
   UserRole,
   CourseStatus,
   courses,
-  modules,
-  lessons,
   enrollments,
-  users,
 } from "~/db/schema";
 import { db } from "~/db";
-import { eq, or, sql } from "drizzle-orm";
+import { getLessonCount, getUserById } from "~/lib/courses.server";
+import { eq, sql } from "drizzle-orm";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -37,30 +35,8 @@ const adminCourseActionSchema = z.discriminatedUnion("intent", [
   }),
 ]);
 
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
-
 function getAllCourses() {
   return db.select().from(courses).all();
-}
-
-function getLessonCountForCourse(courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return 0;
-
-  const count = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .get();
-
-  return count?.count ?? 0;
 }
 
 function getEnrollmentCountForCourse(courseId: number) {
@@ -98,7 +74,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     });
   }
 
-  const currentUser = getUserById(currentUserId);
+  const currentUser = getUserById(db, currentUserId);
 
   if (!currentUser || currentUser.role !== UserRole.Admin) {
     throw data("Only admins can access this page.", {
@@ -110,7 +86,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   const coursesWithDetails = allCourses.map((course) => ({
     ...course,
-    lessonCount: getLessonCountForCourse(course.id),
+    lessonCount: getLessonCount(db, course.id),
     enrollmentCount: getEnrollmentCountForCourse(course.id),
   }));
 
@@ -124,7 +100,7 @@ export async function action({ request }: Route.ActionArgs) {
     throw data("You must be logged in.", { status: 401 });
   }
 
-  const currentUser = getUserById(currentUserId);
+  const currentUser = getUserById(db, currentUserId);
   if (!currentUser || currentUser.role !== UserRole.Admin) {
     throw data("Only admins can manage courses.", { status: 403 });
   }

@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { Route } from "./+types/courses.$slug.purchase";
 import { getCurrentUserId } from "~/lib/session";
 import { db } from "~/db";
+import { getCourseBySlug, getLessonCount } from "~/lib/courses.server";
 import {
   courses,
   categories,
@@ -38,10 +39,6 @@ import { formatDuration, formatPrice } from "~/lib/utils";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice, getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { parseFormData, parseParams } from "~/lib/validation";
-
-function getCourseBySlug(slug: string) {
-  return db.select().from(courses).where(eq(courses.slug, slug)).get();
-}
 
 function getCourseWithDetails(id: number) {
   const course = db
@@ -106,24 +103,6 @@ function getCourseWithDetails(id: number) {
       lessons: courseLessons.filter((l) => l.moduleId === mod.id),
     })),
   };
-}
-
-function getLessonCountForCourse(courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return 0;
-
-  const count = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .get();
-
-  return count?.count ?? 0;
 }
 
 function findEnrollment(userId: number, courseId: number) {
@@ -285,7 +264,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
 
 export async function loader({ params, request, url }: Route.LoaderArgs) {
   const slug = params.slug;
-  const course = getCourseBySlug(slug);
+  const course = getCourseBySlug(db, slug);
 
   if (!course) {
     throw data("Course not found.", { status: 404 });
@@ -315,7 +294,7 @@ export async function loader({ params, request, url }: Route.LoaderArgs) {
     throw data("Course not found.", { status: 404 });
   }
 
-  const lessonCount = getLessonCountForCourse(course.id);
+  const lessonCount = getLessonCount(db, course.id);
   const enrollmentCount = getEnrollmentCountForCourse(course.id);
 
   const totalDuration = courseWithDetails.modules.reduce(
@@ -348,7 +327,7 @@ export async function loader({ params, request, url }: Route.LoaderArgs) {
 
 export async function action({ params, request }: Route.ActionArgs) {
   const { slug } = parseParams(params, purchaseParamsSchema);
-  const course = getCourseBySlug(slug);
+  const course = getCourseBySlug(db, slug);
 
   if (!course) {
     throw data("Course not found.", { status: 404 });

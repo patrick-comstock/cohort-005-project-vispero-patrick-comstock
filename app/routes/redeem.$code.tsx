@@ -11,17 +11,14 @@ import { Button } from "~/components/ui/button";
 import { Ticket, AlertCircle, CheckCircle2, Globe } from "lucide-react";
 import { data } from "react-router";
 import { db } from "~/db";
-import { purchases, coupons, courses, enrollments } from "~/db/schema";
+import { getCourseById } from "~/lib/courses.server";
+import { purchases, coupons, enrollments } from "~/db/schema";
 import {
   REFUND_REQUEST_PENDING_MESSAGE,
   redeemCoupon,
 } from "~/lib/coupons.server";
 import { hasPendingRefundRequest } from "~/lib/refund-eligibility.server";
 import { eq, and } from "drizzle-orm";
-
-function getCourseById(id: number) {
-  return db.select().from(courses).where(eq(courses.id, id)).get();
-}
 
 function getCouponByCode(code: string) {
   return db.select().from(coupons).where(eq(coupons.code, code)).get();
@@ -70,7 +67,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     );
   }
 
-  const course = getCourseById(coupon.courseId);
+  const course = getCourseById(db, coupon.courseId);
   if (!course) {
     throw data("Course not found.", { status: 404 });
   }
@@ -140,7 +137,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     return data({ error: result.error }, { status: 400 });
   }
 
-  const course = getCourseById(result.enrollment.courseId);
+  const course = getCourseById(db, result.enrollment.courseId);
   if (!course) {
     throw redirect("/courses");
   }
