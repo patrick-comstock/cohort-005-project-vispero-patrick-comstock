@@ -116,15 +116,16 @@ const SIGNED_OUT: Access = {
 
 /**
  * The Access rules, given who is asking and where from. Never throws: an
- * unknown or null user gets the signed-out result. `currentCountry` is only
- * read for an enrolled Student, the one case PPP can restrict.
+ * unknown or null user gets the signed-out result. `getCountry` is called only
+ * for an enrolled user who isn't staff, the one case PPP can restrict: it may
+ * call out to an IP lookup service.
  */
-export function resolveAccess(
+export async function resolveAccess(
   database: Db,
   userId: number | null,
   courseId: number,
-  currentCountry: string | null
-): Access {
+  getCountry: () => Promise<string | null>
+): Promise<Access> {
   if (!userId) return SIGNED_OUT;
 
   const user = getUserById(database, userId);
@@ -148,7 +149,7 @@ export function resolveAccess(
       course.price,
       course.pppEnabled,
       purchase?.country ?? null,
-      currentCountry
+      await getCountry()
     );
   }
 
@@ -168,18 +169,14 @@ export function resolveAccess(
 
 /**
  * Access for the user in the request's session. The country is resolved only
- * when it can matter (an enrolled Student), as before: resolving it may call
- * out to an IP lookup service.
+ * when it can matter (see resolveAccess).
  */
 export async function getAccess(
   request: Request,
   courseId: number
 ): Promise<Access> {
   const userId = await getCurrentUserId(request);
-  const access = resolveAccess(db, userId, courseId, null);
-  if (!access.enrolled || access.isStaff) return access;
-
-  return resolveAccess(db, userId, courseId, await resolveCountry(request));
+  return resolveAccess(db, userId, courseId, () => resolveCountry(request));
 }
 
 /**
