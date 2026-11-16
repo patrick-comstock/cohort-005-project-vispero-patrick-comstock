@@ -1,0 +1,2 @@
+* text=auto eol=lf
+drizzle/meta/*.json -diff linguist-generated=true
