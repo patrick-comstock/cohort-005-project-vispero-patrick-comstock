@@ -71,38 +71,32 @@ function isOwningInstructor(user: User, course: Course) {
 }
 
 /**
- * The one course-staff rule: an Admin, or the course's owner who still holds
- * the Instructor role. Shared by resolveAccess and checkCourseStaff.
+ * The one Course Manager rule: an Admin, or the course's owner who still holds
+ * the Instructor role. Shared by resolveAccess and checkCourseManager.
  */
-function isCourseStaff(user: User, course: Course) {
+function isCourseManager(user: User, course: Course) {
   return user.role === UserRole.Admin || isOwningInstructor(user, course);
 }
 
 export type Access = {
   userId: number | null;
-  user: ReturnType<typeof getUserById>;
-  isAdmin: boolean;
-  /** The course's owner who still holds the Instructor role. */
-  isOwningInstructor: boolean;
-  /** Owning Instructor or Admin — the people who speak for the course. */
-  isStaff: boolean;
+  /** The owning Instructor or an Admin: the people who speak for the course. */
+  isCourseManager: boolean;
   enrolled: boolean;
   pppBlocked: boolean;
   pppBlockedCountry: string | null;
   pppPurchaseCountry: string | null;
   /**
    * May they read the course's content (lesson bodies, comments)?
-   * Staff always can. Students need an enrollment that isn't PPP-blocked.
+   * A Course Manager always can. Students need an Enrollment that isn't
+   * PPP-blocked.
    */
   canViewContent: boolean;
 };
 
 const SIGNED_OUT: Access = {
   userId: null,
-  user: undefined,
-  isAdmin: false,
-  isOwningInstructor: false,
-  isStaff: false,
+  isCourseManager: false,
   enrolled: false,
   pppBlocked: false,
   pppBlockedCountry: null,
@@ -113,7 +107,7 @@ const SIGNED_OUT: Access = {
 /**
  * The Access rules, given who is asking and where from. Never throws: an
  * unknown or null user gets the signed-out result. `getCountry` is called only
- * for an enrolled user who isn't staff, the one case PPP can restrict: it may
+ * for an enrolled user who isn't a Course Manager, the one case PPP can restrict: it may
  * call out to an IP lookup service.
  */
 async function resolveAccess(
@@ -128,17 +122,18 @@ async function resolveAccess(
   if (!user) return SIGNED_OUT;
 
   const course = getCourseById(database, courseId);
-  const isStaff = isCourseStaff(user, course);
+  const isManager = isCourseManager(user, course);
   const enrolled = isUserEnrolled(database, userId, courseId);
 
-  // PPP only restricts students who bought at a discount — staff are exempt.
+  // PPP only restricts students who bought at a discount; a Course Manager is
+  // exempt.
   let ppp = {
     blocked: false,
     blockedCountry: null as string | null,
     purchaseCountry: null as string | null,
   };
 
-  if (enrolled && !isStaff && course) {
+  if (enrolled && !isManager && course) {
     // A Refunded Purchase no longer decides where the Student may watch from.
     const purchase = findPurchaseForAccess(database, userId, courseId);
     ppp = checkPppAccess(
@@ -151,15 +146,12 @@ async function resolveAccess(
 
   return {
     userId,
-    user,
-    isAdmin: user.role === UserRole.Admin,
-    isOwningInstructor: isOwningInstructor(user, course),
-    isStaff,
+    isCourseManager: isManager,
     enrolled,
     pppBlocked: ppp.blocked,
     pppBlockedCountry: ppp.blockedCountry,
     pppPurchaseCountry: ppp.purchaseCountry,
-    canViewContent: isStaff || (enrolled && !ppp.blocked),
+    canViewContent: isManager || (enrolled && !ppp.blocked),
   };
 }
 
@@ -220,26 +212,26 @@ export async function requireContentAccess(
   return { ...access, userId };
 }
 
-type CourseStaffCheck =
+type CourseManagerCheck =
   | {
       ok: true;
-      user: NonNullable<Access["user"]>;
+      user: User;
       course: NonNullable<ReturnType<typeof getCourseById>>;
       isAdmin: boolean;
     }
   | { ok: false; status: 401 | 404; message: string };
 
 /**
- * Is this user staff on this course: an Admin, or the course's owner who
- * still holds the Instructor role? Never throws. Signed out or unknown user
- * is 401. Anyone else who isn't staff gets 404, whether or not the course
- * exists, so its existence isn't revealed.
+ * Is this user the course's Course Manager: an Admin, or the course's owner
+ * who still holds the Instructor role? Never throws. Signed out or unknown
+ * user is 401. Anyone else who isn't its Course Manager gets 404, whether or
+ * not the course exists, so its existence isn't revealed.
  */
-function checkCourseStaff(
+function checkCourseManager(
   database: Db,
   userId: number | null,
   courseId: number
-): CourseStaffCheck {
+): CourseManagerCheck {
   const user = userId ? getUserById(database, userId) : undefined;
   if (!user) {
     return { ok: false, status: 401, message: SIGNED_OUT_MESSAGE };
@@ -247,7 +239,7 @@ function checkCourseStaff(
 
   const course = getCourseById(database, courseId);
 
-  if (!course || !isCourseStaff(user, course)) {
+  if (!course || !isCourseManager(user, course)) {
     return { ok: false, status: 404, message: "Course not found." };
   }
 
@@ -260,18 +252,18 @@ function checkCourseStaff(
 }
 
 /**
- * Throws 401 or 404 (see checkCourseStaff) unless the session's user is an
- * Admin or the course's owner who is still an Instructor. Parse the course id with
- * parseParams first, so a malformed id is a 400. Call it in every loader and
- * every action — loader guards don't protect actions.
+ * Throws 401 or 404 (see checkCourseManager) unless the session's user is the
+ * course's Course Manager. Parse the course id with parseParams first, so a
+ * malformed id is a 400. Call it in every loader and every action — loader
+ * guards don't protect actions.
  */
-export async function requireCourseStaff(
+export async function requireCourseManager(
   request: Request,
   courseId: number,
   database: Db = db
 ) {
   const userId = await getCurrentUserId(request);
-  const result = checkCourseStaff(database, userId, courseId);
+  const result = checkCourseManager(database, userId, courseId);
 
   if (!result.ok) {
     throw data(result.message, { status: result.status });

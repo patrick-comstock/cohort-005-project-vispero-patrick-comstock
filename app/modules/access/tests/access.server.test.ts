@@ -19,7 +19,7 @@ import {
   getAccess,
   requireAdmin,
   requireContentAccess,
-  requireCourseStaff,
+  requireCourseManager,
   requireInstructor,
   requireInstructorOrAdmin,
   requireUserId,
@@ -129,7 +129,7 @@ describe("getAccess", () => {
 
     expect(access).toMatchObject({
       userId: null,
-      isStaff: false,
+      isCourseManager: false,
       enrolled: false,
       pppBlocked: false,
       canViewContent: false,
@@ -144,6 +144,24 @@ describe("getAccess", () => {
     );
 
     expect(access.userId).toBe(base.instructor.id);
+  });
+
+  it("hands back only what callers read", async () => {
+    const access = await getAccess(
+      await requestAs(base.instructor.id),
+      base.course.id,
+      testDb
+    );
+
+    expect(Object.keys(access).sort()).toEqual([
+      "canViewContent",
+      "enrolled",
+      "isCourseManager",
+      "pppBlocked",
+      "pppBlockedCountry",
+      "pppPurchaseCountry",
+      "userId",
+    ]);
   });
 
   it("treats an unknown user as signed out", async () => {
@@ -165,7 +183,7 @@ describe("getAccess", () => {
     );
 
     expect(access).toMatchObject({
-      isStaff: true,
+      isCourseManager: true,
       enrolled: false,
       canViewContent: true,
     });
@@ -180,7 +198,7 @@ describe("getAccess", () => {
 
     expect(access).toMatchObject({
       userId: base.user.id,
-      isStaff: false,
+      isCourseManager: false,
       enrolled: false,
       canViewContent: false,
     });
@@ -197,7 +215,7 @@ describe("getAccess", () => {
     );
 
     expect(access).toMatchObject({
-      isStaff: false,
+      isCourseManager: false,
       enrolled: true,
       pppBlocked: false,
       canViewContent: true,
@@ -218,6 +236,34 @@ describe("getAccess", () => {
       enrolled: true,
       pppBlocked: true,
       pppBlockedCountry: "US",
+      pppPurchaseCountry: "IN",
+      canViewContent: false,
+    });
+  });
+
+  it("lets the most recent Purchase decide when several still count", async () => {
+    setCoursePricing();
+    buyCourse(base.user.id, 9999, "US");
+    // A second Purchase, at a PPP discount, without a second Enrollment.
+    testDb
+      .insert(schema.purchases)
+      .values({
+        userId: base.user.id,
+        courseId: base.course.id,
+        amountPaid: 2999,
+        country: "IN",
+      })
+      .run();
+
+    const access = await getAccess(
+      await requestAs(base.user.id, "US"),
+      base.course.id,
+      testDb
+    );
+
+    expect(access).toMatchObject({
+      enrolled: true,
+      pppBlocked: true,
       pppPurchaseCountry: "IN",
       canViewContent: false,
     });
@@ -291,7 +337,7 @@ describe("getAccess", () => {
 
     expect(access).toMatchObject({
       userId: base.instructor.id,
-      isStaff: false,
+      isCourseManager: false,
       enrolled: false,
       canViewContent: false,
     });
@@ -309,7 +355,7 @@ describe("getAccess", () => {
     );
 
     expect(access).toMatchObject({
-      isStaff: false,
+      isCourseManager: false,
       enrolled: true,
       pppBlocked: true,
       canViewContent: false,
@@ -327,7 +373,7 @@ describe("getAccess", () => {
     );
 
     expect(access).toMatchObject({
-      isStaff: true,
+      isCourseManager: true,
       pppBlocked: false,
       canViewContent: true,
     });
@@ -344,7 +390,7 @@ describe("getAccess", () => {
     );
 
     expect(access).toMatchObject({
-      isStaff: true,
+      isCourseManager: true,
       enrolled: true,
       pppBlocked: false,
       canViewContent: true,
@@ -507,7 +553,7 @@ describe("requireContentAccess", () => {
   });
 });
 
-describe("requireCourseStaff", () => {
+describe("requireCourseManager", () => {
   function otherInstructor() {
     return testDb
       .insert(schema.users)
@@ -525,7 +571,7 @@ describe("requireCourseStaff", () => {
   it("refuses a signed-out visitor with 401", async () => {
     expect(
       await refusal(
-        requireCourseStaff(signedOutRequest(), base.course.id, testDb)
+        requireCourseManager(signedOutRequest(), base.course.id, testDb)
       )
     ).toEqual(SIGNED_OUT);
   });
@@ -533,7 +579,7 @@ describe("requireCourseStaff", () => {
   it("refuses an unknown user with 401", async () => {
     expect(
       await refusal(
-        requireCourseStaff(await requestAs(9999), base.course.id, testDb)
+        requireCourseManager(await requestAs(9999), base.course.id, testDb)
       )
     ).toEqual(SIGNED_OUT);
   });
@@ -541,7 +587,7 @@ describe("requireCourseStaff", () => {
   it("refuses with 404 an Instructor when the course does not exist", async () => {
     expect(
       await refusal(
-        requireCourseStaff(await requestAs(base.instructor.id), 9999, testDb)
+        requireCourseManager(await requestAs(base.instructor.id), 9999, testDb)
       )
     ).toEqual(NOT_FOUND);
   });
@@ -549,7 +595,7 @@ describe("requireCourseStaff", () => {
   it("refuses with 404 an Instructor who does not own the course", async () => {
     expect(
       await refusal(
-        requireCourseStaff(
+        requireCourseManager(
           await requestAs(otherInstructor().id),
           base.course.id,
           testDb
@@ -563,9 +609,9 @@ describe("requireCourseStaff", () => {
     const request = await requestAs(base.user.id);
 
     expect(
-      await refusal(requireCourseStaff(request, base.course.id, testDb))
+      await refusal(requireCourseManager(request, base.course.id, testDb))
     ).toEqual(NOT_FOUND);
-    expect(await refusal(requireCourseStaff(request, 9999, testDb))).toEqual(
+    expect(await refusal(requireCourseManager(request, 9999, testDb))).toEqual(
       NOT_FOUND
     );
   });
@@ -576,7 +622,7 @@ describe("requireCourseStaff", () => {
 
     expect(
       await refusal(
-        requireCourseStaff(
+        requireCourseManager(
           await requestAs(base.instructor.id),
           base.course.id,
           testDb
@@ -586,7 +632,7 @@ describe("requireCourseStaff", () => {
   });
 
   it("lets the owning Instructor through", async () => {
-    const result = await requireCourseStaff(
+    const result = await requireCourseManager(
       await requestAs(base.instructor.id),
       base.course.id,
       testDb
@@ -600,7 +646,7 @@ describe("requireCourseStaff", () => {
   });
 
   it("lets an Admin through on a course they do not own", async () => {
-    const result = await requireCourseStaff(
+    const result = await requireCourseManager(
       await requestAs(admin.id),
       base.course.id,
       testDb

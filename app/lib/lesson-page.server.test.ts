@@ -127,7 +127,7 @@ describe("loadLessonPage", () => {
     expect(progressRows()).toHaveLength(1);
   });
 
-  it("sends staff without an Enrollment the lesson body without recording progress", async () => {
+  it("sends a Course Manager without an Enrollment the lesson body without recording progress", async () => {
     const page = await load({
       userId: base.instructor.id,
       enrolled: false,

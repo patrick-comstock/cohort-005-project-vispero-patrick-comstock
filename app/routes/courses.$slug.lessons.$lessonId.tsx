@@ -261,12 +261,16 @@ function updateComment(commentId: number, userId: number, body: string) {
     .get();
 }
 
-function deleteComment(commentId: number, userId: number, isStaff: boolean) {
+function deleteComment(
+  commentId: number,
+  userId: number,
+  isCourseManager: boolean
+) {
   const existing = getCommentById(commentId);
   if (!existing) {
     throw new Error("Comment not found");
   }
-  if (existing.userId !== userId && !isStaff) {
+  if (existing.userId !== userId && !isCourseManager) {
     throw new Error("You can only delete your own comments");
   }
   if (existing.deletedAt !== null) {
@@ -555,7 +559,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppPurchaseCountry,
     comments,
     canViewContent,
-    canModerate: access.isStaff,
+    canModerate: access.isCourseManager,
     instructorName: instructor?.name ?? "your instructor",
   };
 }
@@ -635,7 +639,11 @@ export async function action({ params, request }: Route.ActionArgs) {
       if (!existing || existing.lessonId !== lessonId) {
         throw data("Comment not found", { status: 404 });
       }
-      deleteComment(parsed.data.commentId, currentUserId, access.isStaff);
+      deleteComment(
+        parsed.data.commentId,
+        currentUserId,
+        access.isCourseManager
+      );
       return { ok: true };
     } catch (error) {
       // Service validation failures are user-correctable; anything thrown as a

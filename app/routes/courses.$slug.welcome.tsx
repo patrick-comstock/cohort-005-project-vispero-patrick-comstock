@@ -25,10 +25,11 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Course not found.", { status: 404 });
   }
 
-  // The welcome page is for an Enrollment; staff previewing without one may
-  // see it too. A PPP-blocked Student is enrolled but can't start a lesson.
+  // The welcome page is for an Enrollment; a Course Manager previewing without
+  // one may see it too. A PPP-blocked Student is enrolled but can't start a
+  // lesson.
   const access = await getAccess(request, course.id);
-  if (!access.enrolled && !access.isStaff) {
+  if (!access.enrolled && !access.isCourseManager) {
     throw redirect(`/courses/${slug}`);
   }
 

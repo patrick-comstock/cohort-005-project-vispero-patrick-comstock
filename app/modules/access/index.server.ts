@@ -11,7 +11,7 @@ export {
   getAccess,
   requireAdmin,
   requireContentAccess,
-  requireCourseStaff,
+  requireCourseManager,
   requireInstructor,
   requireInstructorOrAdmin,
   requireUserId,

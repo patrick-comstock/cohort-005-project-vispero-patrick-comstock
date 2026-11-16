@@ -60,7 +60,7 @@ function getLessonProgressForModule(
  * Nobody gets lesson bodies here: the page only lists lessons. Lessons look
  * unlocked only with canViewContent, so a PPP-blocked Student sees them locked.
  * Progress is shown only to an enrolled viewer who can view the content, so
- * staff previews show none.
+ * Course Manager previews show none.
  */
 export function loadModulePage(
   database: Db,

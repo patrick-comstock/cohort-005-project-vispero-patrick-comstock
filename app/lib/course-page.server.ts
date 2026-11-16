@@ -51,8 +51,8 @@ function getNextIncompleteLessonId(
  * The viewer's progress through the course, for the course page.
  *
  * Progress is shown only to an enrolled viewer who can view the content: a
- * PPP-blocked Student sees none, and neither do staff previewing without an
- * Enrollment.
+ * PPP-blocked Student sees none, and neither does a Course Manager previewing
+ * without an Enrollment.
  */
 export function loadCourseProgress(
   database: Db,

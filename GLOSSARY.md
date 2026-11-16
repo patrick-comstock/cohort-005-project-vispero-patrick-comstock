@@ -41,6 +41,10 @@ Whether someone can currently view a course's content.
 A person who runs the platform and Resolves Refund Requests. Not a Team Purchase buyer.
 _Avoid_: Staff, moderator
 
+**Course Manager**:
+The Instructor who owns a course, or an Admin. An owner who no longer holds the Instructor role is not its Course Manager.
+_Avoid_: Course Staff
+
 ### Refunds
 
 **Refund Request**:
