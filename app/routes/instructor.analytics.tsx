@@ -36,7 +36,6 @@ import {
 import type { AnalyticsRange } from "~/lib/analytics";
 import { ownedBy, scopeOn, sinceRange } from "~/lib/analytics-scope.server";
 import {
-  approvedRefundRequest,
   getBuyerCount,
   getCourseRevenueByCountry,
   getFullyRefundedCourseIds,
@@ -45,6 +44,7 @@ import {
   getRevenueSummary,
   getStudentRevenue,
   getTopBuyers,
+  resolvedRefundRequest,
   type CourseCountryRevenue,
   type RevenueSeries,
 } from "~/lib/revenue.server";
@@ -435,7 +435,10 @@ function getCourseQuizPassRates(
 // Revenue is reported the moment a Purchase lands, but a Refund Request can be
 // made for fourteen days, so some of what this page calls Revenue is still the
 // learner's money. This panel says how much of it is. Purchases already
-// Refunded are out of Revenue, so they are not exposed either.
+// Refunded are out of Revenue, so they are not exposed either. Nor are
+// Purchases whose Refund Request was Declined: a Resolution is final and a
+// Purchase has at most one Refund Request, so that money is kept. A Pending
+// Refund Request still counts as exposed.
 const REFUND_WINDOW_DAYS = 14;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -621,9 +624,9 @@ export async function loader({ request, url }: Route.LoaderArgs) {
           )
           .get();
 
-  // Refund exposure. Every Purchase in the range that has not been Refunded,
-  // then the ones still inside their Refund Window, grouped up. Today is read
-  // from the clock right here.
+  // Refund exposure. Every Purchase in the range with no Resolved Refund
+  // Request (none, or one still Pending), then the ones still inside their
+  // Refund Window, grouped up. Today is read from the clock right here.
   const exposureRows = db
     .select({
       courseId: courses.id,
@@ -633,7 +636,7 @@ export async function loader({ request, url }: Route.LoaderArgs) {
     })
     .from(purchases)
     .innerJoin(courses, eq(purchases.courseId, courses.id))
-    .leftJoin(refundRequests, approvedRefundRequest)
+    .leftJoin(refundRequests, resolvedRefundRequest)
     .where(
       and(
         scopeOn(purchases.createdAt, instructorId, range),
@@ -1228,8 +1231,8 @@ function RefundExposurePanel({ exposure }: { exposure: RefundExposure }) {
   if (exposure.purchaseCount === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
-        Nothing in this period is still inside its Refund Window. All the
-        Revenue above is money you have kept.
+        Nothing in this period could still be Refunded. All the Revenue above is
+        money you have kept.
       </p>
     );
   }
@@ -1558,9 +1561,9 @@ export default function InstructorAnalytics({
               <CardContent className="p-6">
                 <h2 className="text-lg font-semibold">Refund exposure</h2>
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Revenue in this period that is still inside its{" "}
-                  {REFUND_WINDOW_DAYS}-day Refund Window, so it could still go
-                  back out as a Refund.
+                  Revenue in this period that could still go back out as a
+                  Refund: Purchases inside their {REFUND_WINDOW_DAYS}-day Refund
+                  Window with no Refund Request yet, or one still Pending.
                 </p>
                 <RefundExposurePanel exposure={refundExposure} />
               </CardContent>

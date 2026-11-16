@@ -43,9 +43,23 @@ import type { Db } from "~/db";
  * Joins each Purchase to its Refund, if it has one. A Purchase has at most one
  * Refund Request (ADR 0002), so this never repeats a Purchase.
  */
-export const approvedRefundRequest = and(
+const approvedRefundRequest = and(
   eq(refundRequests.purchaseId, purchases.id),
   eq(refundRequests.status, RefundRequestStatus.Approved)
+);
+
+/**
+ * Joins each Purchase to its Resolved Refund Request (Approved or Declined),
+ * if it has one. A Resolution is final, so a Purchase with no match is one
+ * whose Refund Request, if any, is still Pending. At most one Refund Request
+ * per Purchase (ADR 0002), so this never repeats a Purchase.
+ */
+export const resolvedRefundRequest = and(
+  eq(refundRequests.purchaseId, purchases.id),
+  inArray(refundRequests.status, [
+    RefundRequestStatus.Approved,
+    RefundRequestStatus.Declined,
+  ])
 );
 
 /** A Purchase's Refund in cents — zero when it has none. */
