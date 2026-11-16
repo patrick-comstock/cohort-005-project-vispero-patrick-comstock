@@ -5,13 +5,13 @@ import { z } from "zod";
 import type { Route } from "./+types/courses.$slug.purchase";
 import { getCurrentUserId } from "~/lib/session";
 import { db } from "~/db";
-import { getCourseBySlug, getLessonCount } from "~/lib/courses.server";
+import {
+  getCourseBySlug,
+  getCourseOutline,
+  getLessonCount,
+} from "~/lib/courses.server";
 import {
   courses,
-  categories,
-  users,
-  modules,
-  lessons,
   enrollments,
   purchases,
   teams,
@@ -20,7 +20,7 @@ import {
   CourseStatus,
   TeamMemberRole,
 } from "~/db/schema";
-import { eq, and, or, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -39,71 +39,6 @@ import { formatDuration, formatPrice } from "~/lib/utils";
 import { resolveCountry } from "~/lib/country.server";
 import { calculatePppPrice, getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { parseFormData, parseParams } from "~/lib/validation";
-
-function getCourseWithDetails(id: number) {
-  const course = db
-    .select({
-      id: courses.id,
-      title: courses.title,
-      slug: courses.slug,
-      description: courses.description,
-      salesCopy: courses.salesCopy,
-      instructorId: courses.instructorId,
-      categoryId: courses.categoryId,
-      status: courses.status,
-      coverImageUrl: courses.coverImageUrl,
-      price: courses.price,
-      pppEnabled: courses.pppEnabled,
-      createdAt: courses.createdAt,
-      updatedAt: courses.updatedAt,
-      instructorName: users.name,
-      instructorAvatarUrl: users.avatarUrl,
-      instructorBio: users.bio,
-      categoryName: categories.name,
-    })
-    .from(courses)
-    .innerJoin(users, eq(courses.instructorId, users.id))
-    .innerJoin(categories, eq(courses.categoryId, categories.id))
-    .where(eq(courses.id, id))
-    .get();
-
-  if (!course) return null;
-
-  const courseModules = db
-    .select()
-    .from(modules)
-    .where(eq(modules.courseId, id))
-    .orderBy(modules.position)
-    .all();
-
-  const moduleIds = courseModules.map((m) => m.id);
-
-  const courseLessons =
-    moduleIds.length > 0
-      ? db
-          // Lesson metadata only: buyers have no Access yet, so no lesson body
-          // or video may be read into what the loader returns.
-          .select({
-            id: lessons.id,
-            moduleId: lessons.moduleId,
-            title: lessons.title,
-            position: lessons.position,
-            durationMinutes: lessons.durationMinutes,
-          })
-          .from(lessons)
-          .where(or(...moduleIds.map((mid) => eq(lessons.moduleId, mid)))!)
-          .orderBy(lessons.position)
-          .all()
-      : [];
-
-  return {
-    ...course,
-    modules: courseModules.map((mod) => ({
-      ...mod,
-      lessons: courseLessons.filter((l) => l.moduleId === mod.id),
-    })),
-  };
-}
 
 function findEnrollment(userId: number, courseId: number) {
   return db
@@ -289,7 +224,8 @@ export async function loader({ params, request, url }: Route.LoaderArgs) {
     throw redirect(`/courses/${slug}?already_enrolled=1`);
   }
 
-  const courseWithDetails = getCourseWithDetails(course.id);
+  // Outline only: buyers have no Access yet, so no lesson body or video.
+  const courseWithDetails = getCourseOutline(db, course.id);
   if (!courseWithDetails) {
     throw data("Course not found.", { status: 404 });
   }

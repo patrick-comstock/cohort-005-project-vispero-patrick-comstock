@@ -12,6 +12,7 @@ import {
   videoWatchEvents,
 } from "~/db/schema";
 import type { Access } from "~/lib/access.server";
+import { getLessonProgressMap } from "~/lib/course-progress.server";
 import { renderMarkdown } from "~/lib/markdown.server";
 
 /** The parts of Access that decide what the lesson page may send. */
@@ -41,25 +42,6 @@ function getLessonProgress(database: Db, userId: number, lessonId: number) {
       )
     )
     .get();
-}
-
-function getLessonProgressForCourse(
-  database: Db,
-  userId: number,
-  courseId: number
-) {
-  return database
-    .select({
-      lessonId: lessonProgress.lessonId,
-      status: lessonProgress.status,
-    })
-    .from(lessonProgress)
-    .innerJoin(lessons, eq(lessonProgress.lessonId, lessons.id))
-    .innerJoin(modules, eq(lessons.moduleId, modules.id))
-    .where(
-      and(eq(lessonProgress.userId, userId), eq(modules.courseId, courseId))
-    )
-    .all();
 }
 
 export function markLessonComplete(
@@ -280,19 +262,13 @@ export async function loadLessonPage(
   let lessonStatus: LessonProgressStatus | null = null;
   let lastWatchPosition = 0;
   let watchProgress = 0;
-  const lessonProgressMap: Record<number, LessonProgressStatus> = {};
+  let lessonProgressMap: Record<number, LessonProgressStatus> = {};
 
   if (viewer.userId && viewer.enrolled) {
     lessonStatus = markLessonInProgress(database, viewer.userId, lessonId)
       .status;
 
-    for (const record of getLessonProgressForCourse(
-      database,
-      viewer.userId,
-      courseId
-    )) {
-      lessonProgressMap[record.lessonId] = record.status;
-    }
+    lessonProgressMap = getLessonProgressMap(database, viewer.userId, courseId);
 
     if (lesson.videoUrl) {
       lastWatchPosition = getLastWatchPosition(

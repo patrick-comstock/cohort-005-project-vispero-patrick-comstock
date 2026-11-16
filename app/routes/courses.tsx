@@ -2,17 +2,14 @@ import { Form, Link, useSearchParams, useNavigation, isRouteErrorResponse } from
 import type { Route } from "./+types/courses";
 import { db } from "~/db";
 import { getLessonCount } from "~/lib/courses.server";
+import { getCourseProgress } from "~/lib/course-progress.server";
 import {
   courses as coursesTable,
   categories as categoriesTable,
   users,
-  modules,
-  lessons,
   enrollments as enrollmentsTable,
-  lessonProgress,
   courseRatings,
   CourseStatus,
-  LessonProgressStatus,
 } from "~/db/schema";
 import { eq, like, and, or, sql, inArray } from "drizzle-orm";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
@@ -114,63 +111,6 @@ function getUserEnrolledCourses(userId: number) {
     .all();
 }
 
-function getCourseLessonIds(courseId: number): number[] {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .all();
-
-  return courseLessons.map((l) => l.id);
-}
-
-function calculateProgress(userId: number, courseId: number) {
-  const lessonIds = getCourseLessonIds(courseId);
-
-  if (lessonIds.length === 0) return 0;
-
-  const completedCount = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-      )
-    )
-    .get();
-
-  return Math.round(((completedCount?.count ?? 0) / lessonIds.length) * 100);
-}
-
-function getCompletedLessonCount(userId: number, courseId: number) {
-  const lessonIds = getCourseLessonIds(courseId);
-  if (lessonIds.length === 0) return 0;
-
-  const result = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-      )
-    )
-    .get();
-
-  return result?.count ?? 0;
-}
-
 type CourseRatingSummary = {
   average: number | null;
   count: number;
@@ -243,9 +183,14 @@ export async function loader({ request, url }: Route.LoaderArgs) {
   if (currentUserId) {
     const enrollments = getUserEnrolledCourses(currentUserId);
     for (const enrollment of enrollments) {
+      const { percent, completedLessons } = getCourseProgress(
+        db,
+        currentUserId,
+        enrollment.courseId
+      );
       progressMap.set(enrollment.courseId, {
-        progress: calculateProgress(currentUserId, enrollment.courseId),
-        completedLessons: getCompletedLessonCount(currentUserId, enrollment.courseId),
+        progress: percent,
+        completedLessons,
       });
     }
   }

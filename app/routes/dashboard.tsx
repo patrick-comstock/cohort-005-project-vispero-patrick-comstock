@@ -9,8 +9,9 @@ import {
   lessonProgress,
   LessonProgressStatus,
 } from "~/db/schema";
-import { eq, and, or, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getCurrentUserId } from "~/lib/session";
+import { getCourseProgress } from "~/lib/course-progress.server";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -36,24 +37,6 @@ function getUserEnrolledCourses(userId: number) {
     .all();
 }
 
-function getCourseLessonIds(courseId: number): number[] {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .all();
-
-  return courseLessons.map((l) => l.id);
-}
-
 function getLessonProgress(userId: number, lessonId: number) {
   return db
     .select()
@@ -65,49 +48,6 @@ function getLessonProgress(userId: number, lessonId: number) {
       )
     )
     .get();
-}
-
-function calculateProgress(userId: number, courseId: number) {
-  const lessonIds = getCourseLessonIds(courseId);
-
-  if (lessonIds.length === 0) return 0;
-
-  const completedCount = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-      )
-    )
-    .get();
-
-  return Math.round(((completedCount?.count ?? 0) / lessonIds.length) * 100);
-}
-
-function getCompletedLessonCount(userId: number, courseId: number) {
-  const lessonIds = getCourseLessonIds(courseId);
-  if (lessonIds.length === 0) return 0;
-
-  const result = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-      )
-    )
-    .get();
-
-  return result?.count ?? 0;
-}
-
-function getTotalLessonCount(courseId: number) {
-  return getCourseLessonIds(courseId).length;
 }
 
 function getNextIncompleteLesson(userId: number, courseId: number) {
@@ -158,12 +98,11 @@ export async function loader({ request }: Route.LoaderArgs) {
   const enrolledCourses = getUserEnrolledCourses(currentUserId);
 
   const coursesWithProgress = enrolledCourses.map((enrollment) => {
-    const progress = calculateProgress(currentUserId, enrollment.courseId);
-    const completedLessons = getCompletedLessonCount(
-      currentUserId,
-      enrollment.courseId
-    );
-    const totalLessons = getTotalLessonCount(enrollment.courseId);
+    const {
+      percent: progress,
+      completedLessons,
+      totalLessons,
+    } = getCourseProgress(db, currentUserId, enrollment.courseId);
     const nextLesson = getNextIncompleteLesson(
       currentUserId,
       enrollment.courseId

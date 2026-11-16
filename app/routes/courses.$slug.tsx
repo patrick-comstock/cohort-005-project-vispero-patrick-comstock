@@ -5,11 +5,17 @@ import { z } from "zod";
 import type { Route } from "./+types/courses.$slug";
 import { getCurrentUserId } from "~/lib/session";
 import { db } from "~/db";
-import { getCourseBySlug, getLessonCount } from "~/lib/courses.server";
+import {
+  getCourseBySlug,
+  getCourseOutline,
+  getLessonCount,
+} from "~/lib/courses.server";
+import {
+  getCourseProgress,
+  getLessonProgressMap,
+} from "~/lib/course-progress.server";
 import {
   courses,
-  categories,
-  users,
   modules,
   lessons,
   enrollments,
@@ -19,7 +25,7 @@ import {
   coupons,
   LessonProgressStatus,
 } from "~/db/schema";
-import { eq, and, or, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
   formatCalendarDay,
   getRefundRequestOffer,
@@ -60,71 +66,6 @@ import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
 import { StarRating, StarRatingInput } from "~/components/star-rating";
 import { getTeamPurchaseButtonLabel } from "~/lib/team-purchase";
 
-function getCourseWithDetails(id: number) {
-  const course = db
-    .select({
-      id: courses.id,
-      title: courses.title,
-      slug: courses.slug,
-      description: courses.description,
-      salesCopy: courses.salesCopy,
-      instructorId: courses.instructorId,
-      categoryId: courses.categoryId,
-      status: courses.status,
-      coverImageUrl: courses.coverImageUrl,
-      price: courses.price,
-      pppEnabled: courses.pppEnabled,
-      createdAt: courses.createdAt,
-      updatedAt: courses.updatedAt,
-      instructorName: users.name,
-      instructorAvatarUrl: users.avatarUrl,
-      instructorBio: users.bio,
-      categoryName: categories.name,
-    })
-    .from(courses)
-    .innerJoin(users, eq(courses.instructorId, users.id))
-    .innerJoin(categories, eq(courses.categoryId, categories.id))
-    .where(eq(courses.id, id))
-    .get();
-
-  if (!course) return null;
-
-  const courseModules = db
-    .select()
-    .from(modules)
-    .where(eq(modules.courseId, id))
-    .orderBy(modules.position)
-    .all();
-
-  const moduleIds = courseModules.map((m) => m.id);
-
-  const courseLessons =
-    moduleIds.length > 0
-      ? db
-          // Lesson metadata only: this page is public, so no lesson body or
-          // video may be read into what the loader returns.
-          .select({
-            id: lessons.id,
-            moduleId: lessons.moduleId,
-            title: lessons.title,
-            position: lessons.position,
-            durationMinutes: lessons.durationMinutes,
-          })
-          .from(lessons)
-          .where(or(...moduleIds.map((mid) => eq(lessons.moduleId, mid)))!)
-          .orderBy(lessons.position)
-          .all()
-      : [];
-
-  return {
-    ...course,
-    modules: courseModules.map((mod) => ({
-      ...mod,
-      lessons: courseLessons.filter((l) => l.moduleId === mod.id),
-    })),
-  };
-}
-
 function isUserEnrolled(userId: number, courseId: number) {
   const enrollment = db
     .select()
@@ -134,73 +75,6 @@ function isUserEnrolled(userId: number, courseId: number) {
     )
     .get();
   return !!enrollment;
-}
-
-function getCourseLessonIds(courseId: number): number[] {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .all();
-
-  return courseLessons.map((l) => l.id);
-}
-
-function calculateProgress(userId: number, courseId: number) {
-  const lessonIds = getCourseLessonIds(courseId);
-
-  if (lessonIds.length === 0) return 0;
-
-  const completedCount = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        eq(lessonProgress.status, LessonProgressStatus.Completed),
-        or(...lessonIds.map((id) => eq(lessonProgress.lessonId, id)))!
-      )
-    )
-    .get();
-
-  return Math.round(((completedCount?.count ?? 0) / lessonIds.length) * 100);
-}
-
-function getLessonProgressForCourse(userId: number, courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .all();
-
-  if (courseLessons.length === 0) return [];
-
-  return db
-    .select()
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        or(...courseLessons.map((l) => eq(lessonProgress.lessonId, l.id)))!
-      )
-    )
-    .all();
 }
 
 function getNextIncompleteLesson(userId: number, courseId: number) {
@@ -347,7 +221,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Course not found", { status: 404 });
   }
 
-  const courseWithDetails = getCourseWithDetails(course.id);
+  // Outline only: this page is public, so no lesson body or video.
+  const courseWithDetails = getCourseOutline(db, course.id);
   if (!courseWithDetails) {
     throw data("Course not found", { status: 404 });
   }
@@ -389,15 +264,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
         : null;
       refundRequestRefusal = offer.ok ? null : refusalReasonForStudent(offer);
 
-      progress = calculateProgress(currentUserId, course.id);
-
-      const progressRecords = getLessonProgressForCourse(
-        currentUserId,
-        course.id
-      );
-      for (const record of progressRecords) {
-        lessonProgressMap[record.lessonId] = record.status;
-      }
+      progress = getCourseProgress(db, currentUserId, course.id).percent;
+      lessonProgressMap = getLessonProgressMap(db, currentUserId, course.id);
 
       const nextLesson = getNextIncompleteLesson(currentUserId, course.id);
       nextLessonId = nextLesson?.id ?? null;
