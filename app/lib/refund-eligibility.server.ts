@@ -17,30 +17,15 @@ import {
 } from "~/db/schema";
 import { notifyAdmins } from "~/lib/notifications.server";
 import { formatPrice } from "~/lib/utils";
+import {
+  REFUND_WINDOW_DAYS,
+  isWithinRefundWindow,
+  lastDayOfRefundWindow,
+} from "~/lib/refund-window";
 
 // Refund Eligibility = Refund Window + Watch-Time Limit + Completion Limit.
-const REFUND_WINDOW_DAYS = 14;
 const WATCH_TIME_LIMIT_SECONDS = 2 * 60 * 60;
 const COMPLETION_LIMIT = 0.5;
-
-/**
- * The calendar day (YYYY-MM-DD, local time) a moment falls on. The Refund
- * Window is counted in whole days, not hours — a Purchase made at 23:00 still
- * gets the whole of its fourteenth day.
- */
-function toCalendarDay(when: Date): string {
-  const year = when.getFullYear();
-  const month = String(when.getMonth() + 1).padStart(2, "0");
-  const day = String(when.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-/** The last calendar day of the Refund Window for a Purchase. */
-function lastDayOfRefundWindow(purchasedAtIso: string): string {
-  const windowEnd = new Date(purchasedAtIso);
-  windowEnd.setDate(windowEnd.getDate() + REFUND_WINDOW_DAYS);
-  return toCalendarDay(windowEnd);
-}
 
 /** A calendar day (YYYY-MM-DD) as it reads in a refusal, e.g. "March 15, 2026". */
 export function formatCalendarDay(day: string) {
@@ -65,15 +50,6 @@ function describeWatchTimeLimit() {
 /** The Completion Limit as it reads in a refusal, e.g. "half". */
 function describeCompletionLimit() {
   return COMPLETION_LIMIT === 0.5 ? "half" : `${COMPLETION_LIMIT * 100}%`;
-}
-
-/** Whether today falls in a Purchase's Refund Window, counting both ends. */
-function isWithinRefundWindow(purchasedAtIso: string, now = new Date()) {
-  const today = toCalendarDay(now);
-  return (
-    today >= toCalendarDay(new Date(purchasedAtIso)) &&
-    today <= lastDayOfRefundWindow(purchasedAtIso)
-  );
 }
 
 /**
@@ -440,7 +416,7 @@ export function getRefundRequestOffer(
 
   const lastDayInWindow = lastDayOfRefundWindow(purchase.createdAt);
 
-  if (!isWithinRefundWindow(purchase.createdAt, input.now)) {
+  if (!isWithinRefundWindow(purchase.createdAt, input.now ?? new Date())) {
     return {
       ok: false,
       code: "outside-refund-window",
@@ -611,7 +587,7 @@ export function getTeamPurchaseRefundRequestOffer(
 
   const lastDayInWindow = lastDayOfRefundWindow(purchase.createdAt);
 
-  if (!isWithinRefundWindow(purchase.createdAt, input.now)) {
+  if (!isWithinRefundWindow(purchase.createdAt, input.now ?? new Date())) {
     return {
       ok: false,
       code: "outside-refund-window",
