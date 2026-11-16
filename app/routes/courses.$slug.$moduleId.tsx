@@ -3,6 +3,7 @@ import type { Route } from "./+types/courses.$slug.$moduleId";
 import { getAccess } from "~/lib/access.server";
 import { loadModulePage } from "~/lib/module-page.server";
 import { db } from "~/db";
+import { getCourseBySlug } from "~/lib/courses.server";
 import { courses, users, LessonProgressStatus } from "~/db/schema";
 import { eq } from "drizzle-orm";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
@@ -27,10 +28,6 @@ const paramsSchema = z.object({
   slug: z.string().min(1),
   moduleId: z.coerce.number().int(),
 });
-
-function getCourseBySlug(slug: string) {
-  return db.select().from(courses).where(eq(courses.slug, slug)).get();
-}
 
 function getCourseWithInstructor(id: number) {
   return db
@@ -62,7 +59,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   const { slug, moduleId } = parsed.data;
 
-  const course = getCourseBySlug(slug);
+  const course = getCourseBySlug(db, slug);
   if (!course) {
     throw data("Course not found", { status: 404 });
   }

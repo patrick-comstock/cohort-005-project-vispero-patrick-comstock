@@ -1,6 +1,7 @@
 import { Link, redirect } from "react-router";
 import type { Route } from "./+types/courses.$slug.welcome";
 import { db } from "~/db";
+import { getCourseBySlug } from "~/lib/courses.server";
 import {
   courses,
   categories,
@@ -15,10 +16,6 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { PartyPopper, MessageCircle, PlayCircle } from "lucide-react";
 import { data } from "react-router";
-
-function getCourseBySlug(slug: string) {
-  return db.select().from(courses).where(eq(courses.slug, slug)).get();
-}
 
 function getCourseWithDetails(id: number) {
   const course = db
@@ -106,7 +103,7 @@ export function meta({ loaderData }: Route.MetaArgs) {
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const slug = params.slug;
-  const course = getCourseBySlug(slug);
+  const course = getCourseBySlug(db, slug);
 
   if (!course) {
     throw data("Course not found.", { status: 404 });

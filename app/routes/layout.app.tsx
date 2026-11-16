@@ -8,6 +8,7 @@ import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { countUnreadNotifications } from "~/lib/notifications.server";
 import { eq, and, or, sql, desc } from "drizzle-orm";
 import { db } from "~/db";
+import { getUserById } from "~/lib/courses.server";
 import {
   users,
   courses,
@@ -22,10 +23,6 @@ import {
 
 function getAllUsers() {
   return db.select().from(users).all();
-}
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
 }
 
 function getTeamForAdmin(userId: number) {
@@ -140,7 +137,7 @@ export function shouldRevalidate() {
 export async function loader({ request }: Route.LoaderArgs) {
   const users = getAllUsers();
   const currentUserId = await getCurrentUserId(request);
-  const currentUser = currentUserId ? getUserById(currentUserId) : null;
+  const currentUser = currentUserId ? getUserById(db, currentUserId) : null;
   const devCountry = await getDevCountry(request);
   const countryTierInfo = getCountryTierInfo(devCountry);
 

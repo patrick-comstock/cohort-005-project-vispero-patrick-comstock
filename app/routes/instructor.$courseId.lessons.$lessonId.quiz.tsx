@@ -6,8 +6,6 @@ import { getCurrentUserId } from "~/lib/session";
 import {
   UserRole,
   QuestionType,
-  users,
-  courses,
   modules,
   lessons,
   quizzes,
@@ -17,6 +15,11 @@ import {
   quizAnswers,
 } from "~/db/schema";
 import { db } from "~/db";
+import {
+  getCourseById,
+  getQuizByLessonId,
+  getUserById,
+} from "~/lib/courses.server";
 import { eq, sql } from "drizzle-orm";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -113,14 +116,6 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
-
-function getCourseById(id: number) {
-  return db.select().from(courses).where(eq(courses.id, id)).get();
-}
-
 function getModuleById(id: number) {
   return db.select().from(modules).where(eq(modules.id, id)).get();
 }
@@ -131,10 +126,6 @@ function getLessonById(id: number) {
 
 function getQuizById(id: number) {
   return db.select().from(quizzes).where(eq(quizzes.id, id)).get();
-}
-
-function getQuizByLessonId(lessonId: number) {
-  return db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).get();
 }
 
 function getQuestionsByQuiz(quizId: number) {
@@ -284,7 +275,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Select a user from the DevUI panel.", { status: 401 });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
   if (
     !user ||
     (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
@@ -299,7 +290,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Invalid course ID.", { status: 400 });
   }
 
-  const course = getCourseById(courseId);
+  const course = getCourseById(db, courseId);
   if (!course) {
     throw data("Course not found.", { status: 404 });
   }
@@ -324,7 +315,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   }
 
   // Load existing quiz if present
-  const existingQuizBasic = getQuizByLessonId(lessonId);
+  const existingQuizBasic = getQuizByLessonId(db, lessonId);
   const existingQuiz = existingQuizBasic
     ? getQuizWithQuestions(existingQuizBasic.id)
     : null;
@@ -341,7 +332,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("You must be logged in.", { status: 401 });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
   if (
     !user ||
     (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
@@ -353,7 +344,7 @@ export async function action({ params, request }: Route.ActionArgs) {
 
   const { courseId, lessonId } = parseParams(params, quizParamsSchema);
 
-  const course = getCourseById(courseId);
+  const course = getCourseById(db, courseId);
   if (
     !course ||
     (course.instructorId !== currentUserId && user.role !== UserRole.Admin)
@@ -397,7 +388,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     }
 
     // Delete existing quiz if present
-    const existingQuiz = getQuizByLessonId(lessonId);
+    const existingQuiz = getQuizByLessonId(db, lessonId);
     if (existingQuiz) {
       deleteQuiz(existingQuiz.id);
     }
@@ -423,7 +414,7 @@ export async function action({ params, request }: Route.ActionArgs) {
   }
 
   if (intent === "delete-quiz") {
-    const existingQuiz = getQuizByLessonId(lessonId);
+    const existingQuiz = getQuizByLessonId(db, lessonId);
     if (existingQuiz) {
       deleteQuiz(existingQuiz.id);
     }

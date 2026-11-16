@@ -5,8 +5,9 @@ import { z } from "zod";
 import type { Route } from "./+types/admin.categories";
 import { getCurrentUserId } from "~/lib/session";
 import { parseFormData } from "~/lib/validation";
-import { UserRole, categories, courses, users } from "~/db/schema";
+import { UserRole, categories, courses } from "~/db/schema";
 import { db } from "~/db";
+import { getUserById } from "~/lib/courses.server";
 import { eq, sql } from "drizzle-orm";
 import { Card, CardContent } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -30,10 +31,6 @@ const adminCategoryActionSchema = z.discriminatedUnion("intent", [
     categoryId: z.coerce.number().int(),
   }),
 ]);
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
 
 function slugify(name: string) {
   return name
@@ -151,7 +148,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     });
   }
 
-  const currentUser = getUserById(currentUserId);
+  const currentUser = getUserById(db, currentUserId);
 
   if (!currentUser || currentUser.role !== UserRole.Admin) {
     throw data("Only admins can access this page.", {
@@ -171,7 +168,7 @@ export async function action({ request }: Route.ActionArgs) {
     throw data("You must be logged in.", { status: 401 });
   }
 
-  const currentUser = getUserById(currentUserId);
+  const currentUser = getUserById(db, currentUserId);
   if (!currentUser || currentUser.role !== UserRole.Admin) {
     throw data("Only admins can manage categories.", { status: 403 });
   }

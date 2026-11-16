@@ -3,8 +3,6 @@ import { eq, and, desc, notExists } from "drizzle-orm";
 import { db, type Db } from "~/db";
 import {
   UserRole,
-  users,
-  courses,
   enrollments,
   purchases,
   refundRequests,
@@ -13,6 +11,7 @@ import {
 import { getCurrentUserId } from "~/lib/session";
 import { resolveCountry } from "~/lib/country.server";
 import { checkPppAccess } from "~/lib/ppp";
+import { getCourseById, getUserById } from "~/lib/courses.server";
 
 /**
  * The Purchase that the PPP check in Access looks at. A Purchase that was
@@ -45,14 +44,6 @@ export function findPurchaseForAccess(
     )
     .orderBy(desc(purchases.createdAt), desc(purchases.id))
     .get();
-}
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
-
-function getCourseById(id: number) {
-  return db.select().from(courses).where(eq(courses.id, id)).get();
 }
 
 function findEnrollment(userId: number, courseId: number) {
@@ -117,10 +108,10 @@ export async function getAccess(
   const userId = await getCurrentUserId(request);
   if (!userId) return SIGNED_OUT;
 
-  const user = getUserById(userId);
+  const user = getUserById(db, userId);
   if (!user) return SIGNED_OUT;
 
-  const course = getCourseById(courseId);
+  const course = getCourseById(db, courseId);
   const isAdmin = user.role === UserRole.Admin;
   const isOwningInstructor = course?.instructorId === userId;
   const isStaff = isAdmin || isOwningInstructor;
@@ -217,7 +208,7 @@ export async function requireStaff(
  */
 export async function requireInstructorOrAdmin(request: Request) {
   const userId = await requireUserId(request);
-  const user = getUserById(userId);
+  const user = getUserById(db, userId);
 
   if (
     !user ||
@@ -235,7 +226,7 @@ export async function requireInstructorOrAdmin(request: Request) {
  */
 export async function requireAdmin(request: Request) {
   const userId = await requireUserId(request);
-  const user = getUserById(userId);
+  const user = getUserById(db, userId);
 
   if (!user || user.role !== UserRole.Admin) {
     throw data("Only admins can access this page.", { status: 403 });

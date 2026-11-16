@@ -3,15 +3,13 @@ import { Link, useFetcher, useBlocker } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/instructor.$courseId.lessons.$lessonId";
 import { getCurrentUserId } from "~/lib/session";
-import {
-  UserRole,
-  users,
-  courses,
-  modules,
-  lessons,
-  quizzes,
-} from "~/db/schema";
+import { UserRole, modules, lessons } from "~/db/schema";
 import { db } from "~/db";
+import {
+  getCourseById,
+  getQuizByLessonId,
+  getUserById,
+} from "~/lib/courses.server";
 import { eq } from "drizzle-orm";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -43,24 +41,12 @@ const updateLessonSchema = z.object({
   githubRepoUrl: z.string().trim().optional(),
 });
 
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
-}
-
-function getCourseById(id: number) {
-  return db.select().from(courses).where(eq(courses.id, id)).get();
-}
-
 function getModuleById(id: number) {
   return db.select().from(modules).where(eq(modules.id, id)).get();
 }
 
 function getLessonById(id: number) {
   return db.select().from(lessons).where(eq(lessons.id, id)).get();
-}
-
-function getQuizByLessonId(lessonId: number) {
-  return db.select().from(quizzes).where(eq(quizzes.lessonId, lessonId)).get();
 }
 
 function updateLesson(
@@ -107,7 +93,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
 
   if (
     !user ||
@@ -123,7 +109,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Invalid course ID.", { status: 400 });
   }
 
-  const course = getCourseById(courseId);
+  const course = getCourseById(db, courseId);
 
   if (!course) {
     throw data("Course not found.", { status: 404 });
@@ -148,7 +134,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Lesson not found in this course.", { status: 404 });
   }
 
-  const quiz = getQuizByLessonId(lessonId);
+  const quiz = getQuizByLessonId(db, lessonId);
 
   return { course, lesson, module: mod, quiz };
 }
@@ -160,7 +146,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     throw data("You must be logged in.", { status: 401 });
   }
 
-  const user = getUserById(currentUserId);
+  const user = getUserById(db, currentUserId);
   if (
     !user ||
     (user.role !== UserRole.Instructor && user.role !== UserRole.Admin)
@@ -175,7 +161,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     instructorLessonParamsSchema
   );
 
-  const course = getCourseById(courseId);
+  const course = getCourseById(db, courseId);
   if (!course) {
     throw data("Course not found.", { status: 404 });
   }

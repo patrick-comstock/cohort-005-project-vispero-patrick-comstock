@@ -8,12 +8,11 @@ import { Button } from "~/components/ui/button";
 import { Users, BookOpen, Copy, Check, AlertTriangle } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
 import { db } from "~/db";
+import { getCourseById, getUserById } from "~/lib/courses.server";
 import {
   teams,
   teamMembers,
   coupons,
-  courses,
-  users,
   TeamMemberRole,
   RefundRequestStatus,
 } from "~/db/schema";
@@ -46,14 +45,6 @@ function getTeamForAdmin(userId: number) {
 
 function getCouponsForTeam(teamId: number) {
   return db.select().from(coupons).where(eq(coupons.teamId, teamId)).all();
-}
-
-function getCourseById(id: number) {
-  return db.select().from(courses).where(eq(courses.id, id)).get();
-}
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
 }
 
 interface CourseStats {
@@ -112,7 +103,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   for (const coupon of allCoupons) {
     if (!courseMap.has(coupon.courseId)) {
-      const course = getCourseById(coupon.courseId);
+      const course = getCourseById(db, coupon.courseId);
       courseMap.set(coupon.courseId, {
         courseId: coupon.courseId,
         courseTitle: course?.title ?? "Unknown Course",
@@ -142,10 +133,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const couponRows: CouponRow[] = allCoupons.map((coupon) => {
     let redeemedByEmail: string | null = null;
     if (coupon.redeemedByUserId !== null) {
-      const user = getUserById(coupon.redeemedByUserId);
+      const user = getUserById(db, coupon.redeemedByUserId);
       redeemedByEmail = user?.email ?? null;
     }
-    const course = getCourseById(coupon.courseId);
+    const course = getCourseById(db, coupon.courseId);
     return {
       id: coupon.id,
       code: coupon.code,

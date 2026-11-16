@@ -11,14 +11,11 @@ import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { eq, like, and, or, sql } from "drizzle-orm";
 import { db } from "~/db";
-import { courses, categories, users, modules, lessons } from "~/db/schema";
+import { getLessonCount, getUserById } from "~/lib/courses.server";
+import { courses, categories, users } from "~/db/schema";
 
 function getAllUsers() {
   return db.select().from(users).all();
-}
-
-function getUserById(id: number) {
-  return db.select().from(users).where(eq(users.id, id)).get();
 }
 
 function getAllCategories() {
@@ -86,24 +83,6 @@ function buildCourseQuery(
   return sorted.limit(limit).offset(offset).all();
 }
 
-function getLessonCountForCourse(courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return 0;
-
-  const count = db
-    .select({ count: sql<number>`count(*)` })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .get();
-
-  return count?.count ?? 0;
-}
-
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "Cadence — Learn at your own pace" },
@@ -115,12 +94,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   const courses = buildCourseQuery(null, null, CourseStatus.Published, "newest", 50, 0);
   const featured = courses.slice(0, 3).map((course) => ({
     ...course,
-    lessonCount: getLessonCountForCourse(course.id),
+    lessonCount: getLessonCount(db, course.id),
   }));
   const categories = getAllCategories();
   const users = getAllUsers();
   const currentUserId = await getCurrentUserId(request);
-  const currentUser = currentUserId ? getUserById(currentUserId) : null;
+  const currentUser = currentUserId ? getUserById(db, currentUserId) : null;
   const devCountry = await getDevCountry(request);
   const countryTierInfo = getCountryTierInfo(devCountry);
 
