@@ -43,7 +43,7 @@ import type { Db } from "~/db";
  * Joins each Purchase to its Refund, if it has one. A Purchase has at most one
  * Refund Request (ADR 0002), so this never repeats a Purchase.
  */
-const approvedRefundRequest = and(
+export const approvedRefundRequest = and(
   eq(refundRequests.purchaseId, purchases.id),
   eq(refundRequests.status, RefundRequestStatus.Approved)
 );
