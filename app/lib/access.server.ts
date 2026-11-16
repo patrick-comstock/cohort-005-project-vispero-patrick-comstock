@@ -207,12 +207,13 @@ export type CourseStaffCheck =
       course: NonNullable<ReturnType<typeof getCourseById>>;
       isAdmin: boolean;
     }
-  | { ok: false; status: 401 | 403 | 404; message: string };
+  | { ok: false; status: 401 | 404; message: string };
 
 /**
- * Is this user staff on this course: its owning Instructor, or an Admin?
- * Never throws. The refusals come in a fixed order: signed out or unknown
- * user (401), then no such course (404), then not staff (403).
+ * Is this user staff on this course: an Admin, or the course's owner who
+ * still holds the Instructor role? Never throws. Signed out or unknown user
+ * is 401. Anyone else who isn't staff gets 404, whether or not the course
+ * exists, so its existence isn't revealed.
  */
 export function checkCourseStaff(
   database: Db,
@@ -229,24 +230,19 @@ export function checkCourseStaff(
   }
 
   const course = getCourseById(database, courseId);
-  if (!course) {
-    return { ok: false, status: 404, message: "Course not found." };
-  }
+  const isOwnerInstructor =
+    access.isOwningInstructor && access.user.role === UserRole.Instructor;
 
-  if (!access.isStaff) {
-    return {
-      ok: false,
-      status: 403,
-      message: "Only this course's instructor can do that.",
-    };
+  if (!course || !(access.isAdmin || isOwnerInstructor)) {
+    return { ok: false, status: 404, message: "Course not found." };
   }
 
   return { ok: true, user: access.user, course, isAdmin: access.isAdmin };
 }
 
 /**
- * Throws 401, 404 or 403 (see checkCourseStaff) unless the session's user is
- * the course's owning Instructor or an Admin. Parse the course id with
+ * Throws 401 or 404 (see checkCourseStaff) unless the session's user is an
+ * Admin or the course's owner who is still an Instructor. Parse the course id with
  * parseParams first, so a malformed id is a 400. Call it in every loader and
  * every action — loader guards don't protect actions.
  */

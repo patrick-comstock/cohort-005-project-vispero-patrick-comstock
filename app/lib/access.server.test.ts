@@ -200,7 +200,7 @@ describe("checkCourseStaff", () => {
     });
   });
 
-  it("refuses with 404 when the course does not exist", () => {
+  it("refuses with 404 an Instructor when the course does not exist", () => {
     expect(checkCourseStaff(testDb, base.instructor.id, 9999)).toEqual({
       ok: false,
       status: 404,
@@ -208,7 +208,7 @@ describe("checkCourseStaff", () => {
     });
   });
 
-  it("refuses with 403 an Instructor who does not own the course", () => {
+  it("refuses with 404 an Instructor who does not own the course", () => {
     const other = testDb
       .insert(schema.users)
       .values({
@@ -221,19 +221,43 @@ describe("checkCourseStaff", () => {
 
     expect(checkCourseStaff(testDb, other.id, base.course.id)).toEqual({
       ok: false,
-      status: 403,
-      message: "Only this course's instructor can do that.",
+      status: 404,
+      message: "Course not found.",
     });
   });
 
-  it("refuses with 403 a Student, even an enrolled one", () => {
+  it("refuses with 404 a Student when the course exists, even an enrolled one", () => {
     buyCourse(base.user.id);
 
     expect(checkCourseStaff(testDb, base.user.id, base.course.id)).toEqual({
       ok: false,
-      status: 403,
-      message: "Only this course's instructor can do that.",
+      status: 404,
+      message: "Course not found.",
     });
+  });
+
+  it("refuses with 404 a Student when the course does not exist", () => {
+    expect(checkCourseStaff(testDb, base.user.id, 9999)).toEqual({
+      ok: false,
+      status: 404,
+      message: "Course not found.",
+    });
+  });
+
+  it("refuses with 404 an owner whose role is no longer Instructor", () => {
+    testDb
+      .update(schema.users)
+      .set({ role: UserRole.Student })
+      .where(eq(schema.users.id, base.instructor.id))
+      .run();
+
+    expect(checkCourseStaff(testDb, base.instructor.id, base.course.id)).toEqual(
+      {
+        ok: false,
+        status: 404,
+        message: "Course not found.",
+      }
+    );
   });
 
   it("lets the owning Instructor through", () => {
