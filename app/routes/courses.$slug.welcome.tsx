@@ -61,7 +61,15 @@ function getCourseWithDetails(id: number) {
   const courseLessons =
     moduleIds.length > 0
       ? db
-          .select()
+          // Lesson metadata only: the welcome page links to the first lesson and
+          // needs no lesson body or video, which a PPP-blocked Student may not see.
+          .select({
+            id: lessons.id,
+            moduleId: lessons.moduleId,
+            title: lessons.title,
+            position: lessons.position,
+            durationMinutes: lessons.durationMinutes,
+          })
           .from(lessons)
           .where(or(...moduleIds.map((mid) => eq(lessons.moduleId, mid)))!)
           .orderBy(lessons.position)

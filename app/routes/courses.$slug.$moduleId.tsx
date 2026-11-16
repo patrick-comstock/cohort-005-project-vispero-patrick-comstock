@@ -1,18 +1,10 @@
 import { Link } from "react-router";
 import type { Route } from "./+types/courses.$slug.$moduleId";
-import { getCurrentUserId } from "~/lib/session";
+import { getAccess } from "~/lib/access.server";
+import { loadModulePage } from "~/lib/module-page.server";
 import { db } from "~/db";
-import {
-  categories,
-  courses,
-  enrollments,
-  lessonProgress,
-  lessons,
-  modules,
-  users,
-  LessonProgressStatus,
-} from "~/db/schema";
-import { and, eq, or } from "drizzle-orm";
+import { courses, users, LessonProgressStatus } from "~/db/schema";
+import { eq } from "drizzle-orm";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -40,116 +32,20 @@ function getCourseBySlug(slug: string) {
   return db.select().from(courses).where(eq(courses.slug, slug)).get();
 }
 
-function getCourseWithDetails(id: number) {
-  const course = db
+function getCourseWithInstructor(id: number) {
+  return db
     .select({
       id: courses.id,
       title: courses.title,
       slug: courses.slug,
-      description: courses.description,
-      salesCopy: courses.salesCopy,
-      instructorId: courses.instructorId,
-      categoryId: courses.categoryId,
-      status: courses.status,
-      coverImageUrl: courses.coverImageUrl,
-      price: courses.price,
-      pppEnabled: courses.pppEnabled,
-      createdAt: courses.createdAt,
-      updatedAt: courses.updatedAt,
       instructorName: users.name,
       instructorAvatarUrl: users.avatarUrl,
       instructorBio: users.bio,
-      categoryName: categories.name,
     })
     .from(courses)
     .innerJoin(users, eq(courses.instructorId, users.id))
-    .innerJoin(categories, eq(courses.categoryId, categories.id))
     .where(eq(courses.id, id))
     .get();
-
-  if (!course) return null;
-
-  const courseModules = db
-    .select()
-    .from(modules)
-    .where(eq(modules.courseId, id))
-    .orderBy(modules.position)
-    .all();
-
-  const moduleIds = courseModules.map((m) => m.id);
-
-  const courseLessons =
-    moduleIds.length > 0
-      ? db
-          .select()
-          .from(lessons)
-          .where(or(...moduleIds.map((mid) => eq(lessons.moduleId, mid)))!)
-          .orderBy(lessons.position)
-          .all()
-      : [];
-
-  return {
-    ...course,
-    modules: courseModules.map((mod) => ({
-      ...mod,
-      lessons: courseLessons.filter((l) => l.moduleId === mod.id),
-    })),
-  };
-}
-
-function getModuleWithLessons(id: number) {
-  const mod = db.select().from(modules).where(eq(modules.id, id)).get();
-  if (!mod) return null;
-
-  const moduleLessons = db
-    .select()
-    .from(lessons)
-    .where(eq(lessons.moduleId, id))
-    .orderBy(lessons.position)
-    .all();
-
-  return { ...mod, lessons: moduleLessons };
-}
-
-function isUserEnrolled(userId: number, courseId: number) {
-  const existing = db
-    .select()
-    .from(enrollments)
-    .where(
-      and(eq(enrollments.userId, userId), eq(enrollments.courseId, courseId))
-    )
-    .get();
-
-  return !!existing;
-}
-
-function getLessonProgressForCourse(userId: number, courseId: number) {
-  const courseModules = db
-    .select({ id: modules.id })
-    .from(modules)
-    .where(eq(modules.courseId, courseId))
-    .all();
-
-  if (courseModules.length === 0) return [];
-
-  const courseLessons = db
-    .select({ id: lessons.id })
-    .from(lessons)
-    .where(or(...courseModules.map((m) => eq(lessons.moduleId, m.id)))!)
-    .all();
-
-  if (courseLessons.length === 0) return [];
-
-  return db
-    .select()
-    .from(lessonProgress)
-    .where(
-      and(
-        eq(lessonProgress.userId, userId),
-        or(...courseLessons.map((l) => eq(lessonProgress.lessonId, l.id)))!
-      )
-    )
-    .all();
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
@@ -171,69 +67,22 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Course not found", { status: 404 });
   }
 
-  const courseWithDetails = getCourseWithDetails(course.id);
-  if (!courseWithDetails) {
+  const courseWithInstructor = getCourseWithInstructor(course.id);
+  if (!courseWithInstructor) {
     throw data("Course not found", { status: 404 });
   }
 
-  const moduleWithLessons = getModuleWithLessons(moduleId);
-  if (!moduleWithLessons) {
-    throw data("Module not found", { status: 404 });
-  }
-
-  // Verify module belongs to this course
-  if (moduleWithLessons.courseId !== course.id) {
+  // Only lesson metadata leaves the server. Lessons look unlocked only with
+  // canViewContent, and progress shows only for an enrolled viewer.
+  const access = await getAccess(request, course.id);
+  const modulePage = loadModulePage(db, moduleId, course.id, access);
+  if (!modulePage) {
     throw data("Module not found in this course", { status: 404 });
   }
 
-  const currentUserId = await getCurrentUserId(request);
-
-  let enrolled = false;
-  let lessonProgressMap: Record<number, string> = {};
-
-  if (currentUserId) {
-    enrolled = isUserEnrolled(currentUserId, course.id);
-
-    if (enrolled) {
-      const progressRecords = getLessonProgressForCourse(
-        currentUserId,
-        course.id
-      );
-      for (const record of progressRecords) {
-        lessonProgressMap[record.lessonId] = record.status;
-      }
-    }
-  }
-
-  // Calculate module-level progress
-  const totalLessons = moduleWithLessons.lessons.length;
-  const completedLessons = moduleWithLessons.lessons.filter(
-    (l) => lessonProgressMap[l.id] === LessonProgressStatus.Completed
-  ).length;
-  const moduleProgress =
-    totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
-
-  const totalDuration = moduleWithLessons.lessons.reduce(
-    (sum, l) => sum + (l.durationMinutes ?? 0),
-    0
-  );
-
   return {
-    course: {
-      id: courseWithDetails.id,
-      title: courseWithDetails.title,
-      slug: courseWithDetails.slug,
-      instructorName: courseWithDetails.instructorName,
-      instructorAvatarUrl: courseWithDetails.instructorAvatarUrl,
-      instructorBio: courseWithDetails.instructorBio,
-    },
-    module: moduleWithLessons,
-    enrolled,
-    lessonProgressMap,
-    moduleProgress,
-    completedLessons,
-    totalLessons,
-    totalDuration,
+    course: courseWithInstructor,
+    ...modulePage,
   };
 }
 
@@ -269,7 +118,8 @@ export default function ModuleDetail({ loaderData }: Route.ComponentProps) {
   const {
     course,
     module: mod,
-    enrolled,
+    canViewContent,
+    tracksProgress,
     lessonProgressMap,
     moduleProgress,
     completedLessons,
@@ -307,8 +157,8 @@ export default function ModuleDetail({ loaderData }: Route.ComponentProps) {
         )}
       </div>
 
-      {/* Progress bar for enrolled students */}
-      {enrolled && totalLessons > 0 && (
+      {/* Progress bar for enrolled students with Access */}
+      {tracksProgress && totalLessons > 0 && (
         <div className="mb-6">
           <div className="mb-1 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
@@ -358,11 +208,9 @@ export default function ModuleDetail({ loaderData }: Route.ComponentProps) {
             const status = lessonProgressMap[lesson.id];
             const isCompleted = status === LessonProgressStatus.Completed;
             const isInProgress = status === LessonProgressStatus.InProgress;
-            const hasVideo = !!lesson.videoUrl;
-
             const content = (
               <div className="flex items-center gap-3 rounded-md px-3 py-3 text-sm">
-                {enrolled ? (
+                {tracksProgress ? (
                   isCompleted ? (
                     <CheckCircle2 className="size-4 shrink-0 text-green-500" />
                   ) : isInProgress ? (
@@ -375,7 +223,7 @@ export default function ModuleDetail({ loaderData }: Route.ComponentProps) {
                 )}
                 <span className="flex-1">{lesson.title}</span>
                 <div className="flex items-center gap-2">
-                  {hasVideo ? (
+                  {lesson.hasVideo ? (
                     <Video className="size-3.5 text-muted-foreground" />
                   ) : (
                     <FileText className="size-3.5 text-muted-foreground" />
@@ -390,7 +238,7 @@ export default function ModuleDetail({ loaderData }: Route.ComponentProps) {
               </div>
             );
 
-            if (enrolled) {
+            if (canViewContent) {
               return (
                 <Link
                   key={lesson.id}

@@ -84,7 +84,15 @@ function getCourseWithDetails(id: number) {
   const courseLessons =
     moduleIds.length > 0
       ? db
-          .select()
+          // Lesson metadata only: buyers have no Access yet, so no lesson body
+          // or video may be read into what the loader returns.
+          .select({
+            id: lessons.id,
+            moduleId: lessons.moduleId,
+            title: lessons.title,
+            position: lessons.position,
+            durationMinutes: lessons.durationMinutes,
+          })
           .from(lessons)
           .where(or(...moduleIds.map((mid) => eq(lessons.moduleId, mid)))!)
           .orderBy(lessons.position)
