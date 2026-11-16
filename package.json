@@ -14,9 +14,11 @@
     "request-logger": "tsx request-logger/proxy.ts",
     "typecheck": "react-router typegen && tsc",
     "lint": "eslint app scripts request-logger",
+    "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run lint && npm run test",
+    "check": "npm run typecheck && npm run format:check && npm run lint && npm run test",
+    "prepare": "husky",
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx scripts/seed.ts",
     "db:migrate": "drizzle-kit migrate",
@@ -59,6 +61,8 @@
     "ai-hero-cli": "0.11.1",
     "drizzle-kit": "^0.31.4",
     "eslint": "^9.39.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.1",
     "prettier": "^3.8.1",
     "shadcn": "^3.8.4",
     "tailwindcss": "^4.1.13",
@@ -80,5 +84,12 @@
   },
   "overrides": {
     "dompurify": "3.4.17"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --fix --no-warn-ignored",
+      "prettier --write --ignore-unknown"
+    ],
+    "*.{json,md,yml,yaml,css}": "prettier --write --ignore-unknown"
   }
 }
