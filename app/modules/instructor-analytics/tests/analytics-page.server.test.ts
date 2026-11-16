@@ -50,7 +50,7 @@ function params(overrides: Partial<AnalyticsParams> = {}): AnalyticsParams {
 }
 
 function load(viewer: AnalyticsViewer, overrides: Partial<AnalyticsParams>) {
-  return loadAnalyticsPage(testDb, viewer, params(overrides), now);
+  return loadAnalyticsPage(viewer, params(overrides), now, testDb);
 }
 
 /** A Purchase made at midday UTC on `day`. */

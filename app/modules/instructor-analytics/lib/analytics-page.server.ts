@@ -12,7 +12,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
-import type { Db } from "~/db";
+import { db, type Db } from "~/db";
 import {
   CourseStatus,
   LessonProgressStatus,
@@ -620,12 +620,14 @@ function getRefundExposure(
  * Instructors are pinned to their own figures whatever they ask for; only an
  * Admin may look at another instructor, and null means every instructor. A
  * requested course is opened only if it is one of the viewer's own.
+ *
+ * Reads the app's database unless given another one; tests pass their own.
  */
 export function loadAnalyticsPage(
-  database: Db,
   viewer: AnalyticsViewer,
   params: AnalyticsParams,
-  now: Date
+  now: Date,
+  database: Db = db
 ) {
   const { tab, range } = params;
   const instructorId = viewer.isAdmin ? params.instructorId : viewer.userId;

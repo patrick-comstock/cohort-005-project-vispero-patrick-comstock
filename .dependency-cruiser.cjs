@@ -85,6 +85,16 @@ module.exports = {
     //   from: { path: `^${R}/ui/` },
     //   to:   { path: `^${R}/billing/` },
     // },
+
+    // --- Routes that must not query the database ------------------------------
+    {
+      name: "analytics-route-no-database",
+      comment:
+        "The Instructor Analytics route goes through app/modules/instructor-analytics, which owns its database. It may not import app/db or drizzle-orm itself.",
+      severity: "error",
+      from: { path: "^app/routes/instructor\\.analytics\\.tsx$" },
+      to: { path: ["^app/db/", "^node_modules/drizzle-orm/"] },
+    },
   ],
   options: {
     doNotFollow: { path: "node_modules" },
