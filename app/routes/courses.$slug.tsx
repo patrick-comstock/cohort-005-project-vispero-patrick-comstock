@@ -275,7 +275,10 @@ export async function action({ params, request }: Route.ActionArgs) {
   const parsed = parseFormData(formData, ratingSchema);
 
   if (!parsed.success) {
-    return { ok: false as const, error: "Please choose a rating from 1 to 5." };
+    return data(
+      { error: "Please choose a rating from 1 to 5." },
+      { status: 400 }
+    );
   }
 
   rateCourse(access.userId, course.id, parsed.data.rating);

@@ -286,7 +286,7 @@ function getQuizById(quizId: number) {
   return db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
 }
 
-function calculateGrade(score: any): any {
+function calculateGrade(score: number): string {
   try {
     if (score >= 0.9) return "A";
     if (score >= 0.8) return "B";
@@ -299,7 +299,11 @@ function calculateGrade(score: any): any {
   }
 }
 
-function computeResult(userId: any, quizId: any, selectedAnswers: any): any {
+function computeResult(
+  userId: number,
+  quizId: number,
+  selectedAnswers: Record<number, number>
+) {
   try {
     const quiz = db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
     if (!quiz) {
@@ -316,7 +320,12 @@ function computeResult(userId: any, quizId: any, selectedAnswers: any): any {
 
     let correct = 0;
     let total = questions.length;
-    const questionResults: any[] = [];
+    const questionResults: Array<{
+      questionId: number;
+      correct: boolean;
+      selectedOptionId: number | null;
+      correctOptionId: number | null;
+    }> = [];
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
@@ -588,7 +597,10 @@ export async function action({ params, request }: Route.ActionArgs) {
       if (intent === "create-comment") {
         const parsed = parseFormData(formData, createCommentSchema);
         if (!parsed.success) {
-          return { ok: false, error: "Enter a comment before posting." };
+          return data(
+            { error: "Enter a comment before posting." },
+            { status: 400 }
+          );
         }
         createComment(
           currentUserId,
@@ -602,7 +614,10 @@ export async function action({ params, request }: Route.ActionArgs) {
       if (intent === "edit-comment") {
         const parsed = parseFormData(formData, editCommentSchema);
         if (!parsed.success) {
-          return { ok: false, error: "Enter a comment before saving." };
+          return data(
+            { error: "Enter a comment before saving." },
+            { status: 400 }
+          );
         }
         // Scope the id to this lesson so a comment elsewhere can't be reached
         // by posting its id to this route.
@@ -616,7 +631,10 @@ export async function action({ params, request }: Route.ActionArgs) {
 
       const parsed = parseFormData(formData, deleteCommentSchema);
       if (!parsed.success) {
-        return { ok: false, error: "Could not delete that comment." };
+        return data(
+          { error: "Could not delete that comment." },
+          { status: 400 }
+        );
       }
       const existing = getCommentById(parsed.data.commentId);
       if (!existing || existing.lessonId !== lessonId) {
@@ -628,7 +646,7 @@ export async function action({ params, request }: Route.ActionArgs) {
       // Service validation failures are user-correctable; anything thrown as a
       // Response (404 above) should keep bubbling.
       if (error instanceof Error) {
-        return { ok: false, error: error.message };
+        return data({ error: error.message }, { status: 400 });
       }
       throw error;
     }

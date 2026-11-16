@@ -194,7 +194,7 @@ export async function action({ request }: Route.ActionArgs) {
   const parsed = parseFormData(formData, replySchema);
 
   if (!parsed.success) {
-    return { ok: false, error: "Enter a reply before posting." };
+    return data({ error: "Enter a reply before posting." }, { status: 400 });
   }
 
   const question = getCommentById(parsed.data.commentId);
@@ -220,7 +220,7 @@ export async function action({ request }: Route.ActionArgs) {
     );
   } catch (error) {
     if (error instanceof Error) {
-      return { ok: false, error: error.message };
+      return data({ error: error.message }, { status: 400 });
     }
     throw error;
   }

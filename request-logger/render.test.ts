@@ -54,8 +54,9 @@ describe("decodeRequestBody", () => {
   });
 
   it("fails loudly, naming the Node version, when the runtime has no zstd support", () => {
-    const original = (zlib as any).zstdDecompressSync;
-    delete (zlib as any).zstdDecompressSync;
+    const mutableZlib: { zstdDecompressSync?: typeof zlib.zstdDecompressSync } = zlib;
+    const original = mutableZlib.zstdDecompressSync;
+    delete mutableZlib.zstdDecompressSync;
     try {
       const compressed = zlib.zstdCompressSync(Buffer.from("hello"));
       const out = decodeRequestBody(compressed, "zstd");
@@ -63,7 +64,7 @@ describe("decodeRequestBody", () => {
       expect(out).toContain("zstd");
       expect(out).toContain(process.version);
     } finally {
-      (zlib as any).zstdDecompressSync = original;
+      mutableZlib.zstdDecompressSync = original;
     }
   });
 });

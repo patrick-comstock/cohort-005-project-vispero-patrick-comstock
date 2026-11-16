@@ -211,15 +211,16 @@ function createQuestion(
   questionType: QuestionType,
   position: number | null
 ) {
+  // An aggregate query always yields one row; `?? 0` only satisfies the type.
   const pos =
     position ??
-    db
+    (db
       .select({
         max: sql<number>`coalesce(max(${quizQuestions.position}), 0)`,
       })
       .from(quizQuestions)
       .where(eq(quizQuestions.quizId, quizId))
-      .get()!.max + 1;
+      .get()?.max ?? 0) + 1;
 
   return db
     .insert(quizQuestions)

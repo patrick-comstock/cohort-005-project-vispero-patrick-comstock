@@ -299,9 +299,9 @@ export function trackBurst(
 ): BurstResult {
   const fresh =
     !state || state.key !== key || now - state.windowStart > BURST_WINDOW_MS;
-  const count = fresh ? 1 : state!.count + 1;
-  const windowStart = fresh ? now : state!.windowStart;
-  const wasWarned = fresh ? false : state!.warned;
+  const count = fresh ? 1 : state.count + 1;
+  const windowStart = fresh ? now : state.windowStart;
+  const wasWarned = fresh ? false : state.warned;
   const suppressed = count > BURST_THRESHOLD;
   return {
     state: { key, windowStart, count, warned: wasWarned || suppressed },

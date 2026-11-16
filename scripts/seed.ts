@@ -2128,14 +2128,14 @@ This course is still in draft while the cluster examples are rewritten against t
     for (let qi = 0; qi < questionIds.length; qi++) {
       const qId = questionIds[qi];
       const qOptions = optionIds.filter((o) => o.questionId === qId);
-      let selectedOption: (typeof qOptions)[0];
-
-      if (selectedCorrectIndices.includes(qi)) {
-        // Pick correct answer
-        selectedOption = qOptions.find((o) => o.correct)!;
-      } else {
-        // Pick wrong answer
-        selectedOption = qOptions.find((o) => !o.correct)!;
+      // Pick a correct answer for the questions the student got right, a wrong
+      // one otherwise.
+      const pickCorrect = selectedCorrectIndices.includes(qi);
+      const selectedOption = qOptions.find((o) => o.correct === pickCorrect);
+      if (!selectedOption) {
+        throw new Error(
+          `Seed data: question ${qId} has no ${pickCorrect ? "correct" : "wrong"} option`
+        );
       }
 
       db.insert(schema.quizAnswers)

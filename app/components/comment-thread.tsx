@@ -74,7 +74,6 @@ function CommentForm({
       onDone?.();
     }
     // onDone is recreated each render by callers; depending on it would loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher.state, fetcher.data, intent]);
 
   const tooLong = body.length > MAX_COMMENT_LENGTH;
