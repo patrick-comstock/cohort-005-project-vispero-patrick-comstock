@@ -1,7 +1,10 @@
 import { data } from "react-router";
 import { z } from "zod";
 import type { Route } from "./+types/api.video-tracking";
-import { requireContentAccess } from "~/modules/access/index.server";
+import {
+  requireContentAccess,
+  requireUserId,
+} from "~/modules/access/index.server";
 import { getCourseIdForLesson } from "~/lib/lesson-page.server";
 import { parseJsonBody } from "~/lib/validation";
 import { db } from "~/db";
@@ -14,6 +17,10 @@ const videoTrackingSchema = z.object({
 });
 
 export async function action({ request }: Route.ActionArgs) {
+  // Sign-in first, so a signed-out caller always gets the 401: never a 400,
+  // a 500 from a bad body, or a 404 that reveals whether a lesson exists.
+  await requireUserId(request);
+
   const parsed = await parseJsonBody(request, videoTrackingSchema);
 
   if (!parsed.success) {

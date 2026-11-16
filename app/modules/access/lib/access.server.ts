@@ -55,12 +55,7 @@ function isUserEnrolled(database: Db, userId: number, courseId: number) {
 
 // ─── Access Resolution ───
 // One place that answers "who is this, and what may they do with this course?".
-//
-// getAccess never throws — the lesson page needs to render a paywall preview for
-// signed-out and unenrolled visitors rather than erroring. The require* wrappers
-// are built on it for the routes that should just reject.
-//
-// Uses positional parameters (project convention).
+// See the entry point for why getAccess never throws.
 
 type User = NonNullable<ReturnType<typeof getUserById>>;
 type Course = ReturnType<typeof getCourseById>;
@@ -72,7 +67,7 @@ function isOwningInstructor(user: User, course: Course) {
 
 /**
  * The one Course Manager rule: an Admin, or the course's owner who still holds
- * the Instructor role. Shared by resolveAccess and checkCourseManager.
+ * the Instructor role. Shared by resolveAccess and requireCourseManager.
  */
 function isCourseManager(user: User, course: Course) {
   return user.role === UserRole.Admin || isOwningInstructor(user, course);
@@ -212,50 +207,13 @@ export async function requireContentAccess(
   return { ...access, userId };
 }
 
-type CourseManagerCheck =
-  | {
-      ok: true;
-      user: User;
-      course: NonNullable<ReturnType<typeof getCourseById>>;
-      isAdmin: boolean;
-    }
-  | { ok: false; status: 401 | 404; message: string };
-
 /**
- * Is this user the course's Course Manager: an Admin, or the course's owner
- * who still holds the Instructor role? Never throws. Signed out or unknown
- * user is 401. Anyone else who isn't its Course Manager gets 404, whether or
- * not the course exists, so its existence isn't revealed.
- */
-function checkCourseManager(
-  database: Db,
-  userId: number | null,
-  courseId: number
-): CourseManagerCheck {
-  const user = userId ? getUserById(database, userId) : undefined;
-  if (!user) {
-    return { ok: false, status: 401, message: SIGNED_OUT_MESSAGE };
-  }
-
-  const course = getCourseById(database, courseId);
-
-  if (!course || !isCourseManager(user, course)) {
-    return { ok: false, status: 404, message: "Course not found." };
-  }
-
-  return {
-    ok: true,
-    user,
-    course,
-    isAdmin: user.role === UserRole.Admin,
-  };
-}
-
-/**
- * Throws 401 or 404 (see checkCourseManager) unless the session's user is the
- * course's Course Manager. Parse the course id with parseParams first, so a
- * malformed id is a 400. Call it in every loader and every action — loader
- * guards don't protect actions.
+ * Throws unless the session's user is the course's Course Manager: an Admin,
+ * or the course's owner who still holds the Instructor role. Signed out or
+ * unknown user is 401. Anyone else gets 404, whether or not the course exists,
+ * so its existence isn't revealed. Parse the course id with parseParams first,
+ * so a malformed id is a 400. Call it in every loader and every action —
+ * loader guards don't protect actions.
  */
 export async function requireCourseManager(
   request: Request,
@@ -263,13 +221,17 @@ export async function requireCourseManager(
   database: Db = db
 ) {
   const userId = await getCurrentUserId(request);
-  const result = checkCourseManager(database, userId, courseId);
-
-  if (!result.ok) {
-    throw data(result.message, { status: result.status });
+  const user = userId ? getUserById(database, userId) : undefined;
+  if (!user) {
+    throw signedOut();
   }
 
-  return { user: result.user, course: result.course, isAdmin: result.isAdmin };
+  const course = getCourseById(database, courseId);
+  if (!course || !isCourseManager(user, course)) {
+    throw data("Course not found.", { status: 404 });
+  }
+
+  return { user, course };
 }
 
 /**

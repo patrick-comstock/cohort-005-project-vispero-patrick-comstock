@@ -215,7 +215,6 @@ export async function loader({ params, request, url }: Route.LoaderArgs) {
   const mode = url.searchParams.get("mode");
 
   // A PPP-blocked Student is still enrolled: don't send them to buy again.
-
   if (enrolled && mode !== "team") {
     throw redirect(`/courses/${slug}?already_enrolled=1`);
   }

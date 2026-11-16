@@ -641,8 +641,17 @@ describe("requireCourseManager", () => {
     expect(result).toMatchObject({
       user: { id: base.instructor.id },
       course: { id: base.course.id },
-      isAdmin: false,
     });
+  });
+
+  it("hands back only what callers read", async () => {
+    const result = await requireCourseManager(
+      await requestAs(base.instructor.id),
+      base.course.id,
+      testDb
+    );
+
+    expect(Object.keys(result).sort()).toEqual(["course", "user"]);
   });
 
   it("lets an Admin through on a course they do not own", async () => {
@@ -655,7 +664,6 @@ describe("requireCourseManager", () => {
     expect(result).toMatchObject({
       user: { id: admin.id },
       course: { id: base.course.id },
-      isAdmin: true,
     });
   });
 });
