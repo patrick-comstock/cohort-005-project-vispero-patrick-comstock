@@ -47,15 +47,15 @@ function getCouponsForTeam(teamId: number) {
   return db.select().from(coupons).where(eq(coupons.teamId, teamId)).all();
 }
 
-interface CourseStats {
+type CourseStats = {
   courseId: number;
   courseTitle: string;
   courseSlug: string;
   totalCoupons: number;
   redeemedCoupons: number;
-}
+};
 
-interface CouponRow {
+type CouponRow = {
   id: number;
   code: string;
   courseId: number;
@@ -63,7 +63,7 @@ interface CouponRow {
   redeemedByEmail: string | null;
   voided: boolean;
   createdAt: string;
-}
+};
 
 export function meta() {
   return [

@@ -192,6 +192,33 @@ describe("renderMarkdown for OpenAI", () => {
   });
 });
 
+describe("renderMarkdown for an OpenAI chat completions stream", () => {
+  const out = renderMarkdown({
+    ...BASE,
+    agent: "OpenCode",
+    renderer: "openai",
+    path: "/v1/chat/completions",
+    requestBody: body({
+      model: "gpt-4.1",
+      messages: [{ role: "user", content: "read it" }],
+    }),
+    responseRaw:
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"read_","arguments":"{\\"pa"}}]}}]}\n' +
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"file","arguments":"th\\":1}"}}]}}]}\n' +
+      'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n',
+  });
+
+  it("joins a tool call's name and arguments across events", () => {
+    expect(out).toContain(
+      '<tool-use name="read_file" id="call_1">\n\n```json\n{"path":1}\n```'
+    );
+  });
+
+  it("shows the finish reason", () => {
+    expect(out).toContain("**finish reason**: tool_calls");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // "raw" — the explicit fallback for a custom target with no known wire format
 // ---------------------------------------------------------------------------
@@ -461,6 +488,57 @@ describe("renderMarkdown for a Gemini response", () => {
     });
     expect(thought).toContain("<thinking>");
     expect(thought).toContain("pondering");
+  });
+
+  it("keeps the reply out of the thinking block", () => {
+    const thought = renderMarkdown({
+      ...BASE,
+      agent: "Gemini CLI",
+      renderer: "gemini",
+      path: "/v1beta/models/gemini-2.5-pro:streamGenerateContent",
+      requestBody: body(GEMINI_REQUEST),
+      responseRaw:
+        'data: {"candidates":[{"content":{"role":"model","parts":[{"text":"pondering","thought":true},{"text":"answer"}]}}]}\n',
+    });
+    expect(thought).toContain("<thinking>\n\npondering\n\n</thinking>");
+    expect(thought).toContain(
+      "<assistant-text>\n\nanswer\n\n</assistant-text>"
+    );
+  });
+
+  it("shows a function call the model made", () => {
+    const called = renderMarkdown({
+      ...BASE,
+      agent: "Gemini CLI",
+      renderer: "gemini",
+      path: "/v1beta/models/gemini-2.5-pro:streamGenerateContent",
+      requestBody: body(GEMINI_REQUEST),
+      responseRaw:
+        'data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"read_file","args":{"path":"one.ts"}}}]}}]}\n',
+    });
+    expect(called).toContain(
+      '<tool-use name="read_file" id="">\n\n```json\n{\n  "path": "one.ts"\n}\n```'
+    );
+  });
+});
+
+describe("renderMarkdown for Gemini built-in tools", () => {
+  it("lists a built-in tool by its key alongside declared functions", () => {
+    const out = renderMarkdown({
+      ...BASE,
+      agent: "Gemini CLI",
+      renderer: "gemini",
+      path: "/v1beta/models/gemini-2.5-pro:streamGenerateContent",
+      requestBody: body({
+        ...GEMINI_REQUEST,
+        tools: [{ googleSearch: {} }, ...GEMINI_REQUEST.tools],
+      }),
+      responseRaw: "",
+    });
+    expect(out).toContain("### googleSearch\n\n```json\n{}\n```");
+    expect(out).toContain(
+      "### list_directory\n\nList the files in a directory\n\n```json"
+    );
   });
 });
 

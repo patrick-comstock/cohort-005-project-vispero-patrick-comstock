@@ -58,12 +58,6 @@ module's tests stop covering what the page shows.
 in [app/modules/README.md](./app/modules/README.md), where it can. It cannot
 see every case, so follow them where it is silent.
 
-## Keep every file under 500 lines
-
-Count the lines before you commit. A file over 500 lines gets split, whatever
-is in it — source, test, or Markdown. Lockfiles, migrations and generated
-snapshots are the only exceptions.
-
 ## Wrap related writes in a transaction
 
 Two writes that must both land, or neither, go in a transaction. If the second
@@ -123,10 +117,6 @@ Git has it. Delete it.
 
 `"refuses a refund after the window closes"`, not `"refund test 3"`.
 
-## Use the design tokens
-
-Never a raw hex value. `text-muted-foreground`, not `#6b7280`.
-
 ## Do not put a side effect in the render path
 
 Rendering is for working out what the output is, not for doing something.
@@ -136,10 +126,6 @@ Anything that touches the outside world belongs in an effect or an action.
 
 A local time in a column is a bug waiting for somebody in another country. The
 refund window closed a day early for learners in Sydney before this.
-
-## Use `===`, never `==`
-
-`==` coerces, and the coercion table is not something anybody remembers.
 
 ## Imports are sorted: packages, then aliases, then relative
 
@@ -153,8 +139,6 @@ A query with no limit is fine on a seeded database and fatal on a real one.
 If the row count is a function of how long the product has been alive, add a
 limit. The instructor's students page timed out on the first big course.
 
-## Prefer `interface` for object shapes, `type` for unions
-
 ## Catch the narrowest thing you can
 
 A bare `catch` that swallows everything hides the bug you are about to spend
@@ -167,10 +151,6 @@ below the change is rebuilt, and anything the row was holding is lost. Use
 the row's id. (Reordering modules used to drop the half-typed lesson title.)
 
 ## Colour is never the only signal
-
-## No `console.log` left in a committed file
-
-`console.error` in a catch block is fine.
 
 ## never log a secret
 
@@ -221,10 +201,6 @@ midnight until we did this.
 
 Never edit a migration that has been applied. Write another one.
 
-## Use `const` unless you reassign
-
-If you reassign, use `let`. Never `var`.
-
 ## Escape anything a person typed before you render it as HTML
 
 ## Effects declare every value they read
@@ -235,10 +211,6 @@ out is a bug that will not show up until the value changes.
 ## Log the error, not just the message
 
 The stack is the useful part.
-
-### Component props are a `type`
-
-Write `type Props = { … }`, not `interface Props`.
 
 ## One assertion per test, where you can manage it
 
@@ -259,10 +231,6 @@ A status string that the code compares against is an enum in `app/db/schema.ts`,
 not a literal repeated in six places. Refund status was `"pending"` in four
 files and `"Pending"` in one.
 
-## No more than three parameters
-
-Past three, take an object.
-
 ## Do not remove the focus ring
 
 Restyle it if you must, but leave something visible.
@@ -281,6 +249,8 @@ Keep it private until a second caller appears.
 ## Do not write a type that the compiler can infer
 
 `const count: number = items.length` says nothing the compiler did not know.
+ESLint catches an annotation on a literal (`limit: number = 3`); the rest is
+yours to spot.
 
 ## Set `rel="noopener noreferrer"` on every external link
 
@@ -302,5 +272,3 @@ If it can be written without reading the clock, the database or the network,
 write it that way. It is the only kind of function that is pleasant to test.
 
 ## Assert an invariant rather than commenting it
-
-## Do not nest more than three levels
