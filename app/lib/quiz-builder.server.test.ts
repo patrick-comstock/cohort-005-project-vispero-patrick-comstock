@@ -73,11 +73,12 @@ function submitAnswers() {
   if (!attempt) throw new Error("The attempt was not recorded.");
 }
 
-function thrownStatus(fn: () => unknown) {
+function thrownRefusal(fn: () => unknown) {
   try {
     fn();
   } catch (error) {
-    return (error as { init?: { status?: number } }).init?.status;
+    const refusal = error as { data?: unknown; init?: { status?: number } };
+    return { status: refusal.init?.status, message: refusal.data };
   }
   return undefined;
 }
@@ -91,16 +92,16 @@ describe("requireLessonInCourse", () => {
 
   it("refuses with a 404 when the lesson does not exist", () => {
     expect(
-      thrownStatus(() => requireLessonInCourse(testDb, base.course.id, 9999))
-    ).toBe(404);
+      thrownRefusal(() => requireLessonInCourse(testDb, base.course.id, 9999))
+    ).toEqual({ status: 404, message: "Lesson not found." });
   });
 
   it("refuses with a 404 when the lesson belongs to another course", () => {
     expect(
-      thrownStatus(() =>
+      thrownRefusal(() =>
         requireLessonInCourse(testDb, base.course.id + 1, lesson.id)
       )
-    ).toBe(404);
+    ).toEqual({ status: 404, message: "Lesson not found in this course." });
   });
 });
 
