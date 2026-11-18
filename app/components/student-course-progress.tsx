@@ -8,7 +8,7 @@ import { Button } from "~/components/ui/button";
  * An enrolled Student's progress through the course and the lesson to pick up
  * from. A Student who can't view the content (PPP-blocked) sees why instead.
  */
-export function CourseProgress({
+export function StudentCourseProgress({
   slug,
   tracksProgress,
   progress,

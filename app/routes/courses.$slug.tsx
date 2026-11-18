@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import { CourseContent } from "~/components/course-content";
 import { CourseImage } from "~/components/course-image";
-import { CourseProgress } from "~/components/course-progress";
 import {
   PurchaseOptions,
   TeamPurchaseButton,
@@ -16,6 +15,7 @@ import { RateCourse } from "~/components/rate-course";
 import { RefundRequestForm } from "~/components/refund-request-form";
 import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
 import { StarRating } from "~/components/star-rating";
+import { StudentCourseProgress } from "~/components/student-course-progress";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
@@ -411,7 +411,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                 </Link>
               ) : enrolled ? (
                 <>
-                  <CourseProgress
+                  <StudentCourseProgress
                     slug={course.slug}
                     tracksProgress={tracksProgress}
                     progress={progress}
