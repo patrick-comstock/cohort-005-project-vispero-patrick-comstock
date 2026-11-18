@@ -16,7 +16,7 @@ import { z } from "zod";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
 import { db } from "~/db";
 import { categories, courses } from "~/db/schema";
 import { parseFormData } from "~/lib/validation";
@@ -483,8 +483,8 @@ export function HydrateFallback() {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <TableRowSkeleton key={i} />
+                {skeletonKeys(4).map((key) => (
+                  <TableRowSkeleton key={key} />
                 ))}
               </tbody>
             </table>

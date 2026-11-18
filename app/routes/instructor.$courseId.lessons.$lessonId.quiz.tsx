@@ -857,28 +857,41 @@ export default function QuizBuilderWizard({
 
   // ─── Step 4: Review ───
   function renderStep4() {
-    const validationErrors: string[] = [];
-    if (!wizard.title.trim()) validationErrors.push("Quiz title is required.");
+    // Each error is keyed by the field it is about, so the list can render
+    // with stable keys even when two errors share a message.
+    const validationErrors: { key: string; message: string }[] = [];
+    if (!wizard.title.trim())
+      validationErrors.push({
+        key: "title",
+        message: "Quiz title is required.",
+      });
     if (wizard.questions.length === 0)
-      validationErrors.push("At least one question is required.");
+      validationErrors.push({
+        key: "questions",
+        message: "At least one question is required.",
+      });
     for (const q of wizard.questions) {
       if (!q.text.trim())
-        validationErrors.push(
-          `Question ${wizard.questions.indexOf(q) + 1} has no text.`
-        );
+        validationErrors.push({
+          key: `${q.id}-text`,
+          message: `Question ${wizard.questions.indexOf(q) + 1} has no text.`,
+        });
       if (q.options.length < 2)
-        validationErrors.push(
-          `Question ${wizard.questions.indexOf(q) + 1} needs at least 2 options.`
-        );
+        validationErrors.push({
+          key: `${q.id}-options`,
+          message: `Question ${wizard.questions.indexOf(q) + 1} needs at least 2 options.`,
+        });
       if (!q.options.some((o) => o.isCorrect))
-        validationErrors.push(
-          `Question ${wizard.questions.indexOf(q) + 1} has no correct answer.`
-        );
+        validationErrors.push({
+          key: `${q.id}-correct`,
+          message: `Question ${wizard.questions.indexOf(q) + 1} has no correct answer.`,
+        });
       for (const opt of q.options) {
         if (!opt.text.trim())
-          validationErrors.push(
-            `Question ${wizard.questions.indexOf(q) + 1} has an empty option.`
-          );
+          validationErrors.push({
+            key: `${opt.id}-text`,
+            message: `Question ${wizard.questions.indexOf(q) + 1} has an empty option.`,
+          });
       }
     }
 
@@ -959,8 +972,8 @@ export default function QuizBuilderWizard({
                   Please fix these issues before saving:
                 </p>
                 <ul className="list-inside list-disc space-y-1 text-sm text-destructive">
-                  {validationErrors.map((err, i) => (
-                    <li key={i}>{err}</li>
+                  {validationErrors.map((error) => (
+                    <li key={error.key}>{error.message}</li>
                   ))}
                 </ul>
               </div>

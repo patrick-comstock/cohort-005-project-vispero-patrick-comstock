@@ -15,7 +15,7 @@ import { z } from "zod";
 
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
 import { UserAvatar } from "~/components/user-avatar";
 import { db } from "~/db";
 import { courses, LessonProgressStatus, users } from "~/db/schema";
@@ -105,8 +105,8 @@ export function HydrateFallback() {
         </CardContent>
       </Card>
       <div className="space-y-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full" />
+        {skeletonKeys(5).map((key) => (
+          <Skeleton key={key} className="h-12 w-full" />
         ))}
       </div>
     </div>

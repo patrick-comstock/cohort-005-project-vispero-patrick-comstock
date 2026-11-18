@@ -195,12 +195,6 @@ limit. The instructor's students page timed out on the first big course.
 A bare `catch` that swallows everything hides the bug you are about to spend
 a day on.
 
-## Every item in a list gets a stable key
-
-The index of an item is not a key. When the list is reordered, every row
-below the change is rebuilt, and anything the row was holding is lost. Use
-the row's id. (Reordering modules used to drop the half-typed lesson title.)
-
 ## Trailing commas in multi-line literals
 
 The diff is smaller when the next line is added.
@@ -301,8 +295,6 @@ Never edit a migration that has been applied. Write another one.
 
 If you reassign, use `let`. Never `var`.
 
-## Escape anything a person typed before you render it as HTML
-
 ## A commit message says why
 
 The diff already says what.
@@ -385,8 +377,6 @@ Keep it private until a second caller appears.
 ## Do not write a type that the compiler can infer
 
 `const count: number = items.length` says nothing the compiler did not know.
-
-## Set `rel="noopener noreferrer"` on every external link
 
 ## Do not use a default parameter to hide a required one
 

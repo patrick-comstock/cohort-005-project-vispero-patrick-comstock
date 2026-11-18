@@ -21,7 +21,7 @@ import { RefundRequestStatusBadge } from "~/components/refund-request-status-bad
 import { StarRating, StarRatingInput } from "~/components/star-rating";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
 import {
   Tabs,
   TabsContent,
@@ -314,16 +314,16 @@ export function HydrateFallback() {
       </div>
       <Skeleton className="mb-4 h-8 w-40" />
       <div className="space-y-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i}>
+        {skeletonKeys(3).map((key) => (
+          <Card key={key}>
             <CardHeader>
               <Skeleton className="h-5 w-48" />
               <Skeleton className="h-4 w-20" />
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {Array.from({ length: 4 }).map((_, j) => (
-                  <Skeleton key={j} className="h-8 w-full" />
+                {skeletonKeys(4).map((key) => (
+                  <Skeleton key={key} className="h-8 w-full" />
                 ))}
               </div>
             </CardContent>
@@ -543,6 +543,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
         <div className="lg:col-span-2">
           <div
             className="prose prose-neutral dark:prose-invert max-w-none"
+            // eslint-disable-next-line react/no-danger -- sales copy is Instructor-written markdown, trusted by design (app/lib/markdown.server.ts)
             dangerouslySetInnerHTML={{ __html: salesCopyHtml }}
           />
 

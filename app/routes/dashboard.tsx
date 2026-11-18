@@ -17,7 +17,7 @@ import {
   CardFooter,
   CardHeader,
 } from "~/components/ui/card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
 import { db } from "~/db";
 import {
   courses,
@@ -169,8 +169,8 @@ export function HydrateFallback() {
       </div>
       <Skeleton className="mb-4 h-6 w-32" />
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <DashboardCardSkeleton key={i} />
+        {skeletonKeys(3).map((key) => (
+          <DashboardCardSkeleton key={key} />
         ))}
       </div>
     </div>

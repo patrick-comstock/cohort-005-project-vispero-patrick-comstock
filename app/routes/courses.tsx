@@ -17,7 +17,7 @@ import {
   CardFooter,
   CardHeader,
 } from "~/components/ui/card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
 import { UserAvatar } from "~/components/user-avatar";
 import { db } from "~/db";
 import {
@@ -269,8 +269,8 @@ export function HydrateFallback() {
         <Skeleton className="h-10 w-20" />
       </div>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <CourseCardSkeleton key={i} />
+        {skeletonKeys(6).map((key) => (
+          <CourseCardSkeleton key={key} />
         ))}
       </div>
     </div>
@@ -324,8 +324,8 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
       {/* Course Grid */}
       {isSearching ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <CourseCardSkeleton key={i} />
+          {skeletonKeys(6).map((key) => (
+            <CourseCardSkeleton key={key} />
           ))}
         </div>
       ) : courses.length === 0 ? (

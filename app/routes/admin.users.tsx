@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
 import { db } from "~/db";
 import { UserRole, users } from "~/db/schema";
 import { getUserById } from "~/lib/courses.server";
@@ -365,8 +365,8 @@ export function HydrateFallback() {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <TableRowSkeleton key={i} />
+                {skeletonKeys(8).map((key) => (
+                  <TableRowSkeleton key={key} />
                 ))}
               </tbody>
             </table>

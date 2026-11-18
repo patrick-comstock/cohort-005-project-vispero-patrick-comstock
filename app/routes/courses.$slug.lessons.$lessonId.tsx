@@ -902,6 +902,7 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
           {lessonBody?.contentHtml && (
             <div
               className="prose prose-neutral dark:prose-invert mb-8 max-w-none"
+              // eslint-disable-next-line react/no-danger -- lesson content is Instructor-written markdown, trusted by design (app/lib/markdown.server.ts)
               dangerouslySetInnerHTML={{ __html: lessonBody.contentHtml }}
             />
           )}

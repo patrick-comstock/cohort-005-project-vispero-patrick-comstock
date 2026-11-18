@@ -278,6 +278,7 @@ function CommentItem({
           ) : (
             <div
               className="prose prose-sm prose-neutral dark:prose-invert mt-1 max-w-none"
+              // eslint-disable-next-line react/no-danger -- bodyHtml comes from renderComment, which escapes the author's HTML (app/lib/comment-markdown.server.ts)
               dangerouslySetInnerHTML={{ __html: comment.bodyHtml }}
             />
           )}

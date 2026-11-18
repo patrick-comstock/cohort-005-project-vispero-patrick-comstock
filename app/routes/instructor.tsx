@@ -17,7 +17,7 @@ import {
   CardFooter,
   CardHeader,
 } from "~/components/ui/card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
 import { db } from "~/db";
 import { CourseStatus } from "~/db/schema";
 import { courses, enrollments } from "~/db/schema";
@@ -113,8 +113,8 @@ export function HydrateFallback() {
         <Skeleton className="h-10 w-32" />
       </div>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i} className="flex flex-col">
+        {skeletonKeys(3).map((key) => (
+          <Card key={key} className="flex flex-col">
             <Skeleton className="aspect-video rounded-b-none rounded-t-lg" />
             <CardHeader>
               <Skeleton className="h-5 w-3/4" />

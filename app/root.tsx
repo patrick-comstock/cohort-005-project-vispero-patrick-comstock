@@ -44,6 +44,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* eslint-disable-next-line react/no-danger -- a constant script, set before paint to avoid a theme flash */}
         <script dangerouslySetInnerHTML={{ __html: darkModeScript }} />
         <Meta />
         <Links />

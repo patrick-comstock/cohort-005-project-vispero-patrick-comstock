@@ -1,6 +1,7 @@
 // Lint only the mechanical rules in CODING_STANDARDS.md. Judgement calls stay
 // with the reviewer; whole recommended presets are deliberately not enabled.
 import jsxA11y from "eslint-plugin-jsx-a11y";
+import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
@@ -81,6 +82,21 @@ export default tseslint.config(
     plugins: { "react-hooks": reactHooks },
     rules: {
       "react-hooks/exhaustive-deps": "error",
+    },
+  },
+  // eslint-plugin-react, three rules only: "Every item in a list gets a stable
+  // key", "Set rel=noopener noreferrer on every external link" and "Escape
+  // anything a person typed before you render it as HTML". Each
+  // dangerouslySetInnerHTML carries a disable saying why its HTML is safe.
+  // For loading placeholders, use skeletonKeys from ~/components/ui/skeleton.
+  {
+    files: ["app/**/*.tsx"],
+    plugins: { react },
+    settings: { react: { version: "detect" } },
+    rules: {
+      "react/no-array-index-key": "error",
+      "react/jsx-no-target-blank": "error",
+      "react/no-danger": "error",
     },
   },
   // "Imports are sorted: packages, then aliases, then relative". The plugin's
