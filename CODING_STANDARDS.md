@@ -282,10 +282,6 @@ A function that calls `Date.now()` cannot be tested at a fixed moment. Take
 the time as an argument. The refund window tests failed every night at
 midnight until we did this.
 
-## Migrations are forward-only
-
-Never edit a migration that has been applied. Write another one.
-
 ## Use `const` unless you reassign
 
 If you reassign, use `let`. Never `var`.

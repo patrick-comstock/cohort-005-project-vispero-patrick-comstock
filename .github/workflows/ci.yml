@@ -16,3 +16,24 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+
+  # "Migrations are forward-only": a pull request may add files under drizzle/
+  # but never modify or delete one that is already on the base branch. The
+  # journal is excluded because drizzle-kit appends to it for every migration.
+  migrations-forward-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fail if an existing migration was modified or deleted
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          changed=$(git diff --name-only --diff-filter=MD "origin/$BASE_REF...HEAD" -- drizzle/ ':(exclude)drizzle/meta/_journal.json')
+          if [ -n "$changed" ]; then
+            echo "::error::Migrations are forward-only. Write a new migration instead of changing these:"
+            echo "$changed"
+            exit 1
+          fi
