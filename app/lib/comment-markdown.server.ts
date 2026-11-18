@@ -32,8 +32,6 @@ const COMMENT_LANGS = [
   "sql",
   "yaml",
   "markdown",
-  "text",
-  "plaintext",
 ];
 
 let highlighter: Highlighter | null = null;
@@ -62,9 +60,7 @@ function escapeHtml(value: string): string {
  * javascript:, data:, vbscript:, or an unparseable URL — returns null so the
  * link is downgraded to plain text.
  */
-function safeHref(href: string | null): string | null {
-  if (!href) return null;
-
+function safeHref(href: string): string | null {
   const trimmed = href.trim();
 
   try {
@@ -111,7 +107,7 @@ export async function renderComment(markdown: string): Promise<string> {
   };
 
   // No images in comments — avoids tracking pixels and layout-breaking uploads.
-  renderer.image = ({ text }) => escapeHtml(text ?? "");
+  renderer.image = ({ text }) => escapeHtml(text);
 
   return marked.parse(markdown, { renderer, async: false }) as string;
 }

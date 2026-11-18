@@ -17,18 +17,51 @@ describe("renderComment", () => {
       expect(html).toContain("<li>one</li>");
     });
 
-    it("highlights fenced code with shiki", async () => {
+    it("colours the keywords of a supported language", async () => {
       const html = await renderComment("```typescript\nconst a = 1;\n```");
 
-      expect(html).toContain("shiki");
-      expect(html).toContain("const");
+      expect(html).toMatch(/<span style="color:[^"]+">const<\/span>/);
     });
 
-    it("falls back to a plain block for unknown languages", async () => {
+    it.each([
+      ["javascript", "const a = 1;"],
+      ["typescript", "const a: number = 1;"],
+      ["tsx", "const a = <b>x</b>;"],
+      ["jsx", "const a = <b>x</b>;"],
+      ["json", '{"a": 1}'],
+      ["bash", "echo hi"],
+      ["html", "<b>x</b>"],
+      ["css", "a { color: red; }"],
+      ["sql", "SELECT 1;"],
+      ["yaml", "a: 1"],
+      ["markdown", "# Title"],
+    ])(
+      "highlights %s rather than showing it as plain text",
+      async (lang, code) => {
+        const html = await renderComment(`\`\`\`${lang}\n${code}\n\`\`\``);
+
+        expect(html).not.toBe(
+          await renderComment(`\`\`\`text\n${code}\n\`\`\``)
+        );
+      }
+    );
+
+    it("shows plain text in the same dark code block as highlighted code", async () => {
+      const html = await renderComment("```text\n+++\n```");
+
+      expect(html).toContain('<pre class="shiki github-dark"');
+    });
+
+    it("renders an unsupported language as plain text", async () => {
       const html = await renderComment("```brainfuck\n+++\n```");
 
-      expect(html).toContain("<pre");
-      expect(html).toContain("+++");
+      expect(html).toBe(await renderComment("```text\n+++\n```"));
+    });
+
+    it("renders a fence with no language as plain text", async () => {
+      const html = await renderComment("```\n+++\n```");
+
+      expect(html).toBe(await renderComment("```text\n+++\n```"));
     });
 
     it("escapes markup inside code blocks", async () => {
@@ -76,6 +109,14 @@ describe("renderComment", () => {
       expect(html).toContain("&lt;b onclick");
     });
 
+    it("escapes ampersands and both kinds of quote", async () => {
+      const html = await renderComment(`<div title="Tom & 'Jerry'">`);
+
+      expect(html).toContain(
+        "&lt;div title=&quot;Tom &amp; &#39;Jerry&#39;&quot;&gt;"
+      );
+    });
+
     it("escapes a style tag", async () => {
       const html = await renderComment("<style>body{display:none}</style>");
 
@@ -90,6 +131,42 @@ describe("renderComment", () => {
       expect(html).toContain('href="https://example.test/a"');
       expect(html).toContain('rel="nofollow noopener noreferrer"');
       expect(html).toContain('target="_blank"');
+    });
+
+    it("keeps plain http links", async () => {
+      const html = await renderComment("[docs](http://example.test/a)");
+
+      expect(html).toContain('href="http://example.test/a"');
+    });
+
+    it("keeps mailto links", async () => {
+      const html = await renderComment("[mail me](mailto:a@example.test)");
+
+      expect(html).toContain('href="mailto:a@example.test"');
+    });
+
+    it("renders a link with no title as a bare anchor", async () => {
+      const html = await renderComment("[docs](https://example.test/a)");
+
+      expect(html).toContain(
+        '<a href="https://example.test/a" rel="nofollow noopener noreferrer" target="_blank">docs</a>'
+      );
+    });
+
+    it("keeps a link title, escaped", async () => {
+      const html = await renderComment(
+        `[docs](https://example.test/a 'say "hi" & bye')`
+      );
+
+      expect(html).toContain(
+        '<a href="https://example.test/a" title="say &quot;hi&quot; &amp; bye" rel="nofollow noopener noreferrer" target="_blank">docs</a>'
+      );
+    });
+
+    it("keeps a relative link written with spaces inside angle brackets", async () => {
+      const html = await renderComment("[lesson](< /courses/x/lessons/1 >)");
+
+      expect(html).toContain('href="/courses/x/lessons/1"');
     });
 
     it("keeps relative links", async () => {
