@@ -322,7 +322,7 @@ function computeResult(
       .all();
 
     let correct = 0;
-    let total = questions.length;
+    const total = questions.length;
     const questionResults: Array<{
       questionId: number;
       correct: boolean;

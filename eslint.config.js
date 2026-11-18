@@ -69,6 +69,9 @@ export default tseslint.config(
     rules: {
       // "Use `===`, never `==`"
       eqeqeq: ["error", "always"],
+      // "Use `const` unless you reassign"
+      "prefer-const": "error",
+      "no-var": "error",
     },
   }
 );

@@ -308,10 +308,6 @@ midnight until we did this.
 
 Never edit a migration that has been applied. Write another one.
 
-## Use `const` unless you reassign
-
-If you reassign, use `let`. Never `var`.
-
 ## Escape anything a person typed before you render it as HTML
 
 ## Effects declare every value they read
