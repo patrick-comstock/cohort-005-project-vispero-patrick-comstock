@@ -18,6 +18,7 @@ import { createHighlighter, type Highlighter } from "shiki";
 // needs the same scrutiny.
 
 const SAFE_LINK_PROTOCOLS = ["http:", "https:", "mailto:"];
+const RELATIVE_LINK_BASE = "https://relative-link.invalid";
 
 const COMMENT_LANGS = [
   "typescript",
@@ -66,12 +67,15 @@ function safeHref(href: string | null): string | null {
 
   const trimmed = href.trim();
 
-  // Relative links stay on our own origin, so they're safe.
-  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
-    return trimmed;
-  }
-
   try {
+    // Resolve the way a browser would: `/\evil.test` and `/<TAB>/evil.test`
+    // look relative but leave the site once `\` and tabs are normalised.
+    if (trimmed.startsWith("/")) {
+      const url = new URL(trimmed, RELATIVE_LINK_BASE);
+      if (url.origin !== RELATIVE_LINK_BASE) return null;
+      return url.pathname + url.search + url.hash;
+    }
+
     const url = new URL(trimmed);
     return SAFE_LINK_PROTOCOLS.includes(url.protocol) ? url.href : null;
   } catch {
