@@ -62,6 +62,68 @@ export default tseslint.config(
       ],
     },
   },
+  // CODING_STANDARDS: zero-violation core rules. Each comment names the
+  // CODING_STANDARDS.md section the rule replaced. These use
+  // no-restricted-exports / no-restricted-properties rather than
+  // no-restricted-syntax because a later config object replaces a rule's
+  // options instead of merging them, which would drop the selectors above.
+  {
+    files: [
+      "app/**/*.{ts,tsx}",
+      "scripts/**/*.{ts,tsx}",
+      "request-logger/**/*.{ts,tsx}",
+    ],
+    rules: {
+      // "Throw `Error`, never a string"
+      "no-throw-literal": "error",
+      // "Do not catch an error only to re-throw it unchanged"
+      "no-useless-catch": "error",
+      // "Prefer arrow functions for callbacks"
+      "prefer-arrow-callback": "error",
+      // "Return early rather than nesting" (the `else` after a `return`)
+      "no-else-return": ["error", { allowElseIf: false }],
+      // "Default exports only for route modules" (route modules exempted below;
+      // root config files such as vite.config.ts are outside the lint scope)
+      "no-restricted-exports": [
+        "error",
+        {
+          restrictDefaultExports: {
+            direct: true,
+            named: true,
+            defaultFrom: true,
+            namedFrom: true,
+            namespaceFrom: true,
+          },
+        },
+      ],
+      "no-restricted-properties": [
+        "error",
+        // "Do not commit a skipped test"
+        ...["describe", "it", "test"].flatMap((object) =>
+          ["skip", "only", "todo"].map((property) => ({
+            object,
+            property,
+            message:
+              "Do not commit a skipped, focused or placeholder test: fix it or delete it. Use skipIf only for a platform the test cannot run on.",
+          }))
+        ),
+        // "Never build a query by joining strings"
+        {
+          object: "sql",
+          property: "raw",
+          message:
+            "sql.raw splices a string into the query. Use the sql`...` template, which parameterises every interpolated value.",
+        },
+      ],
+    },
+  },
+  {
+    // React Router loads a route module's component from its default export.
+    files: ["app/routes/**/*.{ts,tsx}", "app/root.tsx", "app/routes.ts"],
+    rules: {
+      "no-restricted-exports": "off",
+    },
+  },
   // Accessibility: "Every image has alt text", "Every input has a label",
   // "Do not set a positive tabIndex", "Use semantic elements".
   {
