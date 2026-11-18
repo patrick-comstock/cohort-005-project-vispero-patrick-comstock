@@ -67,6 +67,17 @@ export default tseslint.config(
           message:
             "Use a design token (e.g. text-muted-foreground), not a raw hex colour.",
         })),
+        // "Never build a query by joining strings". sql.raw splices its
+        // argument into the query unescaped, so it may only take one fixed
+        // string: a string literal or a template with no ${}. Anything else
+        // (a variable, a concatenation, an interpolated template, no argument)
+        // is reported.
+        {
+          selector:
+            'CallExpression[callee.object.name="sql"][callee.property.name="raw"]:not([arguments.length=1][arguments.0.value=type(string)]):not([arguments.length=1][arguments.0.type="TemplateLiteral"][arguments.0.expressions.length=0])',
+          message:
+            "sql.raw only takes a fixed string. Pass dynamic values through the sql`...` template so they are parameterised.",
+        },
       ],
     },
   },
@@ -75,6 +86,7 @@ export default tseslint.config(
   // no-restricted-exports / no-restricted-properties rather than
   // no-restricted-syntax because a later config object replaces a rule's
   // options instead of merging them, which would drop the selectors above.
+  // A new selector rule (such as the sql.raw check) goes in that array.
   {
     files: [
       "app/**/*.{ts,tsx}",
@@ -115,13 +127,6 @@ export default tseslint.config(
               "Do not commit a skipped, focused or placeholder test: fix it or delete it. Use skipIf only for a platform the test cannot run on.",
           }))
         ),
-        // "Never build a query by joining strings"
-        {
-          object: "sql",
-          property: "raw",
-          message:
-            "sql.raw splices a string into the query. Use the sql`...` template, which parameterises every interpolated value.",
-        },
       ],
     },
   },
