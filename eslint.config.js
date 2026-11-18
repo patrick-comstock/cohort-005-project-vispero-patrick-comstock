@@ -77,6 +77,8 @@ export default tseslint.config(
       // "Prefer `interface` for object shapes, `type` for unions" and
       // "Component props are a `type`": one way to write a shape, `type`.
       "@typescript-eslint/consistent-type-definitions": ["error", "type"],
+      // "Do not nest more than three levels"
+      "max-depth": ["error", 3],
     },
   },
   // CODING_STANDARDS: no console.log in the app. scripts/ and request-logger/

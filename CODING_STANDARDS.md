@@ -413,6 +413,4 @@ write it that way. It is the only kind of function that is pleasant to test.
 
 ## Assert an invariant rather than commenting it
 
-## Do not nest more than three levels
-
 ## Run the checks before you push

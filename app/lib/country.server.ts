@@ -21,16 +21,14 @@ export async function resolveCountry(request: Request): Promise<string | null> {
   // 3. ip-api.com fallback
   try {
     const ip = request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim();
-    if (ip) {
-      const response = await fetch(
-        `http://ip-api.com/json/${ip}?fields=countryCode`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        if (data.countryCode && typeof data.countryCode === "string") {
-          return data.countryCode.toUpperCase();
-        }
-      }
+    if (!ip) return null;
+    const response = await fetch(
+      `http://ip-api.com/json/${ip}?fields=countryCode`
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data.countryCode && typeof data.countryCode === "string") {
+      return data.countryCode.toUpperCase();
     }
   } catch {
     // Silently fail — default to null (treated as Tier 1)

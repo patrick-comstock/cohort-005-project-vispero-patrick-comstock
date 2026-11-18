@@ -613,12 +613,7 @@ function renderGeminiTools(tools: unknown[]): string {
     const tool = wire(t ?? {});
     if (Array.isArray(tool.functionDeclarations)) {
       for (const f of tool.functionDeclarations) {
-        const fn = wire(f);
-        const lines = [`### ${fn.name ?? "(unnamed tool)"}`, ""];
-        if (fn.description) lines.push(String(fn.description), "");
-        const schema = fn.parametersJsonSchema ?? fn.parameters;
-        if (schema) lines.push(fenceJson(schema));
-        rendered.push(lines.join("\n"));
+        rendered.push(renderGeminiFunctionDeclaration(f));
       }
       continue;
     }
@@ -628,6 +623,15 @@ function renderGeminiTools(tools: unknown[]): string {
     }
   }
   return ["<tools>", "", rendered.join("\n\n"), "", "</tools>"].join("\n");
+}
+
+function renderGeminiFunctionDeclaration(declaration: unknown): string {
+  const fn = wire(declaration);
+  const lines = [`### ${fn.name ?? "(unnamed tool)"}`, ""];
+  if (fn.description) lines.push(String(fn.description), "");
+  const schema = fn.parametersJsonSchema ?? fn.parameters;
+  if (schema) lines.push(fenceJson(schema));
+  return lines.join("\n");
 }
 
 function renderGeminiContent(msg: unknown): string {
@@ -693,19 +697,18 @@ function renderGeminiResponse(raw: string): string {
       (isNullish(candidates) ? undefined : wire(candidates)[0]) ?? {}
     );
     const parts = wire(candidate.content ?? {}).parts;
-    if (Array.isArray(parts)) {
-      for (const p of parts) {
-        const part = wire(p ?? {});
-        if (typeof part.text === "string") {
-          if (part.thought) thinking += part.text;
-          else text += part.text;
-        } else if (part.functionCall) {
-          const call = wire(part.functionCall);
-          toolCalls.push({
-            name: String(call.name ?? ""),
-            args: call.args ?? {},
-          });
-        }
+    for (const p of Array.isArray(parts) ? parts : []) {
+      const part = wire(p ?? {});
+      if (typeof part.text === "string" && part.thought) {
+        thinking += part.text;
+      } else if (typeof part.text === "string") {
+        text += part.text;
+      } else if (part.functionCall) {
+        const call = wire(part.functionCall);
+        toolCalls.push({
+          name: String(call.name ?? ""),
+          args: call.args ?? {},
+        });
       }
     }
     if (candidate.finishReason) finish = candidate.finishReason;
@@ -934,17 +937,18 @@ function renderOpenAIChatStream(events: unknown[]): string {
     );
     const delta = wire(choice.delta ?? {});
     if (typeof delta.content === "string") text += delta.content;
-    if (Array.isArray(delta.tool_calls)) {
-      for (const t of delta.tool_calls) {
-        const tc = wire(t);
-        // Same key the object would coerce the raw index to.
-        const idx = String(tc.index ?? 0);
-        toolCalls[idx] ??= { name: "", args: "", id: tc.id };
-        if (tc.id) toolCalls[idx].id = tc.id;
-        const fn = wire(tc.function ?? {});
-        if (fn.name) toolCalls[idx].name += String(fn.name);
-        if (fn.arguments) toolCalls[idx].args += String(fn.arguments);
-      }
+    const toolCallDeltas = Array.isArray(delta.tool_calls)
+      ? delta.tool_calls
+      : [];
+    for (const t of toolCallDeltas) {
+      const tc = wire(t);
+      // Same key the object would coerce the raw index to.
+      const idx = String(tc.index ?? 0);
+      toolCalls[idx] ??= { name: "", args: "", id: tc.id };
+      if (tc.id) toolCalls[idx].id = tc.id;
+      const fn = wire(tc.function ?? {});
+      if (fn.name) toolCalls[idx].name += String(fn.name);
+      if (fn.arguments) toolCalls[idx].args += String(fn.arguments);
     }
     if (choice.finish_reason) finish = choice.finish_reason;
     if (ev.usage) usage = ev.usage;
