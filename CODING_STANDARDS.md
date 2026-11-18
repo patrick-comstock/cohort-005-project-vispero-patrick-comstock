@@ -194,8 +194,6 @@ A query with no limit is fine on a seeded database and fatal on a real one.
 If the row count is a function of how long the product has been alive, add a
 limit. The instructor's students page timed out on the first big course.
 
-## Prefer `interface` for object shapes, `type` for unions
-
 ## Catch the narrowest thing you can
 
 A bare `catch` that swallows everything hides the bug you are about to spend
@@ -324,10 +322,6 @@ Everything else is a named export.
 The stack is the useful part.
 
 ## Lazy-load anything below the fold
-
-### Component props are a `type`
-
-Write `type Props = { … }`, not `interface Props`.
 
 ## One assertion per test, where you can manage it
 

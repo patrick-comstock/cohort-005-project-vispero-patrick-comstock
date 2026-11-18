@@ -35,13 +35,13 @@ import {
 } from "./agents";
 import { discoverModelIds } from "./model-discovery";
 
-export interface WizardAnswer {
+export type WizardAnswer = {
   choice: AgentChoice;
   /** True only when the choice is to be kept. */
   remember: boolean;
-}
+};
 
-export interface AskOptions {
+export type AskOptions = {
   /**
    * Whether to ask if the answer should be kept.
    *
@@ -50,7 +50,7 @@ export interface AskOptions {
    * only make them say yes twice.
    */
   offerToRemember: boolean;
-}
+};
 
 export function loadChoice(file: string): AgentChoice | null {
   try {

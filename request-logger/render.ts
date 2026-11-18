@@ -18,7 +18,7 @@
 import zlib from "node:zlib";
 import type { RendererId } from "./agents";
 
-interface RenderInput {
+type RenderInput = {
   /** Human label for the capture, e.g. "Claude Code" or "Pi (ChatGPT)". */
   agent: string;
   renderer: RendererId;
@@ -32,7 +32,7 @@ interface RenderInput {
   /** The request's content-encoding header, if it had one. */
   requestEncoding?: string;
   responseRaw: string;
-}
+};
 
 const REDACT = new Set([
   "authorization",

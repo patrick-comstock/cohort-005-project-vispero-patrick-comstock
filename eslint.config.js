@@ -74,6 +74,9 @@ export default tseslint.config(
       "no-var": "error",
       // "Do not write a type that the compiler can infer" (literal cases only)
       "@typescript-eslint/no-inferrable-types": "error",
+      // "Prefer `interface` for object shapes, `type` for unions" and
+      // "Component props are a `type`": one way to write a shape, `type`.
+      "@typescript-eslint/consistent-type-definitions": ["error", "type"],
     },
   },
   // CODING_STANDARDS: no console.log in the app. scripts/ and request-logger/
