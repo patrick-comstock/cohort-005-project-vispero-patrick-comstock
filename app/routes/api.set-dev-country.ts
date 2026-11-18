@@ -1,8 +1,10 @@
 import { redirect } from "react-router";
 import { z } from "zod";
-import type { Route } from "./+types/api.set-dev-country";
+
 import { setDevCountry } from "~/lib/session";
 import { parseFormData } from "~/lib/validation";
+
+import type { Route } from "./+types/api.set-dev-country";
 
 const setDevCountrySchema = z.object({
   country: z

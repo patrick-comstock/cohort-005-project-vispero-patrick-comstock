@@ -1,4 +1,5 @@
 import { and, desc, eq, sql } from "drizzle-orm";
+
 import type { Db } from "~/db";
 import {
   coupons,
@@ -11,11 +12,11 @@ import {
   UserRole,
   users,
 } from "~/db/schema";
+import { notifyUser } from "~/lib/notifications.server";
 import {
   getWatchTimeAndCompletion,
   isTeamPurchase,
 } from "~/lib/refund-eligibility.server";
-import { notifyUser } from "~/lib/notifications.server";
 import { formatPrice } from "~/lib/utils";
 
 type RefundRequest = typeof refundRequests.$inferSelect;

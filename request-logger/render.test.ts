@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
 import zlib from "node:zlib";
+
+import { describe, expect, it } from "vitest";
+
 import { decodeRequestBody, renderMarkdown } from "./render";
 
 const BASE = {

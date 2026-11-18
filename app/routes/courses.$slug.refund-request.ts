@@ -1,21 +1,23 @@
+import { eq } from "drizzle-orm";
 import { data, redirect } from "react-router";
 import { z } from "zod";
-import type { Route } from "./+types/courses.$slug.refund-request";
-import { getCurrentUserId } from "~/lib/session";
+
 import { db } from "~/db";
-import { getCourseBySlug } from "~/lib/courses.server";
 import { users } from "~/db/schema";
-import { eq } from "drizzle-orm";
-import { parseFormData, parseParams } from "~/lib/validation";
+import { getCourseBySlug } from "~/lib/courses.server";
 import { makeStudentRefundRequest } from "~/lib/refund-eligibility.server";
-import {
-  buildRefundRequestEmail,
-  logEmail,
-} from "~/lib/refund-request-emails.server";
 import {
   refundRequestSchema,
   refusalStatus,
 } from "~/lib/refund-request-action.server";
+import {
+  buildRefundRequestEmail,
+  logEmail,
+} from "~/lib/refund-request-emails.server";
+import { getCurrentUserId } from "~/lib/session";
+import { parseFormData, parseParams } from "~/lib/validation";
+
+import type { Route } from "./+types/courses.$slug.refund-request";
 
 const refundRequestParamsSchema = z.object({
   slug: z.string().min(1),

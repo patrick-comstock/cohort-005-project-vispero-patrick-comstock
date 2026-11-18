@@ -1,9 +1,10 @@
+import { ChevronDown, ChevronUp, Globe } from "lucide-react";
 import { useState } from "react";
 import { Form, useLocation } from "react-router";
+
 import { Button } from "~/components/ui/button";
-import { cn } from "~/lib/utils";
 import type { UserRole } from "~/db/schema";
-import { ChevronDown, ChevronUp, Globe } from "lucide-react";
+import { cn } from "~/lib/utils";
 
 type DevUser = {
   id: number;

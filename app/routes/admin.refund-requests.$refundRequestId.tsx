@@ -1,28 +1,30 @@
+import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, data, isRouteErrorResponse, useFetcher } from "react-router";
+import { data, isRouteErrorResponse, Link, useFetcher } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Route } from "./+types/admin.refund-requests.$refundRequestId";
-import { requireAdmin } from "~/modules/access/index.server";
-import {
-  getRefundRequestDetail,
-  resolveRefundRequest,
-  type ResolveErrorCode,
-} from "~/lib/refund-request-resolve.server";
-import {
-  buildRefundRequestResolvedEmail,
-  logEmail,
-} from "~/lib/refund-request-emails.server";
-import { parseFormData, parseParams } from "~/lib/validation";
-import { db } from "~/db";
-import { RefundRequestStatus } from "~/db/schema";
+
+import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
-import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
+import { db } from "~/db";
+import { RefundRequestStatus } from "~/db/schema";
+import {
+  buildRefundRequestResolvedEmail,
+  logEmail,
+} from "~/lib/refund-request-emails.server";
+import {
+  getRefundRequestDetail,
+  type ResolveErrorCode,
+  resolveRefundRequest,
+} from "~/lib/refund-request-resolve.server";
 import { formatPrice } from "~/lib/utils";
-import { AlertTriangle } from "lucide-react";
+import { parseFormData, parseParams } from "~/lib/validation";
+import { requireAdmin } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/admin.refund-requests.$refundRequestId";
 
 const paramsSchema = z.object({
   refundRequestId: z.coerce.number().int(),

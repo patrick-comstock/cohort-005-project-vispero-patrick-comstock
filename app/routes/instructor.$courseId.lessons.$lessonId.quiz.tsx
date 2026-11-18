@@ -1,33 +1,12 @@
-import { useState } from "react";
-import { Link, useFetcher, useNavigate } from "react-router";
-import { toast } from "sonner";
-import type { Route } from "./+types/instructor.$courseId.lessons.$lessonId.quiz";
-import { requireCourseManager } from "~/modules/access/index.server";
 import {
-  QuestionType,
-  modules,
-  lessons,
-  quizzes,
-  quizQuestions,
-  quizOptions,
-  quizAttempts,
-  quizAnswers,
-} from "~/db/schema";
-import { db } from "~/db";
-import { getQuizByLessonId } from "~/lib/courses.server";
+  DragDropContext,
+  Draggable,
+  Droppable,
+  type DropResult,
+} from "@hello-pangea/dnd";
 import { eq, sql } from "drizzle-orm";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
-import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -38,17 +17,40 @@ import {
   Save,
   Trash2,
   XCircle,
-  AlertTriangle,
 } from "lucide-react";
-import {
-  DragDropContext,
-  Droppable,
-  Draggable,
-  type DropResult,
-} from "@hello-pangea/dnd";
+import { useState } from "react";
+import { Link, useFetcher, useNavigate } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
+import { toast } from "sonner";
 import { z } from "zod";
+
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
+import { db } from "~/db";
+import {
+  lessons,
+  modules,
+  QuestionType,
+  quizAnswers,
+  quizAttempts,
+  quizOptions,
+  quizQuestions,
+  quizzes,
+} from "~/db/schema";
+import { getQuizByLessonId } from "~/lib/courses.server";
 import { parseFormData, parseParams } from "~/lib/validation";
+import { requireCourseManager } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/instructor.$courseId.lessons.$lessonId.quiz";
 
 const quizParamsSchema = z.object({
   courseId: z.coerce.number().int(),
@@ -855,28 +857,41 @@ export default function QuizBuilderWizard({
 
   // ─── Step 4: Review ───
   function renderStep4() {
-    const validationErrors: string[] = [];
-    if (!wizard.title.trim()) validationErrors.push("Quiz title is required.");
+    // Each error is keyed by the field it is about, so the list can render
+    // with stable keys even when two errors share a message.
+    const validationErrors: { key: string; message: string }[] = [];
+    if (!wizard.title.trim())
+      validationErrors.push({
+        key: "title",
+        message: "Quiz title is required.",
+      });
     if (wizard.questions.length === 0)
-      validationErrors.push("At least one question is required.");
+      validationErrors.push({
+        key: "questions",
+        message: "At least one question is required.",
+      });
     for (const q of wizard.questions) {
       if (!q.text.trim())
-        validationErrors.push(
-          `Question ${wizard.questions.indexOf(q) + 1} has no text.`
-        );
+        validationErrors.push({
+          key: `${q.id}-text`,
+          message: `Question ${wizard.questions.indexOf(q) + 1} has no text.`,
+        });
       if (q.options.length < 2)
-        validationErrors.push(
-          `Question ${wizard.questions.indexOf(q) + 1} needs at least 2 options.`
-        );
+        validationErrors.push({
+          key: `${q.id}-options`,
+          message: `Question ${wizard.questions.indexOf(q) + 1} needs at least 2 options.`,
+        });
       if (!q.options.some((o) => o.isCorrect))
-        validationErrors.push(
-          `Question ${wizard.questions.indexOf(q) + 1} has no correct answer.`
-        );
+        validationErrors.push({
+          key: `${q.id}-correct`,
+          message: `Question ${wizard.questions.indexOf(q) + 1} has no correct answer.`,
+        });
       for (const opt of q.options) {
         if (!opt.text.trim())
-          validationErrors.push(
-            `Question ${wizard.questions.indexOf(q) + 1} has an empty option.`
-          );
+          validationErrors.push({
+            key: `${opt.id}-text`,
+            message: `Question ${wizard.questions.indexOf(q) + 1} has an empty option.`,
+          });
       }
     }
 
@@ -957,8 +972,8 @@ export default function QuizBuilderWizard({
                   Please fix these issues before saving:
                 </p>
                 <ul className="list-inside list-disc space-y-1 text-sm text-destructive">
-                  {validationErrors.map((err, i) => (
-                    <li key={i}>{err}</li>
+                  {validationErrors.map((error) => (
+                    <li key={error.key}>{error.message}</li>
                   ))}
                 </ul>
               </div>

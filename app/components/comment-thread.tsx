@@ -1,14 +1,15 @@
-import { useEffect, useState } from "react";
+import { MessageSquare, Pencil, Reply, Trash2 } from "lucide-react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useFetcher } from "react-router";
 import { toast } from "sonner";
-import { MessageSquare, Pencil, Reply, Trash2 } from "lucide-react";
+
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Textarea } from "~/components/ui/textarea";
 import { UserAvatar } from "~/components/user-avatar";
+import { MAX_COMMENT_LENGTH } from "~/lib/comments";
 import { formatTimeAgo } from "~/lib/time-ago";
 import { cn } from "~/lib/utils";
-import { MAX_COMMENT_LENGTH } from "~/lib/comments";
 
 // Bodies arrive pre-rendered from the server (renderComment), because comments
 // are untrusted markdown and the sanitising renderer is server-only.
@@ -60,6 +61,10 @@ function CommentForm({
   const fetcher = useFetcher<{ ok?: boolean; error?: string }>();
   const [body, setBody] = useState(defaultValue ?? "");
   const submitting = fetcher.state !== "idle";
+  // Callers pass a fresh onDone each render. Calling it through an effect
+  // event keeps it out of the dependencies, so the effect still runs once per
+  // fetcher result rather than on every render (which would repeat the toast).
+  const handleDone = useEffectEvent(() => onDone?.());
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) return;
@@ -71,9 +76,8 @@ function CommentForm({
 
     if (fetcher.data.ok) {
       if (intent === "create-comment") setBody("");
-      onDone?.();
+      handleDone();
     }
-    // onDone is recreated each render by callers; depending on it would loop.
   }, [fetcher.state, fetcher.data, intent]);
 
   const tooLong = body.length > MAX_COMMENT_LENGTH;
@@ -274,6 +278,7 @@ function CommentItem({
           ) : (
             <div
               className="prose prose-sm prose-neutral dark:prose-invert mt-1 max-w-none"
+              // eslint-disable-next-line react/no-danger -- bodyHtml comes from renderComment, which escapes the author's HTML (app/lib/comment-markdown.server.ts)
               dangerouslySetInnerHTML={{ __html: comment.bodyHtml }}
             />
           )}

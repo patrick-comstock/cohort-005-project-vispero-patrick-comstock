@@ -1,42 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
-import { Link, useFetcher, useNavigate } from "react-router";
-import { toast } from "sonner";
-import type { Route } from "./+types/courses.$slug.lessons.$lessonId";
-import { getAccess, requireContentAccess } from "~/modules/access/index.server";
-import {
-  getCourseIdForLesson,
-  loadLessonPage,
-  markLessonComplete,
-} from "~/lib/lesson-page.server";
-import { renderComment } from "~/lib/comment-markdown.server";
-import {
-  CommentThread,
-  type RenderedComment,
-} from "~/components/comment-thread";
-import { MIN_COMMENT_LENGTH, MAX_COMMENT_LENGTH } from "~/lib/comments";
-import { db } from "~/db";
-import {
-  getCourseBySlug,
-  getCourseWithDetails,
-  getUserById,
-} from "~/lib/courses.server";
-import {
-  comments,
-  courses,
-  lessons,
-  modules,
-  quizzes,
-  quizQuestions,
-  quizOptions,
-  quizAttempts,
-  quizAnswers,
-  users,
-  LessonProgressStatus,
-  UserRole,
-} from "~/db/schema";
 import { and, asc, eq } from "drizzle-orm";
-import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -49,17 +11,57 @@ import {
   HelpCircle,
   MapPin,
   PlayCircle,
-  ShieldAlert,
-  XCircle,
-  Trophy,
   RotateCcw,
+  ShieldAlert,
+  Trophy,
+  XCircle,
 } from "lucide-react";
-import { cn, formatDuration } from "~/lib/utils";
-import { YouTubePlayer } from "~/components/youtube-player";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useFetcher, useNavigate } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
+import { toast } from "sonner";
 import { z } from "zod";
+
+import {
+  CommentThread,
+  type RenderedComment,
+} from "~/components/comment-thread";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
+import { YouTubePlayer } from "~/components/youtube-player";
+import { db } from "~/db";
+import {
+  comments,
+  courses,
+  LessonProgressStatus,
+  lessons,
+  modules,
+  quizAnswers,
+  quizAttempts,
+  quizOptions,
+  quizQuestions,
+  quizzes,
+  UserRole,
+  users,
+} from "~/db/schema";
+import { renderComment } from "~/lib/comment-markdown.server";
+import { MAX_COMMENT_LENGTH, MIN_COMMENT_LENGTH } from "~/lib/comments";
+import {
+  getCourseBySlug,
+  getCourseWithDetails,
+  getUserById,
+} from "~/lib/courses.server";
+import {
+  getCourseIdForLesson,
+  loadLessonPage,
+  markLessonComplete,
+} from "~/lib/lesson-page.server";
 import { COUNTRIES } from "~/lib/ppp";
+import { cn, formatDuration } from "~/lib/utils";
 import { parseFormData, parseParams } from "~/lib/validation";
+import { getAccess, requireContentAccess } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/courses.$slug.lessons.$lessonId";
 
 const lessonParamsSchema = z.object({
   slug: z.string().min(1),
@@ -899,6 +901,7 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
           {lessonBody?.contentHtml && (
             <div
               className="prose prose-neutral dark:prose-invert mb-8 max-w-none"
+              // eslint-disable-next-line react/no-danger -- lesson content is Instructor-written markdown, trusted by design (app/lib/markdown.server.ts)
               dangerouslySetInnerHTML={{ __html: lessonBody.contentHtml }}
             />
           )}

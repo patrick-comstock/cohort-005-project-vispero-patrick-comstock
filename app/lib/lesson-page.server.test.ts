@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, seedBaseData } from "~/test/setup";
+
 import * as schema from "~/db/schema";
 import { LessonProgressStatus, QuestionType } from "~/db/schema";
-import { loadLessonPage, type LessonViewer } from "./lesson-page.server";
+import { createTestDb, seedBaseData } from "~/test/setup";
+
+import { type LessonViewer, loadLessonPage } from "./lesson-page.server";
 
 type TestDb = ReturnType<typeof createTestDb>;
 

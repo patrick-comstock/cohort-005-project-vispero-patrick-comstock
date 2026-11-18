@@ -1,41 +1,4 @@
-import { useEffect, useState } from "react";
-import { Link, useFetcher, useSearchParams } from "react-router";
-import { toast } from "sonner";
-import { z } from "zod";
-import type { Route } from "./+types/courses.$slug";
-import { db } from "~/db";
-import {
-  getCourseBySlug,
-  getCourseOutline,
-  getLessonCount,
-} from "~/lib/courses.server";
-import { getAccess, requireUserId } from "~/modules/access/index.server";
-import { loadCourseProgress } from "~/lib/course-page.server";
-import {
-  courses,
-  courseRatings,
-  purchases,
-  coupons,
-  LessonProgressStatus,
-} from "~/db/schema";
-import { eq, and, sql } from "drizzle-orm";
-import {
-  formatCalendarDay,
-  getRefundRequestOffer,
-  getStudentRefundRequest,
-  refusalReasonForStudent,
-} from "~/lib/refund-eligibility.server";
-import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Skeleton } from "~/components/ui/skeleton";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-  TabsContentNoShift,
-} from "~/components/ui/tabs";
+import { and, eq, sql } from "drizzle-orm";
 import {
   AlertTriangle,
   BookOpen,
@@ -46,19 +9,58 @@ import {
   PlayCircle,
   Users,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useFetcher, useSearchParams } from "react-router";
+import { data, isRouteErrorResponse } from "react-router";
+import { toast } from "sonner";
+import { z } from "zod";
+
 import { CourseImage } from "~/components/course-image";
 import { PppRestrictedNotice } from "~/components/ppp-restricted-notice";
-import { UserAvatar } from "~/components/user-avatar";
-import { Textarea } from "~/components/ui/textarea";
-import { data, isRouteErrorResponse } from "react-router";
-import { formatDuration, formatPrice } from "~/lib/utils";
-import { renderMarkdown } from "~/lib/markdown.server";
-import { resolveCountry } from "~/lib/country.server";
-import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
-import { parseFormData } from "~/lib/validation";
-import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
+import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
 import { StarRating, StarRatingInput } from "~/components/star-rating";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
+import {
+  Tabs,
+  TabsContent,
+  TabsContentNoShift,
+  TabsList,
+  TabsTrigger,
+} from "~/components/ui/tabs";
+import { Textarea } from "~/components/ui/textarea";
+import { UserAvatar } from "~/components/user-avatar";
+import { db } from "~/db";
+import {
+  coupons,
+  courseRatings,
+  courses,
+  LessonProgressStatus,
+  purchases,
+} from "~/db/schema";
+import { resolveCountry } from "~/lib/country.server";
+import { loadCourseProgress } from "~/lib/course-page.server";
+import {
+  getCourseBySlug,
+  getCourseOutline,
+  getLessonCount,
+} from "~/lib/courses.server";
+import { renderMarkdown } from "~/lib/markdown.server";
+import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
+import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
+import {
+  formatCalendarDay,
+  getRefundRequestOffer,
+  getStudentRefundRequest,
+  refusalReasonForStudent,
+} from "~/lib/refund-eligibility.server";
 import { getTeamPurchaseButtonLabel } from "~/lib/team-purchase";
+import { formatDuration, formatPrice } from "~/lib/utils";
+import { parseFormData } from "~/lib/validation";
+import { getAccess, requireUserId } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/courses.$slug";
 
 type CourseRatingSummary = {
   average: number | null;
@@ -312,16 +314,16 @@ export function HydrateFallback() {
       </div>
       <Skeleton className="mb-4 h-8 w-40" />
       <div className="space-y-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i}>
+        {skeletonKeys(3).map((key) => (
+          <Card key={key}>
             <CardHeader>
               <Skeleton className="h-5 w-48" />
               <Skeleton className="h-4 w-20" />
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {Array.from({ length: 4 }).map((_, j) => (
-                  <Skeleton key={j} className="h-8 w-full" />
+                {skeletonKeys(4).map((key) => (
+                  <Skeleton key={key} className="h-8 w-full" />
                 ))}
               </div>
             </CardContent>
@@ -541,6 +543,7 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
         <div className="lg:col-span-2">
           <div
             className="prose prose-neutral dark:prose-invert max-w-none"
+            // eslint-disable-next-line react/no-danger -- sales copy is Instructor-written markdown, trusted by design (app/lib/markdown.server.ts)
             dangerouslySetInnerHTML={{ __html: salesCopyHtml }}
           />
 

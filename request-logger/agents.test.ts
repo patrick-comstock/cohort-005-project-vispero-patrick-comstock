@@ -1,6 +1,9 @@
-import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
+
+import { describe, expect, it } from "vitest";
+
 import {
+  type AgentChoice,
   agentProviders,
   CUSTOM_ID,
   customTargetNeedsModel,
@@ -10,7 +13,6 @@ import {
   OTHER_ID,
   resolveChoice,
   shouldLogRequest,
-  type AgentChoice,
 } from "./agents";
 
 const PORT = { port: 8787, platform: "linux" as NodeJS.Platform };

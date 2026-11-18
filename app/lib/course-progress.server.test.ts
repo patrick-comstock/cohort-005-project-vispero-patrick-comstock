@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, seedBaseData } from "~/test/setup";
+
 import * as schema from "~/db/schema";
 import { LessonProgressStatus } from "~/db/schema";
+import { createTestDb, seedBaseData } from "~/test/setup";
+
 import {
   getCourseProgress,
   getLessonProgressMap,

@@ -1,21 +1,22 @@
 import Database from "better-sqlite3";
-import { eq, gte, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
+import { eq, gte, isNotNull, isNull, type SQL, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import type { SQLiteTable } from "drizzle-orm/sqlite-core";
 import path from "path";
 import { fileURLToPath } from "url";
+
 import * as schema from "../app/db/schema";
-import { formatPrice } from "../app/lib/utils";
 import {
-  UserRole,
   CourseStatus,
   LessonProgressStatus,
   NotificationKind,
   QuestionType,
   RefundRequestStatus,
   TeamMemberRole,
+  UserRole,
 } from "../app/db/schema";
+import { formatPrice } from "../app/lib/utils";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

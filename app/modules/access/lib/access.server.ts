@@ -1,17 +1,18 @@
+import { and, desc, eq, notExists } from "drizzle-orm";
 import { data } from "react-router";
-import { eq, and, desc, notExists } from "drizzle-orm";
-import { db, type Db } from "~/db";
+
+import { type Db, db } from "~/db";
 import {
-  UserRole,
   enrollments,
   purchases,
   refundRequests,
   RefundRequestStatus,
+  UserRole,
 } from "~/db/schema";
-import { getCurrentUserId } from "~/lib/session";
 import { resolveCountry } from "~/lib/country.server";
-import { checkPppAccess } from "~/lib/ppp";
 import { getCourseById, getUserById } from "~/lib/courses.server";
+import { checkPppAccess } from "~/lib/ppp";
+import { getCurrentUserId } from "~/lib/session";
 
 /**
  * The Purchase that the PPP check in Access looks at. A Purchase that was

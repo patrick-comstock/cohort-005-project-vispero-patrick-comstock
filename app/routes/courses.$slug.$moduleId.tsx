@@ -1,15 +1,4 @@
-import { Link } from "react-router";
-import type { Route } from "./+types/courses.$slug.$moduleId";
-import { getAccess } from "~/modules/access/index.server";
-import { loadModulePage } from "~/lib/module-page.server";
-import { db } from "~/db";
-import { getCourseBySlug } from "~/lib/courses.server";
-import { courses, users, LessonProgressStatus } from "~/db/schema";
 import { eq } from "drizzle-orm";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Skeleton } from "~/components/ui/skeleton";
-import { UserAvatar } from "~/components/user-avatar";
 import {
   AlertTriangle,
   BookOpen,
@@ -20,9 +9,22 @@ import {
   PlayCircle,
   Video,
 } from "lucide-react";
+import { Link } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
-import { formatDuration } from "~/lib/utils";
 import { z } from "zod";
+
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
+import { UserAvatar } from "~/components/user-avatar";
+import { db } from "~/db";
+import { courses, LessonProgressStatus, users } from "~/db/schema";
+import { getCourseBySlug } from "~/lib/courses.server";
+import { loadModulePage } from "~/lib/module-page.server";
+import { formatDuration } from "~/lib/utils";
+import { getAccess } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/courses.$slug.$moduleId";
 
 const paramsSchema = z.object({
   slug: z.string().min(1),
@@ -103,8 +105,8 @@ export function HydrateFallback() {
         </CardContent>
       </Card>
       <div className="space-y-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-12 w-full" />
+        {skeletonKeys(5).map((key) => (
+          <Skeleton key={key} className="h-12 w-full" />
         ))}
       </div>
     </div>

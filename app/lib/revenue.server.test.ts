@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, seedBaseData } from "~/test/setup";
+
 import * as schema from "~/db/schema";
 import { RefundRequestStatus, UserRole } from "~/db/schema";
+import { createTestDb, seedBaseData } from "~/test/setup";
+
 import { makeRefundRequest } from "./refund-eligibility.server";
 import { resolveRefundRequest } from "./refund-request-resolve.server";
 import {

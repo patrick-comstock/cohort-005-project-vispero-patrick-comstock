@@ -1,7 +1,8 @@
-import { useState } from "react";
 import { Star } from "lucide-react";
-import { cn } from "~/lib/utils";
+import { useState } from "react";
+
 import { MAX_RATING } from "~/lib/ratings";
+import { cn } from "~/lib/utils";
 
 const STARS = Array.from({ length: MAX_RATING }, (_, i) => i + 1);
 
@@ -101,6 +102,8 @@ export function StarRatingInput({
 
   return (
     <span
+      role="group"
+      aria-label="Rating"
       className={cn("flex items-center gap-0.5", className)}
       onMouseLeave={() => setHovered(null)}
     >

@@ -1,39 +1,41 @@
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { AlertTriangle, BookOpen, Search } from "lucide-react";
 import {
   Form,
-  Link,
-  useSearchParams,
-  useNavigation,
   isRouteErrorResponse,
+  Link,
+  useNavigation,
+  useSearchParams,
 } from "react-router";
-import type { Route } from "./+types/courses";
-import { db } from "~/db";
-import { courseSearchCondition, getLessonCount } from "~/lib/courses.server";
-import { getCourseProgress } from "~/lib/course-progress.server";
-import {
-  courses as coursesTable,
-  categories as categoriesTable,
-  users,
-  enrollments as enrollmentsTable,
-  courseRatings,
-  CourseStatus,
-} from "~/db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+
+import { CourseImage } from "~/components/course-image";
+import { StarRating } from "~/components/star-rating";
+import { Button } from "~/components/ui/button";
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
 } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Skeleton } from "~/components/ui/skeleton";
-import { AlertTriangle, BookOpen, Search } from "lucide-react";
-import { CourseImage } from "~/components/course-image";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
 import { UserAvatar } from "~/components/user-avatar";
+import { db } from "~/db";
+import {
+  categories as categoriesTable,
+  courseRatings,
+  courses as coursesTable,
+  CourseStatus,
+  enrollments as enrollmentsTable,
+  users,
+} from "~/db/schema";
+import { resolveCountry } from "~/lib/country.server";
+import { getCourseProgress } from "~/lib/course-progress.server";
+import { courseSearchCondition, getLessonCount } from "~/lib/courses.server";
+import { calculatePppPrice } from "~/lib/ppp";
 import { getCurrentUserId } from "~/lib/session";
 import { formatPrice } from "~/lib/utils";
-import { resolveCountry } from "~/lib/country.server";
-import { calculatePppPrice } from "~/lib/ppp";
-import { StarRating } from "~/components/star-rating";
+
+import type { Route } from "./+types/courses";
 
 function buildCourseQuery(
   search: string | null,
@@ -267,8 +269,8 @@ export function HydrateFallback() {
         <Skeleton className="h-10 w-20" />
       </div>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <CourseCardSkeleton key={i} />
+        {skeletonKeys(6).map((key) => (
+          <CourseCardSkeleton key={key} />
         ))}
       </div>
     </div>
@@ -322,8 +324,8 @@ export default function CourseCatalog({ loaderData }: Route.ComponentProps) {
       {/* Course Grid */}
       {isSearching ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <CourseCardSkeleton key={i} />
+          {skeletonKeys(6).map((key) => (
+            <CourseCardSkeleton key={key} />
           ))}
         </div>
       ) : courses.length === 0 ? (

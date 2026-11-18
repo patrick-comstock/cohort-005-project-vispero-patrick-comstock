@@ -1,17 +1,13 @@
-import { useState, useRef, useEffect } from "react";
+import { eq } from "drizzle-orm";
+import { AlertTriangle, Pencil, Shield, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
+import { data, isRouteErrorResponse, Link } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Route } from "./+types/admin.users";
-import { requireAdmin } from "~/modules/access/index.server";
-import { parseFormData } from "~/lib/validation";
-import { UserRole, users } from "~/db/schema";
-import { db } from "~/db";
-import { getUserById } from "~/lib/courses.server";
-import { eq } from "drizzle-orm";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
+
 import { Button } from "~/components/ui/button";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -19,8 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { AlertTriangle, Pencil, Shield, Users } from "lucide-react";
-import { data, isRouteErrorResponse, Link } from "react-router";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
+import { db } from "~/db";
+import { UserRole, users } from "~/db/schema";
+import { getUserById } from "~/lib/courses.server";
+import { parseFormData } from "~/lib/validation";
+import { requireAdmin } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/admin.users";
 
 const adminUserActionSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -363,8 +365,8 @@ export function HydrateFallback() {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <TableRowSkeleton key={i} />
+                {skeletonKeys(8).map((key) => (
+                  <TableRowSkeleton key={key} />
                 ))}
               </tbody>
             </table>

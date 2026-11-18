@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+
 import { RefundRequestStatus } from "~/db/schema";
+
 import { buildRefundRequestResolvedEmail } from "./refund-request-emails.server";
 
 describe("buildRefundRequestResolvedEmail", () => {

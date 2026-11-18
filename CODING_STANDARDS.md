@@ -90,10 +90,6 @@ week anybody who was signed in could approve a refund by posting to
 
 `isPublished`, `hasSeats`, `canRefund`. Not `published`, `seats`, `refund`.
 
-## Every image has alt text
-
-Decorative images take `alt=""`, not no attribute.
-
 ## Avoid the N+1
 
 One query in a loop is N+1 queries. Use a join, or one query with an `IN`.
@@ -127,12 +123,6 @@ Anything that touches the outside world belongs in an effect or an action.
 A local time in a column is a bug waiting for somebody in another country. The
 refund window closed a day early for learners in Sydney before this.
 
-## Imports are sorted: packages, then aliases, then relative
-
-Within each group, alphabetically.
-
-## Every input has a label
-
 ## Paginate anything that can grow
 
 A query with no limit is fine on a seeded database and fatal on a real one.
@@ -143,12 +133,6 @@ limit. The instructor's students page timed out on the first big course.
 
 A bare `catch` that swallows everything hides the bug you are about to spend
 a day on.
-
-## Every item in a list gets a stable key
-
-The index of an item is not a key. When the list is reordered, every row
-below the change is rebuilt, and anything the row was holding is lost. Use
-the row's id. (Reordering modules used to drop the half-typed lesson title.)
 
 ## Colour is never the only signal
 
@@ -168,15 +152,6 @@ check it again.
 
 A shared fixture that every test bends is worse than a little duplication.
 
-## Use semantic elements
-
-A `div` with an `onClick` is a button that nobody can tab to.
-
-## Index every foreign key
-
-A foreign key without an index is a table scan on every join. Add the index
-in the same change that adds the key.
-
 ## Name a function for what it returns, not how it works
 
 `getPendingRefunds`, not `queryRefundsTableFilteredByStatus`.
@@ -188,7 +163,6 @@ something does not expect to find it different afterwards.
 
 ## Also
 
-- Do not set a positive `tabIndex`.
 - Do not test the framework.
 
 ## Inject the clock
@@ -196,17 +170,6 @@ something does not expect to find it different afterwards.
 A function that calls `Date.now()` cannot be tested at a fixed moment. Take
 the time as an argument. The refund window tests failed every night at
 midnight until we did this.
-
-## Migrations are forward-only
-
-Never edit a migration that has been applied. Write another one.
-
-## Escape anything a person typed before you render it as HTML
-
-## Effects declare every value they read
-
-If an effect reads a value, that value is in the dependency array. Leaving it
-out is a bug that will not show up until the value changes.
 
 ## Log the error, not just the message
 
@@ -251,8 +214,6 @@ Keep it private until a second caller appears.
 `const count: number = items.length` says nothing the compiler did not know.
 ESLint catches an annotation on a literal (`limit: number = 3`); the rest is
 yours to spot.
-
-## Set `rel="noopener noreferrer"` on every external link
 
 ## Do not use a default parameter to hide a required one
 

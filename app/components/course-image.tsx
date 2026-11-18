@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { BookOpen } from "lucide-react";
+import { useState } from "react";
 
 export function CourseImage({
   src,

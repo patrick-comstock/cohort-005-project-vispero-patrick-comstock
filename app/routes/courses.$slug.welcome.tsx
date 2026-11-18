@@ -1,13 +1,15 @@
+import { MessageCircle, PartyPopper, PlayCircle } from "lucide-react";
 import { Link, redirect } from "react-router";
-import type { Route } from "./+types/courses.$slug.welcome";
+import { data } from "react-router";
+
+import { PppRestrictedNotice } from "~/components/ppp-restricted-notice";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
 import { db } from "~/db";
 import { getCourseBySlug, getCourseOutline } from "~/lib/courses.server";
 import { getAccess } from "~/modules/access/index.server";
-import { Button } from "~/components/ui/button";
-import { Card, CardContent } from "~/components/ui/card";
-import { PppRestrictedNotice } from "~/components/ppp-restricted-notice";
-import { PartyPopper, MessageCircle, PlayCircle } from "lucide-react";
-import { data } from "react-router";
+
+import type { Route } from "./+types/courses.$slug.welcome";
 
 export function meta({ loaderData }: Route.MetaArgs) {
   const title = loaderData?.course?.title ?? "Welcome";

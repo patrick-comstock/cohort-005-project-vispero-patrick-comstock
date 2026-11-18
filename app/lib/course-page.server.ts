@@ -1,4 +1,5 @@
 import { and, asc, eq } from "drizzle-orm";
+
 import type { Db } from "~/db";
 import {
   lessonProgress,
@@ -6,11 +7,11 @@ import {
   lessons,
   modules,
 } from "~/db/schema";
-import type { Access } from "~/modules/access/index.server";
 import {
   getCourseProgress,
   getLessonProgressMap,
 } from "~/lib/course-progress.server";
+import type { Access } from "~/modules/access/index.server";
 
 /** The parts of Access that decide what the course page may show. */
 export type CourseViewer = Pick<

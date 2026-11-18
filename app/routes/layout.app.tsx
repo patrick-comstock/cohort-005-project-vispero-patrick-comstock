@@ -1,25 +1,27 @@
+import { and, desc, eq, sql } from "drizzle-orm";
 import { Outlet } from "react-router";
-import type { Route } from "./+types/layout.app";
-import { Sidebar } from "~/components/sidebar";
-import { DevUI } from "~/components/dev-ui";
 import { Toaster } from "sonner";
-import { getCurrentUserId, getDevCountry } from "~/lib/session";
-import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
-import { countUnreadNotifications } from "~/lib/notifications.server";
-import { eq, and, sql, desc } from "drizzle-orm";
+
+import { DevUI } from "~/components/dev-ui";
+import { Sidebar } from "~/components/sidebar";
 import { db } from "~/db";
-import { getUserById } from "~/lib/courses.server";
-import { getCourseProgress } from "~/lib/course-progress.server";
 import {
-  users,
   courses,
-  modules,
-  lessons,
   lessonProgress,
-  teams,
-  teamMembers,
+  lessons,
+  modules,
   TeamMemberRole,
+  teamMembers,
+  teams,
+  users,
 } from "~/db/schema";
+import { getCourseProgress } from "~/lib/course-progress.server";
+import { getUserById } from "~/lib/courses.server";
+import { countUnreadNotifications } from "~/lib/notifications.server";
+import { COUNTRIES, getCountryTierInfo } from "~/lib/ppp";
+import { getCurrentUserId, getDevCountry } from "~/lib/session";
+
+import type { Route } from "./+types/layout.app";
 
 function getAllUsers() {
   return db.select().from(users).all();

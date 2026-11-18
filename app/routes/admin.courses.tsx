@@ -1,17 +1,13 @@
+import { eq, sql } from "drizzle-orm";
+import { AlertTriangle, BookOpen, Users } from "lucide-react";
 import { useEffect } from "react";
 import { useFetcher } from "react-router";
+import { data, isRouteErrorResponse, Link } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Route } from "./+types/admin.courses";
-import { requireAdmin } from "~/modules/access/index.server";
-import { parseFormData } from "~/lib/validation";
-import { CourseStatus, courses, enrollments } from "~/db/schema";
-import { db } from "~/db";
-import { getLessonCount } from "~/lib/courses.server";
-import { eq, sql } from "drizzle-orm";
-import { Card, CardContent } from "~/components/ui/card";
+
 import { Button } from "~/components/ui/button";
-import { Skeleton } from "~/components/ui/skeleton";
+import { Card, CardContent } from "~/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -19,8 +15,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { AlertTriangle, BookOpen, Users } from "lucide-react";
-import { data, isRouteErrorResponse, Link } from "react-router";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
+import { db } from "~/db";
+import { courses, CourseStatus, enrollments } from "~/db/schema";
+import { getLessonCount } from "~/lib/courses.server";
+import { parseFormData } from "~/lib/validation";
+import { requireAdmin } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/admin.courses";
 
 const adminCourseActionSchema = z.discriminatedUnion("intent", [
   z.object({
@@ -263,8 +265,8 @@ export function HydrateFallback() {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <CourseRowSkeleton key={i} />
+                {skeletonKeys(4).map((key) => (
+                  <CourseRowSkeleton key={key} />
                 ))}
               </tbody>
             </table>

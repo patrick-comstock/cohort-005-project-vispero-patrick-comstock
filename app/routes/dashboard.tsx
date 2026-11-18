@@ -1,25 +1,4 @@
-import { Link } from "react-router";
-import type { Route } from "./+types/dashboard";
-import { db } from "~/db";
-import {
-  enrollments,
-  courses,
-  modules,
-  lessons,
-  lessonProgress,
-  LessonProgressStatus,
-} from "~/db/schema";
-import { eq, and } from "drizzle-orm";
-import { getCurrentUserId } from "~/lib/session";
-import { getCourseProgress } from "~/lib/course-progress.server";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Skeleton } from "~/components/ui/skeleton";
+import { and, eq } from "drizzle-orm";
 import {
   AlertTriangle,
   BookOpen,
@@ -27,8 +6,31 @@ import {
   GraduationCap,
   PlayCircle,
 } from "lucide-react";
-import { CourseImage } from "~/components/course-image";
+import { Link } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
+
+import { CourseImage } from "~/components/course-image";
+import { Button } from "~/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "~/components/ui/card";
+import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
+import { db } from "~/db";
+import {
+  courses,
+  enrollments,
+  lessonProgress,
+  LessonProgressStatus,
+  lessons,
+  modules,
+} from "~/db/schema";
+import { getCourseProgress } from "~/lib/course-progress.server";
+import { getCurrentUserId } from "~/lib/session";
+
+import type { Route } from "./+types/dashboard";
 
 function getUserEnrolledCourses(userId: number) {
   return db
@@ -167,8 +169,8 @@ export function HydrateFallback() {
       </div>
       <Skeleton className="mb-4 h-6 w-32" />
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <DashboardCardSkeleton key={i} />
+        {skeletonKeys(3).map((key) => (
+          <DashboardCardSkeleton key={key} />
         ))}
       </div>
     </div>

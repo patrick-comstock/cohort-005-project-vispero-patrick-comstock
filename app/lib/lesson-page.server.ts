@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+
 import type { Db } from "~/db";
 import {
   lessonProgress,
@@ -11,9 +12,9 @@ import {
   quizzes,
   videoWatchEvents,
 } from "~/db/schema";
-import type { Access } from "~/modules/access/index.server";
 import { getLessonProgressMap } from "~/lib/course-progress.server";
 import { renderMarkdown } from "~/lib/markdown.server";
+import type { Access } from "~/modules/access/index.server";
 
 /** The parts of Access that decide what the lesson page may send. */
 export type LessonViewer = Pick<
