@@ -10,6 +10,8 @@ Modules under `app/modules/` are deep modules: read [app/modules/README.md](./ap
 
 Run `npm run check` before you report a change to `app/` as complete.
 
+Then run `npm run test:mutation`. It mutates only the lines your change touches below `app/lib/`, `app/modules/` and `request-logger/` (pass paths to grade whole files instead), and writes `reports/mutation/mutation.json`. The `mutation-testing` skill reads that report.
+
 The pre-commit hook formats and lints staged files, so a commit never needs `--no-verify`.
 
 ## When something breaks
