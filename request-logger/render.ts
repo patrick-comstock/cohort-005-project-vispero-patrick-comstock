@@ -171,10 +171,14 @@ type Wire = Record<string, unknown>;
  * `wire(value ?? {})` where the original read was `value?.field`.
  */
 function wire(value: unknown): Wire {
-  if (value == null) {
+  if (isNullish(value)) {
     throw new TypeError(`Cannot read properties of ${value}`);
   }
   return value as Wire;
+}
+
+function isNullish(value: unknown): value is null | undefined {
+  return value === null || value === undefined;
 }
 
 function fenceJson(value: unknown): string {
@@ -211,9 +215,9 @@ function renderRequest(
   // falls into. "raw" must never guess at a shape it was not told; it always
   // goes straight to the generic fallback instead.
   if (input.renderer === "raw") {
-    return reqJson == null ? fence(requestText) : fenceJson(reqJson);
+    return isNullish(reqJson) ? fence(requestText) : fenceJson(reqJson);
   }
-  if (reqJson == null) {
+  if (isNullish(reqJson)) {
     return fence(requestText);
   }
   try {
@@ -259,7 +263,7 @@ function renderAnthropicRequest(rawJson: unknown): string {
   ]);
   if (params) parts.push(params);
 
-  if (j.system != null) {
+  if (!isNullish(j.system)) {
     parts.push(
       [
         "<system-prompt>",
@@ -575,7 +579,7 @@ function renderGeminiRequest(rawJson: unknown): string {
   );
   if (params) parts.push(params);
 
-  if (j.systemInstruction != null) {
+  if (!isNullish(j.systemInstruction)) {
     parts.push(
       [
         "<system-prompt>",
@@ -686,7 +690,7 @@ function renderGeminiResponse(raw: string): string {
     const ev = wire(e ?? {});
     const candidates = ev.candidates;
     const candidate = wire(
-      (candidates == null ? undefined : wire(candidates)[0]) ?? {}
+      (isNullish(candidates) ? undefined : wire(candidates)[0]) ?? {}
     );
     const parts = wire(candidate.content ?? {}).parts;
     if (Array.isArray(parts)) {
@@ -925,7 +929,9 @@ function renderOpenAIChatStream(events: unknown[]): string {
   for (const e of events) {
     const ev = wire(e);
     const choices = ev.choices;
-    const choice = wire((choices == null ? undefined : wire(choices)[0]) ?? {});
+    const choice = wire(
+      (isNullish(choices) ? undefined : wire(choices)[0]) ?? {}
+    );
     const delta = wire(choice.delta ?? {});
     if (typeof delta.content === "string") text += delta.content;
     if (Array.isArray(delta.tool_calls)) {

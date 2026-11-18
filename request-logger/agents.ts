@@ -870,7 +870,7 @@ export function listAgents(): AgentSummary[] {
   const summaries = AGENTS.map((agent) => ({
     id: agent.id,
     label: agent.label,
-    supported: agent.providers != null,
+    supported: agent.providers !== undefined,
     // An alwaysCustom agent never shows the provider question — askChoice
     // skips straight past it (see agent.alwaysCustom above) — regardless of
     // how many internal templates its catalogue entry holds for
@@ -1357,7 +1357,7 @@ export function resolveChoice(
   if (agent.providers.length === 1) {
     // One provider, so the wizard never asked. Ignore anything saved.
     provider = agent.providers[0];
-  } else if (choice.provider == null) {
+  } else if (choice.provider === undefined) {
     return {
       kind: "error",
       message:

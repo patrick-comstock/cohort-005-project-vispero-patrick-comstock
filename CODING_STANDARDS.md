@@ -164,10 +164,6 @@ Anything that touches the outside world belongs in an effect or an action.
 A local time in a column is a bug waiting for somebody in another country. The
 refund window closed a day early for learners in Sydney before this.
 
-## Use `===`, never `==`
-
-`==` coerces, and the coercion table is not something anybody remembers.
-
 ## A pull request does one thing
 
 If the title needs an "and", it is two pull requests.

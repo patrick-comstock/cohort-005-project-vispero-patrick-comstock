@@ -57,5 +57,18 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  // CODING_STANDARDS: core rules with fixes. Each rule replaced a section of
+  // CODING_STANDARDS.md; the quoted heading names the section it replaced.
+  {
+    files: [
+      "app/**/*.{ts,tsx}",
+      "scripts/**/*.{ts,tsx}",
+      "request-logger/**/*.{ts,tsx}",
+    ],
+    rules: {
+      // "Use `===`, never `==`"
+      eqeqeq: ["error", "always"],
+    },
   }
 );
