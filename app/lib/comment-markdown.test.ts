@@ -120,6 +120,30 @@ describe("renderComment", () => {
       expect(html).not.toContain("<a ");
     });
 
+    it("downgrades a backslash link that browsers read as protocol-relative", async () => {
+      const html = await renderComment("[click](/\\evil.test)");
+
+      expect(html).not.toContain("<a ");
+    });
+
+    it("downgrades a tab-split link that browsers read as protocol-relative", async () => {
+      const html = await renderComment("[click](</\t/evil.test>)");
+
+      expect(html).not.toContain("<a ");
+    });
+
+    it("downgrades a link that starts with two backslashes", async () => {
+      const html = await renderComment("[click](\\\\evil.test)");
+
+      expect(html).not.toContain("<a ");
+    });
+
+    it("keeps a relative link's query and fragment exactly", async () => {
+      const html = await renderComment("[lesson](/courses/x/lessons/1?x=1#h)");
+
+      expect(html).toContain('href="/courses/x/lessons/1?x=1#h"');
+    });
+
     it("escapes quotes in a link title", async () => {
       const html = await renderComment(
         '[x](https://example.test "a" onmouseover="alert(1)")'
