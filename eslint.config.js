@@ -55,6 +55,14 @@ export default tseslint.config(
           message:
             "Do not cast form or search input with `as string`. Parse it with a zod schema via parseFormData from app/lib/validation.ts.",
         },
+        // "Use the design tokens". A hex colour in a string or template. A
+        // quoted hex inside a CSS attribute selector (stroke='#ccc') is not a
+        // colour being set, so it is not matched.
+        ...["Literal[value", "TemplateElement[value.raw"].map((node) => ({
+          selector: `${node}=/(^|[^'"\\w&-])#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\\b/]`,
+          message:
+            "Use a design token (e.g. text-muted-foreground), not a raw hex colour.",
+        })),
       ],
     },
   },

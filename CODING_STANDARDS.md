@@ -117,10 +117,6 @@ Git has it. Delete it.
 
 `"refuses a refund after the window closes"`, not `"refund test 3"`.
 
-## Use the design tokens
-
-Never a raw hex value. `text-muted-foreground`, not `#6b7280`.
-
 ## Do not put a side effect in the render path
 
 Rendering is for working out what the output is, not for doing something.
