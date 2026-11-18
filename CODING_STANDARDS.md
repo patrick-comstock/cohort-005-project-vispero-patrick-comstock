@@ -168,8 +168,6 @@ the row's id. (Reordering modules used to drop the half-typed lesson title.)
 
 ## Colour is never the only signal
 
-## Do not catch an error only to re-throw it unchanged
-
 ## No `console.log` left in a committed file
 
 `console.error` in a catch block is fine.
@@ -211,7 +209,6 @@ something does not expect to find it different afterwards.
 ## Also
 
 - Do not set a positive `tabIndex`.
-- Throw `Error`, never a string.
 - Do not test the framework.
 
 ## Inject the clock
@@ -235,10 +232,6 @@ If you reassign, use `let`. Never `var`.
 If an effect reads a value, that value is in the dependency array. Leaving it
 out is a bug that will not show up until the value changes.
 
-## Default exports only for route modules
-
-Everything else is a named export.
-
 ## Log the error, not just the message
 
 The stack is the useful part.
@@ -251,14 +244,10 @@ Write `type Props = { … }`, not `interface Props`.
 
 A test that fails should tell you what is broken without being read.
 
-## Never build a query by joining strings
-
-Parameterise. String concatenation is how injection gets in, and it is also
-how a quote in somebody's name takes the page down.
-
 ## Return early rather than nesting
 
-A guard clause at the top beats an `else` at the bottom.
+Turn the condition around and leave at the top, rather than wrapping the rest
+of the body in an `if`. (ESLint already rejects an `else` after a `return`.)
 
 ## No inline styles except for a computed value
 
@@ -282,12 +271,6 @@ Restyle it if you must, but leave something visible.
 
 A component that both fetches and lays out is two components. Pull the layout
 out and pass it what it needs.
-
-## Prefer arrow functions for callbacks
-
-`items.map((item) => item.id)`, not `items.map(function (item) { … })`.
-
-## Do not commit a skipped test
 
 ## Do not export something only one file uses
 

@@ -2592,7 +2592,8 @@ This course is still in draft while the cluster examples are rewritten against t
     if (roll < 0.12) {
       // Bought it and never opened it.
       return 0;
-    } else if (roll < 0.5) {
+    }
+    if (roll < 0.5) {
       stopIndex = cliffs[0];
     } else if (roll < 0.72) {
       stopIndex = cliffs[1];
