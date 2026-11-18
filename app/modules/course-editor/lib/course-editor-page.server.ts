@@ -122,5 +122,3 @@ export function loadCourseEditor(courseId: number, database: Db = db) {
     quizCount: lessonQuizzes.length,
   };
 }
-
-export type CourseEditor = NonNullable<ReturnType<typeof loadCourseEditor>>;

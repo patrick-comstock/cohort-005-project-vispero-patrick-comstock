@@ -3,10 +3,7 @@
 // editCourse applies one parsed courseEditorIntentSchema edit and returns
 // either what it saved or a refusal to show. The queries behind them live in
 // lib/ and are not importable from outside.
-export {
-  type CourseEditor,
-  loadCourseEditor,
-} from "./lib/course-editor-page.server";
+export { loadCourseEditor } from "./lib/course-editor-page.server";
 export {
   type CourseEditorIntent,
   courseEditorIntentSchema,

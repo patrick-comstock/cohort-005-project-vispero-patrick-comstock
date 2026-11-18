@@ -7,7 +7,7 @@ type OutlineModule = { id: number; lessons: { id: number }[] };
  * changes nothing. A "module" edit reorders Modules; a "lesson" edit reorders
  * lessons within a Module or moves one into another Module.
  */
-export type DragEndSubmission = {
+type DragEndSubmission = {
   kind: "module" | "lesson";
   formData: Record<string, string>;
 };
