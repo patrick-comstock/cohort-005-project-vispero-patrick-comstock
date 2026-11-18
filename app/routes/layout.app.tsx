@@ -46,7 +46,7 @@ function isTeamAdmin(userId: number) {
   return !!getTeamForAdmin(userId);
 }
 
-function getRecentlyProgressedCourses(userId: number, limit: number = 3) {
+function getRecentlyProgressedCourses(userId: number, limit = 3) {
   return db
     .select({
       courseId: courses.id,

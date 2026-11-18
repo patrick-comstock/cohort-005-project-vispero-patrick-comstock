@@ -393,6 +393,8 @@ Keep it private until a second caller appears.
 ## Do not write a type that the compiler can infer
 
 `const count: number = items.length` says nothing the compiler did not know.
+ESLint catches an annotation on a literal (`limit: number = 3`); the rest is
+yours to spot.
 
 ## Set `rel="noopener noreferrer"` on every external link
 

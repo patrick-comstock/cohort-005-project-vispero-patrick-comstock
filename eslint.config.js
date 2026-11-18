@@ -72,6 +72,8 @@ export default tseslint.config(
       // "Use `const` unless you reassign"
       "prefer-const": "error",
       "no-var": "error",
+      // "Do not write a type that the compiler can infer" (literal cases only)
+      "@typescript-eslint/no-inferrable-types": "error",
     },
   },
   // CODING_STANDARDS: no console.log in the app. scripts/ and request-logger/
