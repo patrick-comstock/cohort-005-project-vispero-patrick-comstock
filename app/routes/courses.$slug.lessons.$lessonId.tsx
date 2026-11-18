@@ -297,7 +297,7 @@ function calculateGrade(score: number): string {
     if (score >= 0.6) return "D";
     return "F";
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return "F";
   }
 }
@@ -310,7 +310,7 @@ function computeResult(
   try {
     const quiz = db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
     if (!quiz) {
-      console.log("quiz not found");
+      console.warn("quiz not found");
       return null;
     }
 
@@ -415,7 +415,7 @@ function computeResult(
       questionResults,
     };
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return null;
   }
 }

@@ -73,5 +73,14 @@ export default tseslint.config(
       "prefer-const": "error",
       "no-var": "error",
     },
+  },
+  // CODING_STANDARDS: no console.log in the app. scripts/ and request-logger/
+  // are CLIs, where printing is the output.
+  {
+    files: ["app/**/*.{ts,tsx}"],
+    rules: {
+      // "No `console.log` left in a committed file"
+      "no-console": ["error", { allow: ["error", "warn"] }],
+    },
   }
 );

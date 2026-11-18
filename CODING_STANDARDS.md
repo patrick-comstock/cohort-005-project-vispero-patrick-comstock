@@ -239,10 +239,6 @@ Write the small-screen rule, then widen it.
 `select *` reads pages you do not want and ties the caller to the shape of
 the table. Name the columns.
 
-## No `console.log` left in a committed file
-
-`console.error` in a catch block is fine.
-
 ## never log a secret
 
 ## Hoist a constant out of the body
