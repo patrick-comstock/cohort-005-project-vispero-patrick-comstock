@@ -4,7 +4,6 @@ import { z } from "zod";
 
 import { db } from "~/db";
 import { courses, purchases, users } from "~/db/schema";
-import { makeTeamPurchaseRefundRequest } from "~/lib/refund-eligibility.server";
 import {
   refundRequestSchema,
   refusalStatus,
@@ -14,6 +13,7 @@ import {
   logEmail,
 } from "~/lib/refund-request-emails.server";
 import { getCurrentUserId } from "~/lib/session";
+import { makeTeamPurchaseRefundRequest } from "~/lib/team-purchase-refund-eligibility.server";
 import { parseFormData, parseParams } from "~/lib/validation";
 
 import type { Route } from "./+types/team.purchases.$purchaseId.refund-request";
