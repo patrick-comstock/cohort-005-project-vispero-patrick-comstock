@@ -180,10 +180,6 @@ Anything the browser can read is public.
 
 If it is longer, it is doing more than one thing.
 
-## Imports are sorted: packages, then aliases, then relative
-
-Within each group, alphabetically.
-
 ## Every input has a label
 
 ## Read lesson progress through `progressCache`

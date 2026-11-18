@@ -1,5 +1,6 @@
 // Lint only the mechanical rules in CODING_STANDARDS.md. Judgement calls stay
 // with the reviewer; whole recommended presets are deliberately not enabled.
+import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
 
 const loaderOrAction =
@@ -56,6 +57,19 @@ export default tseslint.config(
             "Do not cast form or search input with `as string`. Parse it with a zod schema via parseFormData from app/lib/validation.ts.",
         },
       ],
+    },
+  },
+  // "Imports are sorted: packages, then aliases, then relative". The plugin's
+  // default groups are exactly that order; `eslint --fix` sorts them.
+  {
+    files: [
+      "app/**/*.{ts,tsx}",
+      "scripts/**/*.{ts,tsx}",
+      "request-logger/**/*.{ts,tsx}",
+    ],
+    plugins: { "simple-import-sort": simpleImportSort },
+    rules: {
+      "simple-import-sort/imports": "error",
     },
   }
 );
