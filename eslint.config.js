@@ -89,5 +89,41 @@ export default tseslint.config(
       // "No `console.log` left in a committed file"
       "no-console": ["error", { allow: ["error", "warn"] }],
     },
+  },
+  // CODING_STANDARDS: "Keep every file under 500 lines". Tests and the seed
+  // script are exempt: they grow with the behaviour they cover.
+  {
+    files: [
+      "app/**/*.{ts,tsx}",
+      "scripts/**/*.{ts,tsx}",
+      "request-logger/**/*.{ts,tsx}",
+    ],
+    ignores: ["**/*.test.{ts,tsx}", "scripts/seed.ts"],
+    rules: {
+      "max-lines": [
+        "error",
+        { max: 500, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  // CODING_STANDARDS: max-lines grandfather list. These files were over 500
+  // lines when the rule arrived. A file leaves this list when it is split;
+  // never add one.
+  {
+    files: [
+      "app/lib/refund-eligibility.server.ts",
+      "app/modules/instructor-analytics/lib/analytics-page.server.ts",
+      "app/routes/admin.categories.tsx",
+      "app/routes/courses.$slug.lessons.$lessonId.tsx",
+      "app/routes/courses.$slug.tsx",
+      "app/routes/instructor.$courseId.lessons.$lessonId.quiz.tsx",
+      "app/routes/instructor.$courseId.tsx",
+      "app/routes/instructor.analytics.tsx",
+      "request-logger/agents.ts",
+      "request-logger/render.ts",
+    ],
+    rules: {
+      "max-lines": "off",
+    },
   }
 );

@@ -70,12 +70,6 @@ module's tests stop covering what the page shows.
 `npm run lint:boundaries` enforces both rules where it can. It cannot see
 every case, so follow them where it is silent.
 
-## Keep every file under 500 lines
-
-Count the lines before you commit. A file over 500 lines gets split, whatever
-is in it — source, test, or Markdown. Lockfiles, migrations and generated
-snapshots are the only exceptions.
-
 ## Wrap related writes in a transaction
 
 Two writes that must both land, or neither, go in a transaction. If the second
