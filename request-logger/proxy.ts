@@ -238,7 +238,7 @@ export function rejectUpgrade(req: http.IncomingMessage, socket: Duplex): void {
   );
 }
 
-interface Capture {
+type Capture = {
   base: string;
   target: ProxyTarget;
   timestamp: string;
@@ -249,7 +249,7 @@ interface Capture {
   requestBody: Buffer;
   requestEncoding?: string;
   responseRaw: string;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Retry-burst guard
@@ -279,19 +279,19 @@ interface Capture {
 export const BURST_THRESHOLD = 20;
 export const BURST_WINDOW_MS = 2_000;
 
-export interface BurstState {
+export type BurstState = {
   key: string;
   windowStart: number;
   count: number;
   warned: boolean;
-}
+};
 
-export interface BurstResult {
+export type BurstResult = {
   state: BurstState;
   suppressed: boolean;
   /** True on the one call that crosses the threshold — print the warning here, not every time. */
   justDetected: boolean;
-}
+};
 
 export function burstKey(
   method: string,

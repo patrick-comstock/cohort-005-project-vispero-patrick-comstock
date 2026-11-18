@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- augmenting Window needs interface declaration merging
   interface Window {
     YT: typeof YT;
     onYouTubeIframeAPIReady: (() => void) | undefined;

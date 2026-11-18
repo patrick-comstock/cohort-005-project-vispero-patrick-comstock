@@ -6,19 +6,19 @@ import { Button } from "~/components/ui/button";
 import type { UserRole } from "~/db/schema";
 import { cn } from "~/lib/utils";
 
-interface DevUser {
+type DevUser = {
   id: number;
   name: string;
   role: UserRole;
-}
+};
 
-interface DevUIProps {
+type DevUIProps = {
   users: DevUser[];
   currentUser: DevUser | null;
   devCountry: string | null;
   countryTierInfo: { tier: number; discount: number; label: string };
   countries: { code: string; name: string }[];
-}
+};
 
 const roleBadgeColors: Record<string, string> = {
   admin: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",

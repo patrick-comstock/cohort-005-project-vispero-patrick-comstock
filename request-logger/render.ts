@@ -19,7 +19,7 @@ import zlib from "node:zlib";
 
 import type { RendererId } from "./agents";
 
-interface RenderInput {
+type RenderInput = {
   /** Human label for the capture, e.g. "Claude Code" or "Pi (ChatGPT)". */
   agent: string;
   renderer: RendererId;
@@ -33,7 +33,7 @@ interface RenderInput {
   /** The request's content-encoding header, if it had one. */
   requestEncoding?: string;
   responseRaw: string;
-}
+};
 
 const REDACT = new Set([
   "authorization",
@@ -172,10 +172,14 @@ type Wire = Record<string, unknown>;
  * `wire(value ?? {})` where the original read was `value?.field`.
  */
 function wire(value: unknown): Wire {
-  if (value == null) {
+  if (isNullish(value)) {
     throw new TypeError(`Cannot read properties of ${value}`);
   }
   return value as Wire;
+}
+
+function isNullish(value: unknown): value is null | undefined {
+  return value === null || value === undefined;
 }
 
 function fenceJson(value: unknown): string {
@@ -212,9 +216,9 @@ function renderRequest(
   // falls into. "raw" must never guess at a shape it was not told; it always
   // goes straight to the generic fallback instead.
   if (input.renderer === "raw") {
-    return reqJson == null ? fence(requestText) : fenceJson(reqJson);
+    return isNullish(reqJson) ? fence(requestText) : fenceJson(reqJson);
   }
-  if (reqJson == null) {
+  if (isNullish(reqJson)) {
     return fence(requestText);
   }
   try {
@@ -260,7 +264,7 @@ function renderAnthropicRequest(rawJson: unknown): string {
   ]);
   if (params) parts.push(params);
 
-  if (j.system != null) {
+  if (!isNullish(j.system)) {
     parts.push(
       [
         "<system-prompt>",
@@ -576,7 +580,7 @@ function renderGeminiRequest(rawJson: unknown): string {
   );
   if (params) parts.push(params);
 
-  if (j.systemInstruction != null) {
+  if (!isNullish(j.systemInstruction)) {
     parts.push(
       [
         "<system-prompt>",
@@ -610,12 +614,7 @@ function renderGeminiTools(tools: unknown[]): string {
     const tool = wire(t ?? {});
     if (Array.isArray(tool.functionDeclarations)) {
       for (const f of tool.functionDeclarations) {
-        const fn = wire(f);
-        const lines = [`### ${fn.name ?? "(unnamed tool)"}`, ""];
-        if (fn.description) lines.push(String(fn.description), "");
-        const schema = fn.parametersJsonSchema ?? fn.parameters;
-        if (schema) lines.push(fenceJson(schema));
-        rendered.push(lines.join("\n"));
+        rendered.push(renderGeminiFunctionDeclaration(f));
       }
       continue;
     }
@@ -625,6 +624,15 @@ function renderGeminiTools(tools: unknown[]): string {
     }
   }
   return ["<tools>", "", rendered.join("\n\n"), "", "</tools>"].join("\n");
+}
+
+function renderGeminiFunctionDeclaration(declaration: unknown): string {
+  const fn = wire(declaration);
+  const lines = [`### ${fn.name ?? "(unnamed tool)"}`, ""];
+  if (fn.description) lines.push(String(fn.description), "");
+  const schema = fn.parametersJsonSchema ?? fn.parameters;
+  if (schema) lines.push(fenceJson(schema));
+  return lines.join("\n");
 }
 
 function renderGeminiContent(msg: unknown): string {
@@ -687,22 +695,21 @@ function renderGeminiResponse(raw: string): string {
     const ev = wire(e ?? {});
     const candidates = ev.candidates;
     const candidate = wire(
-      (candidates == null ? undefined : wire(candidates)[0]) ?? {}
+      (isNullish(candidates) ? undefined : wire(candidates)[0]) ?? {}
     );
     const parts = wire(candidate.content ?? {}).parts;
-    if (Array.isArray(parts)) {
-      for (const p of parts) {
-        const part = wire(p ?? {});
-        if (typeof part.text === "string") {
-          if (part.thought) thinking += part.text;
-          else text += part.text;
-        } else if (part.functionCall) {
-          const call = wire(part.functionCall);
-          toolCalls.push({
-            name: String(call.name ?? ""),
-            args: call.args ?? {},
-          });
-        }
+    for (const p of Array.isArray(parts) ? parts : []) {
+      const part = wire(p ?? {});
+      if (typeof part.text === "string" && part.thought) {
+        thinking += part.text;
+      } else if (typeof part.text === "string") {
+        text += part.text;
+      } else if (part.functionCall) {
+        const call = wire(part.functionCall);
+        toolCalls.push({
+          name: String(call.name ?? ""),
+          args: call.args ?? {},
+        });
       }
     }
     if (candidate.finishReason) finish = candidate.finishReason;
@@ -926,20 +933,23 @@ function renderOpenAIChatStream(events: unknown[]): string {
   for (const e of events) {
     const ev = wire(e);
     const choices = ev.choices;
-    const choice = wire((choices == null ? undefined : wire(choices)[0]) ?? {});
+    const choice = wire(
+      (isNullish(choices) ? undefined : wire(choices)[0]) ?? {}
+    );
     const delta = wire(choice.delta ?? {});
     if (typeof delta.content === "string") text += delta.content;
-    if (Array.isArray(delta.tool_calls)) {
-      for (const t of delta.tool_calls) {
-        const tc = wire(t);
-        // Same key the object would coerce the raw index to.
-        const idx = String(tc.index ?? 0);
-        toolCalls[idx] ??= { name: "", args: "", id: tc.id };
-        if (tc.id) toolCalls[idx].id = tc.id;
-        const fn = wire(tc.function ?? {});
-        if (fn.name) toolCalls[idx].name += String(fn.name);
-        if (fn.arguments) toolCalls[idx].args += String(fn.arguments);
-      }
+    const toolCallDeltas = Array.isArray(delta.tool_calls)
+      ? delta.tool_calls
+      : [];
+    for (const t of toolCallDeltas) {
+      const tc = wire(t);
+      // Same key the object would coerce the raw index to.
+      const idx = String(tc.index ?? 0);
+      toolCalls[idx] ??= { name: "", args: "", id: tc.id };
+      if (tc.id) toolCalls[idx].id = tc.id;
+      const fn = wire(tc.function ?? {});
+      if (fn.name) toolCalls[idx].name += String(fn.name);
+      if (fn.arguments) toolCalls[idx].args += String(fn.arguments);
     }
     if (choice.finish_reason) finish = choice.finish_reason;
     if (ev.usage) usage = ev.usage;

@@ -90,24 +90,24 @@ const quizActionSchema = z.discriminatedUnion("intent", [
 
 // ─── Types for wizard state ───
 
-interface WizardOption {
+type WizardOption = {
   id: string;
   text: string;
   isCorrect: boolean;
-}
+};
 
-interface WizardQuestion {
+type WizardQuestion = {
   id: string;
   text: string;
   type: QuestionType;
   options: WizardOption[];
-}
+};
 
-interface WizardState {
+type WizardState = {
   title: string;
   passingScore: number;
   questions: WizardQuestion[];
-}
+};
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10);

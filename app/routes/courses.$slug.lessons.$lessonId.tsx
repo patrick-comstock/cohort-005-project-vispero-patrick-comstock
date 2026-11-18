@@ -299,7 +299,7 @@ function calculateGrade(score: number): string {
     if (score >= 0.6) return "D";
     return "F";
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return "F";
   }
 }
@@ -312,7 +312,7 @@ function computeResult(
   try {
     const quiz = db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
     if (!quiz) {
-      console.log("quiz not found");
+      console.warn("quiz not found");
       return null;
     }
 
@@ -324,7 +324,7 @@ function computeResult(
       .all();
 
     let correct = 0;
-    let total = questions.length;
+    const total = questions.length;
     const questionResults: Array<{
       questionId: number;
       correct: boolean;
@@ -417,7 +417,7 @@ function computeResult(
       questionResults,
     };
   } catch (e) {
-    console.log(e);
+    console.error(e);
     return null;
   }
 }
@@ -595,58 +595,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     intent === "delete-comment"
   ) {
     try {
-      if (intent === "create-comment") {
-        const parsed = parseFormData(formData, createCommentSchema);
-        if (!parsed.success) {
-          return data(
-            { error: "Enter a comment before posting." },
-            { status: 400 }
-          );
-        }
-        createComment(
-          currentUserId,
-          lessonId,
-          parsed.data.parentId ?? null,
-          parsed.data.body
-        );
-        return { ok: true };
-      }
-
-      if (intent === "edit-comment") {
-        const parsed = parseFormData(formData, editCommentSchema);
-        if (!parsed.success) {
-          return data(
-            { error: "Enter a comment before saving." },
-            { status: 400 }
-          );
-        }
-        // Scope the id to this lesson so a comment elsewhere can't be reached
-        // by posting its id to this route.
-        const existing = getCommentById(parsed.data.commentId);
-        if (!existing || existing.lessonId !== lessonId) {
-          throw data("Comment not found", { status: 404 });
-        }
-        updateComment(parsed.data.commentId, currentUserId, parsed.data.body);
-        return { ok: true };
-      }
-
-      const parsed = parseFormData(formData, deleteCommentSchema);
-      if (!parsed.success) {
-        return data(
-          { error: "Could not delete that comment." },
-          { status: 400 }
-        );
-      }
-      const existing = getCommentById(parsed.data.commentId);
-      if (!existing || existing.lessonId !== lessonId) {
-        throw data("Comment not found", { status: 404 });
-      }
-      deleteComment(
-        parsed.data.commentId,
-        currentUserId,
-        access.isCourseManager
-      );
-      return { ok: true };
+      return handleCommentIntent(intent, formData, lessonId, access);
     } catch (error) {
       // Service validation failures are user-correctable; anything thrown as a
       // Response (404 above) should keep bubbling.
@@ -675,12 +624,11 @@ export async function action({ params, request }: Route.ActionArgs) {
     // Collect answers: form fields named "question-{questionId}" with value = optionId
     const selectedAnswers: Record<number, number> = {};
     for (const [key, value] of formData.entries()) {
-      if (key.startsWith("question-")) {
-        const questionId = Number(key.replace("question-", ""));
-        const optionId = Number(value);
-        if (!isNaN(questionId) && !isNaN(optionId)) {
-          selectedAnswers[questionId] = optionId;
-        }
+      if (!key.startsWith("question-")) continue;
+      const questionId = Number(key.replace("question-", ""));
+      const optionId = Number(value);
+      if (!isNaN(questionId) && !isNaN(optionId)) {
+        selectedAnswers[questionId] = optionId;
       }
     }
 
@@ -693,6 +641,57 @@ export async function action({ params, request }: Route.ActionArgs) {
   }
 
   throw data("Invalid action", { status: 400 });
+}
+
+// The action's catch turns a service's Error into a 400 for these intents.
+function handleCommentIntent(
+  intent: "create-comment" | "edit-comment" | "delete-comment",
+  formData: FormData,
+  lessonId: number,
+  access: { userId: number; isCourseManager: boolean }
+) {
+  if (intent === "create-comment") {
+    const parsed = parseFormData(formData, createCommentSchema);
+    if (!parsed.success) {
+      return data(
+        { error: "Enter a comment before posting." },
+        { status: 400 }
+      );
+    }
+    createComment(
+      access.userId,
+      lessonId,
+      parsed.data.parentId ?? null,
+      parsed.data.body
+    );
+    return { ok: true };
+  }
+
+  if (intent === "edit-comment") {
+    const parsed = parseFormData(formData, editCommentSchema);
+    if (!parsed.success) {
+      return data({ error: "Enter a comment before saving." }, { status: 400 });
+    }
+    // Scope the id to this lesson so a comment elsewhere can't be reached
+    // by posting its id to this route.
+    const existing = getCommentById(parsed.data.commentId);
+    if (!existing || existing.lessonId !== lessonId) {
+      throw data("Comment not found", { status: 404 });
+    }
+    updateComment(parsed.data.commentId, access.userId, parsed.data.body);
+    return { ok: true };
+  }
+
+  const parsed = parseFormData(formData, deleteCommentSchema);
+  if (!parsed.success) {
+    return data({ error: "Could not delete that comment." }, { status: 400 });
+  }
+  const existing = getCommentById(parsed.data.commentId);
+  if (!existing || existing.lessonId !== lessonId) {
+    throw data("Comment not found", { status: 404 });
+  }
+  deleteComment(parsed.data.commentId, access.userId, access.isCourseManager);
+  return { ok: true };
 }
 
 const AUTOPLAY_KEY = "cadence-autoplay";

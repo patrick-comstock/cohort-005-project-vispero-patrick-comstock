@@ -101,5 +101,6 @@ export function buildTeamPurchaseRefundRequestEmail(input: {
 
 /** Sends a built email to the server log, until a mail transport is wired up. */
 export function logEmail(email: { to: string; subject: string; body: string }) {
+  // eslint-disable-next-line no-console -- the server log is this email's transport until a mail service is wired up
   console.log(`[email] to=${email.to} subject=${email.subject}\n${email.body}`);
 }

@@ -22,14 +22,14 @@ import { UserAvatar } from "~/components/user-avatar";
 import { UserRole } from "~/db/schema";
 import { cn } from "~/lib/utils";
 
-interface CurrentUser {
+type CurrentUser = {
   id: number;
   name: string;
   role: UserRole;
   avatarUrl: string | null;
-}
+};
 
-interface RecentCourse {
+type RecentCourse = {
   courseId: number;
   title: string;
   slug: string;
@@ -37,21 +37,21 @@ interface RecentCourse {
   completedLessons: number;
   totalLessons: number;
   progress: number;
-}
+};
 
-interface SidebarProps {
+type SidebarProps = {
   currentUser: CurrentUser | null;
   recentCourses?: RecentCourse[];
   isTeamAdmin?: boolean;
   unreadNotificationCount?: number;
-}
+};
 
-interface NavItem {
+type NavItem = {
   label: string;
   to: string;
   icon: React.ReactNode;
   roles: UserRole[] | "all";
-}
+};
 
 const navItems: NavItem[] = [
   {

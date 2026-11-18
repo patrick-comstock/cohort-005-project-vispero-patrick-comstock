@@ -8,11 +8,11 @@ import {
   useState,
 } from "react";
 
-interface MonacoMarkdownEditorProps {
+type MonacoMarkdownEditorProps = {
   value: string;
   onChange: (value: string) => void;
   onSave?: () => void;
-}
+};
 
 export function MonacoMarkdownEditor({
   value,
@@ -40,6 +40,7 @@ export function MonacoMarkdownEditor({
       base: "vs-dark",
       inherit: true,
       rules: [],
+      /* eslint-disable no-restricted-syntax -- Monaco themes take hex colours only; design tokens do not reach inside the editor */
       colors: {
         "editor.background": "#0a0a0a",
         "editor.foreground": "#e5e5e5",
@@ -54,6 +55,7 @@ export function MonacoMarkdownEditor({
         "input.border": "#262626",
         focusBorder: "#525252",
       },
+      /* eslint-enable no-restricted-syntax */
     });
     monaco.editor.setTheme("cadence-dark");
 
