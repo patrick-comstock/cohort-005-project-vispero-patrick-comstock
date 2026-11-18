@@ -236,8 +236,6 @@ which are longer written out.
 
 Write the small-screen rule, then widen it.
 
-## Do not catch an error only to re-throw it unchanged
-
 ## Select the columns you need, never all of them
 
 `select *` reads pages you do not want and ties the caller to the shape of
@@ -298,7 +296,6 @@ Strip it before you commit.
 - Every file ends with a newline.
 - Do not set a positive `tabIndex`.
 - Squash before landing.
-- Throw `Error`, never a string.
 - Do not test the framework.
 - Strings go in double quotes, please — not single.
 
@@ -327,10 +324,6 @@ out is a bug that will not show up until the value changes.
 
 The diff already says what.
 
-## Default exports only for route modules
-
-Everything else is a named export.
-
 ## Log the error, not just the message
 
 The stack is the useful part.
@@ -345,14 +338,10 @@ Write `type Props = { … }`, not `interface Props`.
 
 A test that fails should tell you what is broken without being read.
 
-## Never build a query by joining strings
-
-Parameterise. String concatenation is how injection gets in, and it is also
-how a quote in somebody's name takes the page down.
-
 ## Return early rather than nesting
 
-A guard clause at the top beats an `else` at the bottom.
+Turn the condition around and leave at the top, rather than wrapping the rest
+of the body in an `if`. (ESLint already rejects an `else` after a `return`.)
 
 ## No inline styles except for a computed value
 
@@ -382,12 +371,6 @@ Restyle it if you must, but leave something visible.
 
 A component that both fetches and lays out is two components. Pull the layout
 out and pass it what it needs.
-
-## Prefer arrow functions for callbacks
-
-`items.map((item) => item.id)`, not `items.map(function (item) { … })`.
-
-## Do not commit a skipped test
 
 ## Do not read from the database in a loop
 
