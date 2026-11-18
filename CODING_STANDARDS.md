@@ -346,10 +346,6 @@ A status string that the code compares against is an enum in `app/db/schema.ts`,
 not a literal repeated in six places. Refund status was `"pending"` in four
 files and `"Pending"` in one.
 
-## No more than three parameters
-
-Past three, take an object.
-
 ## Do not remove the focus ring
 
 Restyle it if you must, but leave something visible.
