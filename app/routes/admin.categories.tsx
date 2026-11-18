@@ -7,7 +7,7 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { data, isRouteErrorResponse, Link } from "react-router";
 import { toast } from "sonner";
@@ -203,6 +203,9 @@ function CreateCategoryRow({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const fetcher = useFetcher();
+  // The parent passes a fresh onClose each render; an effect event keeps it
+  // out of the dependencies so the effect runs once per fetcher result.
+  const close = useEffectEvent(onClose);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -212,7 +215,7 @@ function CreateCategoryRow({ onClose }: { onClose: () => void }) {
     if (fetcher.state === "idle" && fetcher.data?.success) {
       toast.success(fetcher.data.message);
       setName("");
-      onClose();
+      close();
     }
     if (fetcher.state === "idle" && fetcher.data?.error) {
       toast.error(fetcher.data.error);

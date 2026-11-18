@@ -1,6 +1,7 @@
 // Lint only the mechanical rules in CODING_STANDARDS.md. Judgement calls stay
 // with the reviewer; whole recommended presets are deliberately not enabled.
 import jsxA11y from "eslint-plugin-jsx-a11y";
+import reactHooks from "eslint-plugin-react-hooks";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
 
@@ -71,6 +72,15 @@ export default tseslint.config(
       "jsx-a11y/tabindex-no-positive": "error",
       "jsx-a11y/no-static-element-interactions": "error",
       "jsx-a11y/click-events-have-key-events": "error",
+    },
+  },
+  // "Effects declare every value they read". To read a callback without
+  // re-running the effect, wrap it in useEffectEvent rather than disabling.
+  {
+    files: ["app/**/*.{ts,tsx}"],
+    plugins: { "react-hooks": reactHooks },
+    rules: {
+      "react-hooks/exhaustive-deps": "error",
     },
   },
   // "Imports are sorted: packages, then aliases, then relative". The plugin's

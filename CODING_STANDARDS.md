@@ -303,11 +303,6 @@ If you reassign, use `let`. Never `var`.
 
 ## Escape anything a person typed before you render it as HTML
 
-## Effects declare every value they read
-
-If an effect reads a value, that value is in the dependency array. Leaving it
-out is a bug that will not show up until the value changes.
-
 ## A commit message says why
 
 The diff already says what.

@@ -1,5 +1,5 @@
 import { MessageSquare, Pencil, Reply, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { useFetcher } from "react-router";
 import { toast } from "sonner";
 
@@ -61,6 +61,10 @@ function CommentForm({
   const fetcher = useFetcher<{ ok?: boolean; error?: string }>();
   const [body, setBody] = useState(defaultValue ?? "");
   const submitting = fetcher.state !== "idle";
+  // Callers pass a fresh onDone each render. Calling it through an effect
+  // event keeps it out of the dependencies, so the effect still runs once per
+  // fetcher result rather than on every render (which would repeat the toast).
+  const handleDone = useEffectEvent(() => onDone?.());
 
   useEffect(() => {
     if (fetcher.state !== "idle" || !fetcher.data) return;
@@ -72,9 +76,8 @@ function CommentForm({
 
     if (fetcher.data.ok) {
       if (intent === "create-comment") setBody("");
-      onDone?.();
+      handleDone();
     }
-    // onDone is recreated each render by callers; depending on it would loop.
   }, [fetcher.state, fetcher.data, intent]);
 
   const tooLong = body.length > MAX_COMMENT_LENGTH;
