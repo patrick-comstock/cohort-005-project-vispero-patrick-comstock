@@ -66,44 +66,57 @@ export function getQuizForLesson(database: Db, lessonId: number) {
   return { ...quiz, questions: questionsWithOptions };
 }
 
-/** Replaces the lesson's quiz, if it has one, with the drafted quiz. */
+/**
+ * Replaces the lesson's quiz, if it has one, with the drafted quiz. Replacing
+ * deletes the old quiz's Student attempts and answers too. One transaction, so
+ * a failed save leaves the old quiz as it was.
+ */
 export function saveQuiz(database: Db, lessonId: number, draft: QuizDraft) {
-  deleteQuizForLesson(database, lessonId);
+  database.transaction((tx) => {
+    deleteExistingQuiz(tx, lessonId);
 
-  const quiz = database
-    .insert(quizzes)
-    .values({
-      lessonId,
-      title: draft.title.trim(),
-      passingScore: draft.passingScore / 100,
-    })
-    .returning()
-    .get();
+    const quiz = tx
+      .insert(quizzes)
+      .values({
+        lessonId,
+        title: draft.title.trim(),
+        passingScore: draft.passingScore / 100,
+      })
+      .returning()
+      .get();
 
-  for (let qi = 0; qi < draft.questions.length; qi++) {
-    const q = draft.questions[qi];
-    const question = createQuestion(
-      database,
-      quiz.id,
-      q.text.trim(),
-      q.type,
-      qi + 1
-    );
+    for (let qi = 0; qi < draft.questions.length; qi++) {
+      const q = draft.questions[qi];
+      const question = createQuestion(
+        tx,
+        quiz.id,
+        q.text.trim(),
+        q.type,
+        qi + 1
+      );
 
-    for (const opt of q.options) {
-      database
-        .insert(quizOptions)
-        .values({
-          questionId: question.id,
-          optionText: opt.text.trim(),
-          isCorrect: opt.isCorrect,
-        })
-        .run();
+      for (const opt of q.options) {
+        tx.insert(quizOptions)
+          .values({
+            questionId: question.id,
+            optionText: opt.text.trim(),
+            isCorrect: opt.isCorrect,
+          })
+          .run();
+      }
     }
-  }
+  });
 }
 
+/**
+ * Deletes the lesson's quiz, if it has one, with its Student attempts and
+ * answers, in one transaction.
+ */
 export function deleteQuizForLesson(database: Db, lessonId: number) {
+  database.transaction((tx) => deleteExistingQuiz(tx, lessonId));
+}
+
+function deleteExistingQuiz(database: Db, lessonId: number) {
   const existingQuiz = getQuizByLessonId(database, lessonId);
   if (existingQuiz) {
     deleteQuiz(database, existingQuiz.id);
@@ -124,7 +137,24 @@ function createQuestion(
     .get();
 }
 
+/**
+ * Deletes the quiz with its Students' attempts and answers, children first: an
+ * answer references its attempt, question and selected option.
+ */
 function deleteQuiz(database: Db, id: number) {
+  const attempts = database
+    .select()
+    .from(quizAttempts)
+    .where(eq(quizAttempts.quizId, id))
+    .all();
+  for (const attempt of attempts) {
+    database
+      .delete(quizAnswers)
+      .where(eq(quizAnswers.attemptId, attempt.id))
+      .run();
+  }
+  database.delete(quizAttempts).where(eq(quizAttempts.quizId, id)).run();
+
   const questions = database
     .select()
     .from(quizQuestions)
@@ -137,19 +167,6 @@ function deleteQuiz(database: Db, id: number) {
       .run();
   }
 
-  const attempts = database
-    .select()
-    .from(quizAttempts)
-    .where(eq(quizAttempts.quizId, id))
-    .all();
-  for (const attempt of attempts) {
-    database
-      .delete(quizAnswers)
-      .where(eq(quizAnswers.attemptId, attempt.id))
-      .run();
-  }
-
-  database.delete(quizAttempts).where(eq(quizAttempts.quizId, id)).run();
   database.delete(quizQuestions).where(eq(quizQuestions.quizId, id)).run();
   database.delete(quizzes).where(eq(quizzes.id, id)).run();
 }

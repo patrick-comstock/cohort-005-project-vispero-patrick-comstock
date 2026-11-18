@@ -4,6 +4,7 @@ import * as schema from "~/db/schema";
 import { QuestionType } from "~/db/schema";
 import { createTestDb, seedBaseData } from "~/test/setup";
 
+import { gradeQuizAttempt } from "./quiz-attempt.server";
 import type { QuizDraft } from "./quiz-builder";
 import {
   deleteQuizForLesson,
@@ -60,6 +61,17 @@ const draft: QuizDraft = {
     },
   ],
 };
+
+/** A Student answers every question on the lesson's quiz with its first option. */
+function submitAnswers() {
+  const quiz = getQuizForLesson(testDb, lesson.id);
+  if (!quiz) throw new Error("The saved quiz was not found.");
+  const answers = Object.fromEntries(
+    quiz.questions.map((q) => [q.id, q.options[0].id])
+  );
+  const attempt = gradeQuizAttempt(testDb, base.user.id, quiz.id, answers);
+  if (!attempt) throw new Error("The attempt was not recorded.");
+}
 
 function thrownStatus(fn: () => unknown) {
   try {
@@ -149,6 +161,39 @@ describe("saveQuiz", () => {
       quizzes: testDb.select().from(schema.quizzes).all().length,
     }).toEqual({ title: "Rewritten", questions: 1, quizzes: 1 });
   });
+
+  it("replaces a quiz that a Student has submitted answers to", () => {
+    saveQuiz(testDb, lesson.id, draft);
+    submitAnswers();
+
+    saveQuiz(testDb, lesson.id, { ...draft, title: "Rewritten" });
+
+    expect(getQuizForLesson(testDb, lesson.id)?.title).toBe("Rewritten");
+  });
+
+  it("leaves the existing quiz and its answers intact when the save fails part-way", () => {
+    saveQuiz(testDb, lesson.id, draft);
+    submitAnswers();
+    const before = getQuizForLesson(testDb, lesson.id);
+    // The second question's option has no text, so the save fails after the
+    // old quiz is gone and the new quiz is part-written.
+    const broken = {
+      ...draft,
+      title: "Broken",
+      questions: [
+        draft.questions[0],
+        { ...draft.questions[1], options: [{ id: "x", isCorrect: true }] },
+      ],
+    } as unknown as QuizDraft;
+
+    expect(() => saveQuiz(testDb, lesson.id, broken)).toThrow();
+
+    expect({
+      quiz: getQuizForLesson(testDb, lesson.id),
+      attempts: testDb.select().from(schema.quizAttempts).all().length,
+      answers: testDb.select().from(schema.quizAnswers).all().length,
+    }).toEqual({ quiz: before, attempts: 1, answers: 2 });
+  });
 });
 
 describe("getQuizForLesson", () => {
@@ -179,6 +224,15 @@ describe("deleteQuizForLesson", () => {
         passed: false,
       })
       .run();
+
+    deleteQuizForLesson(testDb, lesson.id);
+
+    expect(getQuizForLesson(testDb, lesson.id)).toBeNull();
+  });
+
+  it("removes a quiz that a Student has submitted answers to", () => {
+    saveQuiz(testDb, lesson.id, draft);
+    submitAnswers();
 
     deleteQuizForLesson(testDb, lesson.id);
 
