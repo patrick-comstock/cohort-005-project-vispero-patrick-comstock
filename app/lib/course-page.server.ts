@@ -2,15 +2,23 @@ import { and, asc, eq } from "drizzle-orm";
 
 import type { Db } from "~/db";
 import {
+  coupons,
   lessonProgress,
   LessonProgressStatus,
   lessons,
   modules,
+  purchases,
 } from "~/db/schema";
 import {
   getCourseProgress,
   getLessonProgressMap,
 } from "~/lib/course-progress.server";
+import {
+  formatCalendarDay,
+  getRefundRequestOffer,
+  getStudentRefundRequest,
+  refusalReasonForStudent,
+} from "~/lib/refund-eligibility.server";
 import type { Access } from "~/modules/access/index.server";
 
 /** The parts of Access that decide what the course page may show. */
@@ -74,5 +82,73 @@ export function loadCourseProgress(
     progress: getCourseProgress(database, viewer.userId, courseId).percent,
     lessonProgressMap: getLessonProgressMap(database, viewer.userId, courseId),
     nextLessonId: getNextIncompleteLessonId(database, viewer.userId, courseId),
+  };
+}
+
+/** Whether the user bought this course as a Team Purchase (a Purchase with Coupons). */
+function hasTeamPurchaseForCourse(
+  database: Db,
+  userId: number,
+  courseId: number
+) {
+  const teamCoupon = database
+    .select({ id: coupons.id })
+    .from(coupons)
+    .innerJoin(purchases, eq(coupons.purchaseId, purchases.id))
+    .where(and(eq(purchases.userId, userId), eq(purchases.courseId, courseId)))
+    .get();
+  return !!teamCoupon;
+}
+
+/**
+ * The viewer's Team Purchase and Refund Request state, for the course page.
+ *
+ * The Refund Request is shown with or without an Enrollment, because an
+ * Approval ends the Enrollment. The offer to make one needs an Enrollment.
+ */
+export function loadCoursePurchaseState(
+  database: Db,
+  courseId: number,
+  viewer: Pick<CourseViewer, "userId" | "enrolled">
+) {
+  let hasTeamPurchase = false;
+  let refundRequestOffer: {
+    amount: number;
+    lastDayInWindow: string;
+  } | null = null;
+  let refundRequestRefusal: string | null = null;
+  let refundRequest: ReturnType<typeof getStudentRefundRequest> = null;
+
+  if (viewer.userId) {
+    hasTeamPurchase = hasTeamPurchaseForCourse(
+      database,
+      viewer.userId,
+      courseId
+    );
+    refundRequest = getStudentRefundRequest(database, {
+      userId: viewer.userId,
+      courseId,
+    });
+
+    if (viewer.enrolled) {
+      const offer = getRefundRequestOffer(database, {
+        userId: viewer.userId,
+        courseId,
+      });
+      refundRequestOffer = offer.ok
+        ? {
+            amount: offer.amount,
+            lastDayInWindow: formatCalendarDay(offer.lastDayInWindow),
+          }
+        : null;
+      refundRequestRefusal = offer.ok ? null : refusalReasonForStudent(offer);
+    }
+  }
+
+  return {
+    hasTeamPurchase,
+    refundRequestOffer,
+    refundRequestRefusal,
+    refundRequest,
   };
 }

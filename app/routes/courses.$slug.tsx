@@ -1,46 +1,36 @@
-import { and, eq, sql } from "drizzle-orm";
-import {
-  AlertTriangle,
-  BookOpen,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Pencil,
-  PlayCircle,
-  Users,
-} from "lucide-react";
-import { useEffect, useState } from "react";
-import { Link, useFetcher, useSearchParams } from "react-router";
+import { AlertTriangle, BookOpen, Clock, Pencil } from "lucide-react";
+import { useEffect } from "react";
+import { Link, useSearchParams } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { CourseContent } from "~/components/course-content";
 import { CourseImage } from "~/components/course-image";
-import { PppRestrictedNotice } from "~/components/ppp-restricted-notice";
+import { CourseProgress } from "~/components/course-progress";
+import {
+  PurchaseOptions,
+  TeamPurchaseButton,
+} from "~/components/purchase-options";
+import { RateCourse } from "~/components/rate-course";
+import { RefundRequestForm } from "~/components/refund-request-form";
 import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
-import { StarRating, StarRatingInput } from "~/components/star-rating";
+import { StarRating } from "~/components/star-rating";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Skeleton, skeletonKeys } from "~/components/ui/skeleton";
-import {
-  Tabs,
-  TabsContent,
-  TabsContentNoShift,
-  TabsList,
-  TabsTrigger,
-} from "~/components/ui/tabs";
-import { Textarea } from "~/components/ui/textarea";
 import { UserAvatar } from "~/components/user-avatar";
 import { db } from "~/db";
-import {
-  coupons,
-  courseRatings,
-  courses,
-  LessonProgressStatus,
-  purchases,
-} from "~/db/schema";
 import { resolveCountry } from "~/lib/country.server";
-import { loadCourseProgress } from "~/lib/course-page.server";
+import {
+  loadCourseProgress,
+  loadCoursePurchaseState,
+} from "~/lib/course-page.server";
+import {
+  getCourseRatingSummary,
+  getUserRating,
+  rateCourse,
+} from "~/lib/course-ratings.server";
 import {
   getCourseBySlug,
   getCourseOutline,
@@ -49,104 +39,12 @@ import {
 import { renderMarkdown } from "~/lib/markdown.server";
 import { calculatePppPrice, getCountryTierInfo } from "~/lib/ppp";
 import { MAX_RATING, MIN_RATING } from "~/lib/ratings";
-import {
-  formatCalendarDay,
-  getRefundRequestOffer,
-  getStudentRefundRequest,
-  refusalReasonForStudent,
-} from "~/lib/refund-eligibility.server";
 import { getTeamPurchaseButtonLabel } from "~/lib/team-purchase";
-import { formatDuration, formatPrice } from "~/lib/utils";
+import { formatDuration } from "~/lib/utils";
 import { parseFormData } from "~/lib/validation";
 import { getAccess, requireUserId } from "~/modules/access/index.server";
 
 import type { Route } from "./+types/courses.$slug";
-
-type CourseRatingSummary = {
-  average: number | null;
-  count: number;
-};
-
-const EMPTY_SUMMARY: CourseRatingSummary = { average: null, count: 0 };
-
-function findRating(userId: number, courseId: number) {
-  return db
-    .select()
-    .from(courseRatings)
-    .where(
-      and(
-        eq(courseRatings.userId, userId),
-        eq(courseRatings.courseId, courseId)
-      )
-    )
-    .get();
-}
-
-function getCourseRatingSummary(courseId: number): CourseRatingSummary {
-  const result = db
-    .select({
-      average: sql<number | null>`avg(${courseRatings.rating})`,
-      count: sql<number>`count(*)`,
-    })
-    .from(courseRatings)
-    .where(eq(courseRatings.courseId, courseId))
-    .get();
-
-  if (!result || result.count === 0 || result.average === null) {
-    return EMPTY_SUMMARY;
-  }
-
-  return {
-    average: Math.round(result.average * 10) / 10,
-    count: result.count,
-  };
-}
-
-function rateCourse(userId: number, courseId: number, rating: number) {
-  if (!Number.isInteger(rating) || rating < MIN_RATING || rating > MAX_RATING) {
-    throw new Error(
-      `Rating must be a whole number between ${MIN_RATING} and ${MAX_RATING}`
-    );
-  }
-
-  const course = db
-    .select({ id: courses.id })
-    .from(courses)
-    .where(eq(courses.id, courseId))
-    .get();
-
-  if (!course) {
-    throw new Error("Course not found");
-  }
-
-  const existing = findRating(userId, courseId);
-
-  if (existing) {
-    return db
-      .update(courseRatings)
-      .set({ rating, updatedAt: new Date().toISOString() })
-      .where(eq(courseRatings.id, existing.id))
-      .returning()
-      .get();
-  }
-
-  return db
-    .insert(courseRatings)
-    .values({ userId, courseId, rating })
-    .returning()
-    .get();
-}
-
-/** Whether the user bought this course as a Team Purchase (a Purchase with Coupons). */
-function hasTeamPurchaseForCourse(userId: number, courseId: number) {
-  const teamCoupon = db
-    .select({ id: coupons.id })
-    .from(coupons)
-    .innerJoin(purchases, eq(coupons.purchaseId, purchases.id))
-    .where(and(eq(purchases.userId, userId), eq(purchases.courseId, courseId)))
-    .get();
-  return !!teamCoupon;
-}
 
 const ratingSchema = z.object({
   rating: z.coerce.number().int().min(MIN_RATING).max(MAX_RATING),
@@ -183,43 +81,19 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const { tracksProgress, progress, lessonProgressMap, nextLessonId } =
     loadCourseProgress(db, course.id, access);
 
-  let hasTeamPurchase = false;
-  let refundRequestOffer: {
-    amount: number;
-    lastDayInWindow: string;
-  } | null = null;
-  let refundRequestRefusal: string | null = null;
-  let refundRequest: ReturnType<typeof getStudentRefundRequest> = null;
-
-  if (currentUserId) {
-    hasTeamPurchase = hasTeamPurchaseForCourse(currentUserId, course.id);
-    // Shown with or without an Enrollment: an Approval ends the Enrollment.
-    refundRequest = getStudentRefundRequest(db, {
-      userId: currentUserId,
-      courseId: course.id,
-    });
-
-    if (enrolled) {
-      const offer = getRefundRequestOffer(db, {
-        userId: currentUserId,
-        courseId: course.id,
-      });
-      refundRequestOffer = offer.ok
-        ? {
-            amount: offer.amount,
-            lastDayInWindow: formatCalendarDay(offer.lastDayInWindow),
-          }
-        : null;
-      refundRequestRefusal = offer.ok ? null : refusalReasonForStudent(offer);
-    }
-  }
+  const {
+    hasTeamPurchase,
+    refundRequestOffer,
+    refundRequestRefusal,
+    refundRequest,
+  } = loadCoursePurchaseState(db, course.id, access);
 
   // Render sales copy from Markdown to HTML server-side
   const salesCopyHtml = await renderMarkdown(courseWithDetails.salesCopy);
 
-  const ratingSummary = getCourseRatingSummary(course.id);
+  const ratingSummary = getCourseRatingSummary(db, course.id);
   const userRating = currentUserId
-    ? (findRating(currentUserId, course.id)?.rating ?? null)
+    ? getUserRating(db, currentUserId, course.id)
     : null;
 
   const country = await resolveCountry(request);
@@ -278,7 +152,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     );
   }
 
-  rateCourse(access.userId, course.id, parsed.data.rating);
+  rateCourse(db, access.userId, course.id, parsed.data.rating);
 
   return { ok: true as const, error: null };
 }
@@ -382,24 +256,14 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     0
   );
 
-  const pppPriceLabel = formatPrice(pppPrice);
-  const isDiscounted = pppPrice < course.price;
+  const isSignedIn = Boolean(currentUserId);
 
-  const selfPurchaseLink = currentUserId
-    ? `/courses/${course.slug}/purchase`
-    : `/signup?redirectTo=${encodeURIComponent(`/courses/${course.slug}/purchase`)}`;
-
-  const teamPurchaseLink = currentUserId
-    ? `/courses/${course.slug}/purchase?mode=team`
-    : `/signup?redirectTo=${encodeURIComponent(`/courses/${course.slug}/purchase?mode=team`)}`;
-
-  const teamPurchaseButton = teamPurchaseButtonLabel && (
-    <Link to={teamPurchaseLink}>
-      <Button variant="outline" className="w-full">
-        <Users className="mr-2 size-4" />
-        {teamPurchaseButtonLabel}
-      </Button>
-    </Link>
+  const teamPurchaseButton = (
+    <TeamPurchaseButton
+      slug={course.slug}
+      isSignedIn={isSignedIn}
+      label={teamPurchaseButtonLabel}
+    />
   );
 
   const refundRequestStatus = refundRequest && (
@@ -416,60 +280,15 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
     </div>
   );
 
-  const priceDisplay = (
-    <div className="mb-3 text-center">
-      {isDiscounted ? (
-        <>
-          <div className="text-sm text-muted-foreground line-through">
-            {formatPrice(course.price)}
-          </div>
-          <div className="text-2xl font-bold">{pppPriceLabel}</div>
-          <div className="mt-1 inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/30 dark:text-green-300">
-            {tierInfo.label} — PPP discount
-          </div>
-        </>
-      ) : (
-        <div className="text-2xl font-bold">{pppPriceLabel}</div>
-      )}
-    </div>
-  );
-
-  const enrollButton = (
-    <Tabs defaultValue="self">
-      <TabsList className="mb-4 w-full">
-        <TabsTrigger value="self" className="flex-1 text-xs">
-          Buy for Myself
-        </TabsTrigger>
-        <TabsTrigger value="team" className="flex-1 text-xs">
-          Buy for Team
-        </TabsTrigger>
-      </TabsList>
-      <TabsContentNoShift>
-        <TabsContent value="self" forceMount>
-          {priceDisplay}
-          <Link to={selfPurchaseLink}>
-            <Button size="lg" className="w-full">
-              Enroll Now — {pppPriceLabel}
-            </Button>
-          </Link>
-        </TabsContent>
-        <TabsContent value="team" forceMount>
-          {priceDisplay}
-          <Link to={teamPurchaseLink}>
-            <Button size="lg" variant="outline" className="w-full">
-              Buy for Your Team
-            </Button>
-          </Link>
-        </TabsContent>
-      </TabsContentNoShift>
-    </Tabs>
-  );
-
   const purchaseOptions = (
-    <>
-      {enrollButton}
-      {teamPurchaseButton}
-    </>
+    <PurchaseOptions
+      slug={course.slug}
+      price={course.price}
+      pppPrice={pppPrice}
+      tierLabel={tierInfo.label}
+      isSignedIn={isSignedIn}
+      teamPurchaseButtonLabel={teamPurchaseButtonLabel}
+    />
   );
 
   return (
@@ -592,39 +411,14 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
                 </Link>
               ) : enrolled ? (
                 <>
-                  {tracksProgress ? (
-                    <>
-                      <div className="mb-2 flex items-center justify-between text-sm">
-                        <span>{progress}% complete</span>
-                      </div>
-                      <div className="mb-4 h-2 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-primary transition-all"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <PppRestrictedNotice />
-                  )}
-                  {tracksProgress &&
-                    course.modules.length > 0 &&
-                    (() => {
-                      const targetLessonId =
-                        nextLessonId ?? course.modules[0].lessons[0]?.id;
-                      return targetLessonId ? (
-                        <Link
-                          to={`/courses/${course.slug}/lessons/${targetLessonId}`}
-                        >
-                          <Button className="w-full">
-                            <PlayCircle className="mr-2 size-4" />
-                            {progress > 0
-                              ? "Continue Learning"
-                              : "Start Course"}
-                          </Button>
-                        </Link>
-                      ) : null;
-                    })()}
+                  <CourseProgress
+                    slug={course.slug}
+                    tracksProgress={tracksProgress}
+                    progress={progress}
+                    resumeLessonId={
+                      nextLessonId ?? course.modules[0]?.lessons[0]?.id
+                    }
+                  />
                   {teamPurchaseButton}
                   <RateCourse userRating={userRating} />
                   {refundRequestStatus ? (
@@ -674,234 +468,6 @@ export default function CourseDetail({ loaderData }: Route.ComponentProps) {
           </Card>
         </div>
       </div>
-    </div>
-  );
-}
-
-function RateCourse({ userRating }: { userRating: number | null }) {
-  const fetcher = useFetcher<{ ok: boolean; error: string | null }>();
-  const isSubmitting = fetcher.state !== "idle";
-
-  // Show the star the user just clicked while the request is in flight.
-  const pendingRating = fetcher.formData?.get("rating");
-  const displayedRating =
-    pendingRating !== null && pendingRating !== undefined
-      ? Number(pendingRating)
-      : userRating;
-
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.error) {
-      toast.error(fetcher.data.error);
-    }
-  }, [fetcher.state, fetcher.data]);
-
-  return (
-    <div className="border-t pt-4">
-      <p className="mb-2 text-sm font-medium">
-        {userRating ? "Your rating" : "Rate this course"}
-      </p>
-      <fetcher.Form method="post">
-        <StarRatingInput value={displayedRating} disabled={isSubmitting} />
-      </fetcher.Form>
-      {userRating && (
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Click a star to change your rating.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function RefundRequestForm({
-  slug,
-  amount,
-  lastDayInWindow,
-}: {
-  slug: string;
-  amount: number;
-  lastDayInWindow: string;
-}) {
-  const fetcher = useFetcher<{ errors?: Record<string, string> }>();
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const isSubmitting = fetcher.state !== "idle";
-
-  useEffect(() => {
-    const firstError = Object.values(fetcher.data?.errors ?? {})[0];
-    if (fetcher.state === "idle" && firstError) {
-      toast.error(firstError);
-    }
-  }, [fetcher.state, fetcher.data]);
-
-  if (!isFormOpen) {
-    return (
-      <div className="border-t pt-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full text-muted-foreground"
-          onClick={() => setIsFormOpen(true)}
-        >
-          Request a refund
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="border-t pt-4">
-      <p className="mb-2 text-sm font-medium">Request a refund</p>
-      <p className="mb-3 text-xs text-muted-foreground">
-        If your Refund Request is approved, we will refund {formatPrice(amount)}{" "}
-        to the card you paid with. Available until {lastDayInWindow}.
-      </p>
-      <fetcher.Form
-        method="post"
-        action={`/courses/${slug}/refund-request`}
-        className="space-y-2"
-      >
-        <Textarea
-          name="reason"
-          rows={3}
-          required
-          placeholder="What went wrong?"
-        />
-        <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={isSubmitting}>
-            {isSubmitting ? "Sending..." : "Request a refund"}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsFormOpen(false)}
-          >
-            Keep it
-          </Button>
-        </div>
-      </fetcher.Form>
-    </div>
-  );
-}
-
-function CourseContent({
-  course,
-  canViewContent,
-  isInstructor,
-  lessonProgressMap,
-}: {
-  course: {
-    id: number;
-    slug: string;
-    modules: Array<{
-      id: number;
-      title: string;
-      lessons: Array<{
-        id: number;
-        title: string;
-        durationMinutes: number | null;
-      }>;
-    }>;
-  };
-  canViewContent: boolean;
-  isInstructor: boolean;
-  lessonProgressMap: Record<number, string>;
-}) {
-  return (
-    <div>
-      <h2 className="mb-4 text-2xl font-bold">Course Content</h2>
-      {course.modules.length === 0 ? (
-        <p className="text-muted-foreground">
-          No content has been added to this course yet.
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {course.modules.map((mod) => (
-            <Card key={mod.id}>
-              <CardHeader>
-                <h3 className="font-semibold">
-                  <Link
-                    to={`/courses/${course.slug}/${mod.id}`}
-                    className="hover:underline"
-                  >
-                    {mod.title}
-                  </Link>
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {mod.lessons.length} lessons
-                </p>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {mod.lessons.map((lesson) => {
-                    const status = lessonProgressMap[lesson.id];
-                    const isCompleted =
-                      status === LessonProgressStatus.Completed;
-                    const isLessonInProgress =
-                      status === LessonProgressStatus.InProgress;
-
-                    if (isInstructor) {
-                      return (
-                        <li key={lesson.id}>
-                          <Link
-                            to={`/instructor/${course.id}/lessons/${lesson.id}`}
-                            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-muted"
-                          >
-                            <Pencil className="size-4 shrink-0 text-muted-foreground" />
-                            <span className="flex-1">{lesson.title}</span>
-                            {lesson.durationMinutes && (
-                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Clock className="size-3" />
-                                {formatDuration(lesson.durationMinutes)}
-                              </span>
-                            )}
-                          </Link>
-                        </li>
-                      );
-                    }
-
-                    return (
-                      <li key={lesson.id}>
-                        {canViewContent ? (
-                          <Link
-                            to={`/courses/${course.slug}/lessons/${lesson.id}`}
-                            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-muted"
-                          >
-                            {isCompleted ? (
-                              <CheckCircle2 className="size-4 shrink-0 text-green-500" />
-                            ) : isLessonInProgress ? (
-                              <PlayCircle className="size-4 shrink-0 text-blue-500" />
-                            ) : (
-                              <Circle className="size-4 shrink-0 text-muted-foreground" />
-                            )}
-                            <span className="flex-1">{lesson.title}</span>
-                            {lesson.durationMinutes && (
-                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Clock className="size-3" />
-                                {formatDuration(lesson.durationMinutes)}
-                              </span>
-                            )}
-                          </Link>
-                        ) : (
-                          <div className="flex items-center gap-3 px-3 py-2 text-sm">
-                            <Circle className="size-4 shrink-0 text-muted-foreground" />
-                            <span className="flex-1">{lesson.title}</span>
-                            {lesson.durationMinutes && (
-                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Clock className="size-3" />
-                                {formatDuration(lesson.durationMinutes)}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
