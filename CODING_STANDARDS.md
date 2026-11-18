@@ -182,7 +182,7 @@ A test that fails should tell you what is broken without being read.
 ## Return early rather than nesting
 
 Turn the condition around and leave at the top, rather than wrapping the rest
-of the body in an `if`. (ESLint already rejects an `else` after a `return`.)
+of the body in an `if`. (oxlint already rejects an `else` after a `return`.)
 
 ## No inline styles except for a computed value
 
@@ -212,7 +212,7 @@ Keep it private until a second caller appears.
 ## Do not write a type that the compiler can infer
 
 `const count: number = items.length` says nothing the compiler did not know.
-ESLint catches an annotation on a literal (`limit: number = 3`); the rest is
+oxlint catches an annotation on a literal (`limit: number = 3`); the rest is
 yours to spot.
 
 ## Do not use a default parameter to hide a required one
