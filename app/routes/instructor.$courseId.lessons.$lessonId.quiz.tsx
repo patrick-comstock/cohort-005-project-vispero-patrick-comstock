@@ -1,52 +1,33 @@
-import {
-  DragDropContext,
-  Draggable,
-  Droppable,
-  type DropResult,
-} from "@hello-pangea/dnd";
-import { eq, sql } from "drizzle-orm";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  Circle,
-  GripVertical,
-  Plus,
-  Save,
-  Trash2,
-  XCircle,
-} from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useFetcher, useNavigate } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { AnswersStep } from "~/components/quiz-builder/answers-step";
+import { QuestionsStep } from "~/components/quiz-builder/questions-step";
+import { ReviewStep } from "~/components/quiz-builder/review-step";
+import { SettingsStep } from "~/components/quiz-builder/settings-step";
+import {
+  LAST_STEP,
+  StepIndicator,
+} from "~/components/quiz-builder/step-indicator";
 import { Button } from "~/components/ui/button";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
 import { db } from "~/db";
+import type { QuestionType } from "~/db/schema";
 import {
-  lessons,
-  modules,
-  QuestionType,
-  quizAnswers,
-  quizAttempts,
-  quizOptions,
-  quizQuestions,
-  quizzes,
-} from "~/db/schema";
-import { getQuizByLessonId } from "~/lib/courses.server";
+  generateId,
+  type QuizDraft,
+  quizDraftSchema,
+  type WizardState,
+} from "~/lib/quiz-builder";
+import {
+  deleteQuizForLesson,
+  getQuizForLesson,
+  requireLessonInCourse,
+  saveQuiz,
+} from "~/lib/quiz-builder.server";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { requireCourseManager } from "~/modules/access/index.server";
 
@@ -55,27 +36,6 @@ import type { Route } from "./+types/instructor.$courseId.lessons.$lessonId.quiz
 const quizParamsSchema = z.object({
   courseId: z.coerce.number().int(),
   lessonId: z.coerce.number().int(),
-});
-
-const wizardDataSchema = z.object({
-  title: z.string().trim().min(1, "Quiz title is required."),
-  passingScore: z.number(),
-  questions: z
-    .array(
-      z.object({
-        id: z.string(),
-        text: z.string(),
-        type: z.nativeEnum(QuestionType),
-        options: z.array(
-          z.object({
-            id: z.string(),
-            text: z.string(),
-            isCorrect: z.boolean(),
-          })
-        ),
-      })
-    )
-    .min(1, "At least one question is required."),
 });
 
 const quizActionSchema = z.discriminatedUnion("intent", [
@@ -87,170 +47,6 @@ const quizActionSchema = z.discriminatedUnion("intent", [
     intent: z.literal("delete-quiz"),
   }),
 ]);
-
-// ─── Types for wizard state ───
-
-type WizardOption = {
-  id: string;
-  text: string;
-  isCorrect: boolean;
-};
-
-type WizardQuestion = {
-  id: string;
-  text: string;
-  type: QuestionType;
-  options: WizardOption[];
-};
-
-type WizardState = {
-  title: string;
-  passingScore: number;
-  questions: WizardQuestion[];
-};
-
-function generateId() {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function getModuleById(id: number) {
-  return db.select().from(modules).where(eq(modules.id, id)).get();
-}
-
-function getLessonById(id: number) {
-  return db.select().from(lessons).where(eq(lessons.id, id)).get();
-}
-
-function getQuizById(id: number) {
-  return db.select().from(quizzes).where(eq(quizzes.id, id)).get();
-}
-
-function getQuestionsByQuiz(quizId: number) {
-  return db
-    .select()
-    .from(quizQuestions)
-    .where(eq(quizQuestions.quizId, quizId))
-    .orderBy(quizQuestions.position)
-    .all();
-}
-
-function getQuizWithQuestions(quizId: number) {
-  const quiz = getQuizById(quizId);
-  if (!quiz) return null;
-
-  const questions = db
-    .select()
-    .from(quizQuestions)
-    .where(eq(quizQuestions.quizId, quizId))
-    .orderBy(quizQuestions.position)
-    .all();
-
-  const questionsWithOptions = questions.map((question) => {
-    const options = db
-      .select()
-      .from(quizOptions)
-      .where(eq(quizOptions.questionId, question.id))
-      .all();
-    return { ...question, options };
-  });
-
-  return { ...quiz, questions: questionsWithOptions };
-}
-
-function createQuiz(lessonId: number, title: string, passingScore: number) {
-  return db
-    .insert(quizzes)
-    .values({ lessonId, title, passingScore })
-    .returning()
-    .get();
-}
-
-function updateQuiz(
-  id: number,
-  title: string | null,
-  passingScore: number | null
-) {
-  const updates: Record<string, unknown> = {};
-  if (title !== null) updates.title = title;
-  if (passingScore !== null) updates.passingScore = passingScore;
-
-  if (Object.keys(updates).length === 0) {
-    return getQuizById(id);
-  }
-
-  return db
-    .update(quizzes)
-    .set(updates)
-    .where(eq(quizzes.id, id))
-    .returning()
-    .get();
-}
-
-function deleteQuiz(id: number) {
-  // Cascade: delete answers -> attempts -> options -> questions -> quiz
-  const questions = getQuestionsByQuiz(id);
-  for (const question of questions) {
-    db.delete(quizOptions).where(eq(quizOptions.questionId, question.id)).run();
-  }
-
-  const attempts = db
-    .select()
-    .from(quizAttempts)
-    .where(eq(quizAttempts.quizId, id))
-    .all();
-  for (const attempt of attempts) {
-    db.delete(quizAnswers).where(eq(quizAnswers.attemptId, attempt.id)).run();
-  }
-
-  db.delete(quizAttempts).where(eq(quizAttempts.quizId, id)).run();
-  db.delete(quizQuestions).where(eq(quizQuestions.quizId, id)).run();
-  return db.delete(quizzes).where(eq(quizzes.id, id)).returning().get();
-}
-
-function createQuestion(
-  quizId: number,
-  questionText: string,
-  questionType: QuestionType,
-  position: number | null
-) {
-  // An aggregate query always yields one row; `?? 0` only satisfies the type.
-  const pos =
-    position ??
-    (db
-      .select({
-        max: sql<number>`coalesce(max(${quizQuestions.position}), 0)`,
-      })
-      .from(quizQuestions)
-      .where(eq(quizQuestions.quizId, quizId))
-      .get()?.max ?? 0) + 1;
-
-  return db
-    .insert(quizQuestions)
-    .values({ quizId, questionText, questionType, position: pos })
-    .returning()
-    .get();
-}
-
-function deleteQuestion(id: number) {
-  db.delete(quizOptions).where(eq(quizOptions.questionId, id)).run();
-  return db
-    .delete(quizQuestions)
-    .where(eq(quizQuestions.id, id))
-    .returning()
-    .get();
-}
-
-function createOption(
-  questionId: number,
-  optionText: string,
-  isCorrect: boolean
-) {
-  return db
-    .insert(quizOptions)
-    .values({ questionId, optionText, isCorrect })
-    .returning()
-    .get();
-}
 
 // ─── Meta ───
 
@@ -270,21 +66,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const { courseId, lessonId } = parseParams(params, quizParamsSchema);
   const { course } = await requireCourseManager(request, courseId);
 
-  const lesson = getLessonById(lessonId);
-  if (!lesson) {
-    throw data("Lesson not found.", { status: 404 });
-  }
-
-  const mod = getModuleById(lesson.moduleId);
-  if (!mod || mod.courseId !== courseId) {
-    throw data("Lesson not found in this course.", { status: 404 });
-  }
-
-  // Load existing quiz if present
-  const existingQuizBasic = getQuizByLessonId(db, lessonId);
-  const existingQuiz = existingQuizBasic
-    ? getQuizWithQuestions(existingQuizBasic.id)
-    : null;
+  const { lesson, module: mod } = requireLessonInCourse(db, courseId, lessonId);
+  const existingQuiz = getQuizForLesson(db, lessonId);
 
   return { course, lesson, module: mod, existingQuiz };
 }
@@ -295,15 +78,7 @@ export async function action({ params, request }: Route.ActionArgs) {
   const { courseId, lessonId } = parseParams(params, quizParamsSchema);
   await requireCourseManager(request, courseId);
 
-  const lesson = getLessonById(lessonId);
-  if (!lesson) {
-    throw data("Lesson not found.", { status: 404 });
-  }
-
-  const mod = getModuleById(lesson.moduleId);
-  if (!mod || mod.courseId !== courseId) {
-    throw data("Lesson not found in this course.", { status: 404 });
-  }
+  requireLessonInCourse(db, courseId, lessonId);
 
   const formData = await request.formData();
   const parsed = parseFormData(formData, quizActionSchema);
@@ -318,10 +93,10 @@ export async function action({ params, request }: Route.ActionArgs) {
   const { intent } = parsed.data;
 
   if (intent === "save-quiz") {
-    let wizardData: z.infer<typeof wizardDataSchema>;
+    let wizardData: QuizDraft;
     try {
       const raw = JSON.parse(parsed.data.wizardData);
-      const wizardResult = wizardDataSchema.safeParse(raw);
+      const wizardResult = quizDraftSchema.safeParse(raw);
       if (!wizardResult.success) {
         return data({ error: "Invalid quiz data." }, { status: 400 });
       }
@@ -330,86 +105,16 @@ export async function action({ params, request }: Route.ActionArgs) {
       return data({ error: "Invalid quiz data." }, { status: 400 });
     }
 
-    // Delete existing quiz if present
-    const existingQuiz = getQuizByLessonId(db, lessonId);
-    if (existingQuiz) {
-      deleteQuiz(existingQuiz.id);
-    }
-
-    // Create the quiz
-    const quiz = createQuiz(
-      lessonId,
-      wizardData.title.trim(),
-      wizardData.passingScore / 100
-    );
-
-    // Create questions and options
-    for (let qi = 0; qi < wizardData.questions.length; qi++) {
-      const q = wizardData.questions[qi];
-      const question = createQuestion(quiz.id, q.text.trim(), q.type, qi + 1);
-
-      for (const opt of q.options) {
-        createOption(question.id, opt.text.trim(), opt.isCorrect);
-      }
-    }
-
+    saveQuiz(db, lessonId, wizardData);
     return { success: true };
   }
 
   if (intent === "delete-quiz") {
-    const existingQuiz = getQuizByLessonId(db, lessonId);
-    if (existingQuiz) {
-      deleteQuiz(existingQuiz.id);
-    }
+    deleteQuizForLesson(db, lessonId);
     return { success: true, deleted: true };
   }
 
   throw data("Invalid action.", { status: 400 });
-}
-
-// ─── Step Indicators ───
-
-const STEPS = [
-  { label: "Settings", number: 1 },
-  { label: "Questions", number: 2 },
-  { label: "Answers", number: 3 },
-  { label: "Review", number: 4 },
-];
-
-function StepIndicator({
-  currentStep,
-  onStepClick,
-}: {
-  currentStep: number;
-  onStepClick: (step: number) => void;
-}) {
-  return (
-    <div className="mb-8 flex items-center justify-center gap-2">
-      {STEPS.map((step, i) => (
-        <div key={step.number} className="flex items-center">
-          <button
-            type="button"
-            onClick={() => onStepClick(step.number)}
-            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-              step.number === currentStep
-                ? "bg-primary text-primary-foreground"
-                : step.number < currentStep
-                  ? "bg-primary/20 text-primary hover:bg-primary/30"
-                  : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {step.number < currentStep ? (
-              <CheckCircle2 className="size-4" />
-            ) : (
-              <Circle className="size-4" />
-            )}
-            {step.label}
-          </button>
-          {i < STEPS.length - 1 && <div className="mx-2 h-px w-8 bg-border" />}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 // ─── Component ───
@@ -417,12 +122,11 @@ function StepIndicator({
 export default function QuizBuilderWizard({
   loaderData,
 }: Route.ComponentProps) {
-  const { course, lesson, module: mod, existingQuiz } = loaderData;
+  const { course, lesson, existingQuiz } = loaderData;
   const fetcher = useFetcher();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
 
-  // Initialize wizard state from existing quiz or defaults
   const [wizard, setWizard] = useState<WizardState>(() => {
     if (existingQuiz) {
       return {
@@ -449,7 +153,6 @@ export default function QuizBuilderWizard({
 
   const isEditing = !!existingQuiz;
 
-  // Toast on success
   const fetcherData = fetcher.data as
     { success?: boolean; deleted?: boolean; error?: string } | undefined;
 
@@ -463,557 +166,6 @@ export default function QuizBuilderWizard({
     }
   }
 
-  // ─── Step 1: Settings ───
-  function renderStep1() {
-    return (
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold">Quiz Settings</h2>
-          <p className="text-sm text-muted-foreground">
-            Set the quiz title and passing score.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="quizTitle">Quiz Title</Label>
-            <Input
-              id="quizTitle"
-              value={wizard.title}
-              onChange={(e) =>
-                setWizard((prev) => ({ ...prev, title: e.target.value }))
-              }
-              placeholder="e.g. Module 1 Quiz"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="passingScore">Passing Score (%)</Label>
-            <Input
-              id="passingScore"
-              type="number"
-              min={0}
-              max={100}
-              value={wizard.passingScore}
-              onChange={(e) =>
-                setWizard((prev) => ({
-                  ...prev,
-                  passingScore: parseInt(e.target.value, 10) || 0,
-                }))
-              }
-              className="max-w-32"
-            />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // ─── Step 2: Questions ───
-  function addQuestion() {
-    setWizard((prev) => ({
-      ...prev,
-      questions: [
-        ...prev.questions,
-        {
-          id: generateId(),
-          text: "",
-          type: QuestionType.MultipleChoice,
-          options: [
-            { id: generateId(), text: "", isCorrect: true },
-            { id: generateId(), text: "", isCorrect: false },
-          ],
-        },
-      ],
-    }));
-  }
-
-  function removeQuestion(questionId: string) {
-    setWizard((prev) => ({
-      ...prev,
-      questions: prev.questions.filter((q) => q.id !== questionId),
-    }));
-  }
-
-  function updateQuestion(
-    questionId: string,
-    updates: Partial<WizardQuestion>
-  ) {
-    setWizard((prev) => ({
-      ...prev,
-      questions: prev.questions.map((q) => {
-        if (q.id !== questionId) return q;
-        const updated = { ...q, ...updates };
-        // When switching to TrueFalse, reset options to True/False
-        if (
-          updates.type === QuestionType.TrueFalse &&
-          q.type !== QuestionType.TrueFalse
-        ) {
-          updated.options = [
-            { id: generateId(), text: "True", isCorrect: true },
-            { id: generateId(), text: "False", isCorrect: false },
-          ];
-        }
-        // When switching to MultipleChoice from TrueFalse, add blank options
-        if (
-          updates.type === QuestionType.MultipleChoice &&
-          q.type !== QuestionType.MultipleChoice
-        ) {
-          updated.options = [
-            { id: generateId(), text: "", isCorrect: true },
-            { id: generateId(), text: "", isCorrect: false },
-          ];
-        }
-        return updated;
-      }),
-    }));
-  }
-
-  function handleQuestionDragEnd(result: DropResult) {
-    if (!result.destination) return;
-    const fromIndex = result.source.index;
-    const toIndex = result.destination.index;
-    if (fromIndex === toIndex) return;
-
-    setWizard((prev) => {
-      const reordered = [...prev.questions];
-      const [moved] = reordered.splice(fromIndex, 1);
-      reordered.splice(toIndex, 0, moved);
-      return { ...prev, questions: reordered };
-    });
-  }
-
-  function renderStep2() {
-    return (
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-semibold">Questions</h2>
-            <p className="text-sm text-muted-foreground">
-              Add questions to your quiz. Drag to reorder. You&apos;ll set
-              answer options in the next step.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {wizard.questions.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No questions added yet. Click &quot;Add Question&quot; to get
-                started.
-              </p>
-            )}
-
-            <DragDropContext onDragEnd={handleQuestionDragEnd}>
-              <Droppable droppableId="quiz-questions" type="question">
-                {(provided) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className="space-y-4"
-                  >
-                    {wizard.questions.map((q, idx) => (
-                      <Draggable key={q.id} draggableId={q.id} index={idx}>
-                        {(dragProvided, snapshot) => (
-                          <div
-                            ref={dragProvided.innerRef}
-                            {...dragProvided.draggableProps}
-                            className={`flex items-start gap-3 rounded-lg border p-4 ${
-                              snapshot.isDragging
-                                ? "bg-muted shadow-lg ring-2 ring-primary/20"
-                                : ""
-                            }`}
-                          >
-                            <div
-                              {...dragProvided.dragHandleProps}
-                              className="mt-2 cursor-grab text-muted-foreground hover:text-foreground"
-                            >
-                              <GripVertical className="size-4" />
-                            </div>
-                            <span className="mt-2 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-                              {idx + 1}
-                            </span>
-                            <div className="flex-1 space-y-3">
-                              <Input
-                                value={q.text}
-                                onChange={(e) =>
-                                  updateQuestion(q.id, {
-                                    text: e.target.value,
-                                  })
-                                }
-                                placeholder="Enter question text..."
-                              />
-                              <div className="flex items-center gap-2">
-                                <Label className="text-xs text-muted-foreground">
-                                  Type:
-                                </Label>
-                                <Select
-                                  value={q.type}
-                                  onValueChange={(val) =>
-                                    updateQuestion(q.id, {
-                                      type: val as QuestionType,
-                                    })
-                                  }
-                                >
-                                  <SelectTrigger className="w-48">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem
-                                      value={QuestionType.MultipleChoice}
-                                    >
-                                      Multiple Choice
-                                    </SelectItem>
-                                    <SelectItem value={QuestionType.TrueFalse}>
-                                      True / False
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeQuestion(q.id)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
-
-            <Button variant="outline" onClick={addQuestion}>
-              <Plus className="mr-1.5 size-4" />
-              Add Question
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // ─── Step 3: Answers ───
-  function addOption(questionId: string) {
-    setWizard((prev) => ({
-      ...prev,
-      questions: prev.questions.map((q) =>
-        q.id === questionId
-          ? {
-              ...q,
-              options: [
-                ...q.options,
-                { id: generateId(), text: "", isCorrect: false },
-              ],
-            }
-          : q
-      ),
-    }));
-  }
-
-  function removeOption(questionId: string, optionId: string) {
-    setWizard((prev) => ({
-      ...prev,
-      questions: prev.questions.map((q) =>
-        q.id === questionId
-          ? { ...q, options: q.options.filter((o) => o.id !== optionId) }
-          : q
-      ),
-    }));
-  }
-
-  function updateOption(
-    questionId: string,
-    optionId: string,
-    updates: Partial<WizardOption>
-  ) {
-    setWizard((prev) => ({
-      ...prev,
-      questions: prev.questions.map((q) => {
-        if (q.id !== questionId) return q;
-        return {
-          ...q,
-          options: q.options.map((o) => {
-            if (o.id !== optionId) return o;
-            return { ...o, ...updates };
-          }),
-        };
-      }),
-    }));
-  }
-
-  function setCorrectOption(questionId: string, optionId: string) {
-    setWizard((prev) => ({
-      ...prev,
-      questions: prev.questions.map((q) => {
-        if (q.id !== questionId) return q;
-        return {
-          ...q,
-          options: q.options.map((o) => ({
-            ...o,
-            isCorrect: o.id === optionId,
-          })),
-        };
-      }),
-    }));
-  }
-
-  function renderStep3() {
-    return (
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-semibold">Answer Options</h2>
-            <p className="text-sm text-muted-foreground">
-              Set answer options for each question and mark the correct answer.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {wizard.questions.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Go back and add questions first.
-              </p>
-            )}
-
-            {wizard.questions.map((q, idx) => (
-              <div key={q.id} className="rounded-lg border p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-                    {idx + 1}
-                  </span>
-                  <span className="font-medium">
-                    {q.text || "(No question text)"}
-                  </span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {q.type === QuestionType.TrueFalse
-                      ? "True/False"
-                      : "Multiple Choice"}
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  {q.options.map((opt) => (
-                    <div key={opt.id} className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setCorrectOption(q.id, opt.id)}
-                        className={`flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                          opt.isCorrect
-                            ? "border-green-500 bg-green-500 text-white"
-                            : "border-muted-foreground/30 hover:border-green-500/50"
-                        }`}
-                      >
-                        {opt.isCorrect && <Check className="size-3" />}
-                      </button>
-                      {q.type === QuestionType.TrueFalse ? (
-                        <span className="text-sm">{opt.text}</span>
-                      ) : (
-                        <Input
-                          value={opt.text}
-                          onChange={(e) =>
-                            updateOption(q.id, opt.id, {
-                              text: e.target.value,
-                            })
-                          }
-                          placeholder="Enter option text..."
-                          className="flex-1"
-                        />
-                      )}
-                      {q.type === QuestionType.MultipleChoice &&
-                        q.options.length > 2 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeOption(q.id, opt.id)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="size-3" />
-                          </Button>
-                        )}
-                    </div>
-                  ))}
-                </div>
-
-                {q.type === QuestionType.MultipleChoice && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => addOption(q.id)}
-                    className="mt-2"
-                  >
-                    <Plus className="mr-1 size-3" />
-                    Add Option
-                  </Button>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // ─── Step 4: Review ───
-  function renderStep4() {
-    // Each error is keyed by the field it is about, so the list can render
-    // with stable keys even when two errors share a message.
-    const validationErrors: { key: string; message: string }[] = [];
-    if (!wizard.title.trim())
-      validationErrors.push({
-        key: "title",
-        message: "Quiz title is required.",
-      });
-    if (wizard.questions.length === 0)
-      validationErrors.push({
-        key: "questions",
-        message: "At least one question is required.",
-      });
-    for (const q of wizard.questions) {
-      if (!q.text.trim())
-        validationErrors.push({
-          key: `${q.id}-text`,
-          message: `Question ${wizard.questions.indexOf(q) + 1} has no text.`,
-        });
-      if (q.options.length < 2)
-        validationErrors.push({
-          key: `${q.id}-options`,
-          message: `Question ${wizard.questions.indexOf(q) + 1} needs at least 2 options.`,
-        });
-      if (!q.options.some((o) => o.isCorrect))
-        validationErrors.push({
-          key: `${q.id}-correct`,
-          message: `Question ${wizard.questions.indexOf(q) + 1} has no correct answer.`,
-        });
-      for (const opt of q.options) {
-        if (!opt.text.trim())
-          validationErrors.push({
-            key: `${opt.id}-text`,
-            message: `Question ${wizard.questions.indexOf(q) + 1} has an empty option.`,
-          });
-      }
-    }
-
-    const isValid = validationErrors.length === 0;
-
-    return (
-      <div className="space-y-4">
-        <Card>
-          <CardHeader>
-            <h2 className="text-lg font-semibold">Review Quiz</h2>
-            <p className="text-sm text-muted-foreground">
-              Review your quiz before saving.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Quiz summary */}
-            <div className="rounded-lg bg-muted/50 p-4">
-              <div className="space-y-1 text-sm">
-                <div>
-                  <span className="font-medium">Title:</span>{" "}
-                  {wizard.title || "(empty)"}
-                </div>
-                <div>
-                  <span className="font-medium">Passing Score:</span>{" "}
-                  {wizard.passingScore}%
-                </div>
-                <div>
-                  <span className="font-medium">Questions:</span>{" "}
-                  {wizard.questions.length}
-                </div>
-              </div>
-            </div>
-
-            {/* Questions review */}
-            {wizard.questions.map((q, idx) => (
-              <div key={q.id} className="rounded-lg border p-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-                    {idx + 1}
-                  </span>
-                  <span className="font-medium">
-                    {q.text || "(No question text)"}
-                  </span>
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {q.type === QuestionType.TrueFalse
-                      ? "True/False"
-                      : "Multiple Choice"}
-                  </span>
-                </div>
-                <div className="ml-8 space-y-1">
-                  {q.options.map((opt) => (
-                    <div
-                      key={opt.id}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      {opt.isCorrect ? (
-                        <CheckCircle2 className="size-4 text-green-500" />
-                      ) : (
-                        <XCircle className="size-4 text-muted-foreground/40" />
-                      )}
-                      <span
-                        className={
-                          opt.isCorrect ? "font-medium text-green-700" : ""
-                        }
-                      >
-                        {opt.text || "(empty)"}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {/* Validation errors */}
-            {validationErrors.length > 0 && (
-              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
-                <p className="mb-2 text-sm font-medium text-destructive">
-                  Please fix these issues before saving:
-                </p>
-                <ul className="list-inside list-disc space-y-1 text-sm text-destructive">
-                  {validationErrors.map((error) => (
-                    <li key={error.key}>{error.message}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Save button */}
-            <div className="flex items-center gap-3">
-              <Button
-                disabled={!isValid || fetcher.state !== "idle"}
-                onClick={() => {
-                  fetcher.submit(
-                    {
-                      intent: "save-quiz",
-                      wizardData: JSON.stringify(wizard),
-                    },
-                    { method: "post" }
-                  );
-                }}
-              >
-                <Save className="mr-1.5 size-4" />
-                {fetcher.state !== "idle"
-                  ? "Saving..."
-                  : isEditing
-                    ? "Update Quiz"
-                    : "Create Quiz"}
-              </Button>
-
-              {fetcherData?.error && (
-                <span className="text-sm text-destructive">
-                  {fetcherData.error}
-                </span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // ─── Navigation ───
   function canGoNext() {
     if (step === 1) return wizard.title.trim().length > 0;
     if (step === 2) return wizard.questions.length > 0;
@@ -1082,14 +234,28 @@ export default function QuizBuilderWizard({
         )}
       </div>
 
-      {/* Step indicator */}
       <StepIndicator currentStep={step} onStepClick={setStep} />
 
-      {/* Step content */}
-      {step === 1 && renderStep1()}
-      {step === 2 && renderStep2()}
-      {step === 3 && renderStep3()}
-      {step === 4 && renderStep4()}
+      {step === 1 && <SettingsStep wizard={wizard} setWizard={setWizard} />}
+      {step === 2 && <QuestionsStep wizard={wizard} setWizard={setWizard} />}
+      {step === 3 && <AnswersStep wizard={wizard} setWizard={setWizard} />}
+      {step === 4 && (
+        <ReviewStep
+          wizard={wizard}
+          isEditing={isEditing}
+          isSaving={fetcher.state !== "idle"}
+          error={fetcherData?.error}
+          onSave={() => {
+            fetcher.submit(
+              {
+                intent: "save-quiz",
+                wizardData: JSON.stringify(wizard),
+              },
+              { method: "post" }
+            );
+          }}
+        />
+      )}
 
       {/* Step navigation */}
       <div className="mt-6 flex items-center justify-between">
@@ -1101,7 +267,7 @@ export default function QuizBuilderWizard({
           <ArrowLeft className="mr-1.5 size-4" />
           Previous
         </Button>
-        {step < 4 && (
+        {step < LAST_STEP && (
           <Button onClick={() => setStep((s) => s + 1)} disabled={!canGoNext()}>
             Next
             <ArrowRight className="ml-1.5 size-4" />

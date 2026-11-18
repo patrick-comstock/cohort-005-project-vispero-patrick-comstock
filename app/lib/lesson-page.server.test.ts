@@ -4,7 +4,11 @@ import * as schema from "~/db/schema";
 import { LessonProgressStatus, QuestionType } from "~/db/schema";
 import { createTestDb, seedBaseData } from "~/test/setup";
 
-import { type LessonViewer, loadLessonPage } from "./lesson-page.server";
+import {
+  getAdjacentLessons,
+  type LessonViewer,
+  loadLessonPage,
+} from "./lesson-page.server";
 
 type TestDb = ReturnType<typeof createTestDb>;
 
@@ -141,5 +145,46 @@ describe("loadLessonPage", () => {
     expect(page.quiz?.questions[0]?.questionText).toBe(QUIZ_QUESTION);
     expect(page.lessonStatus).toBeNull();
     expect(progressRows()).toHaveLength(0);
+  });
+});
+
+describe("getAdjacentLessons", () => {
+  const course = {
+    modules: [
+      {
+        id: 1,
+        title: "Basics",
+        lessons: [
+          { id: 10, title: "Intro", moduleId: 1 },
+          { id: 11, title: "Setup", moduleId: 1 },
+        ],
+      },
+      {
+        id: 2,
+        title: "Advanced",
+        lessons: [{ id: 20, title: "Deep dive", moduleId: 2 }],
+      },
+    ],
+  };
+
+  it("crosses into the next module for the next lesson", () => {
+    expect(getAdjacentLessons(course, 11).nextLesson).toEqual({
+      id: 20,
+      title: "Deep dive",
+      moduleId: 2,
+      moduleTitle: "Advanced",
+    });
+  });
+
+  it("crosses back into the previous module for the previous lesson", () => {
+    expect(getAdjacentLessons(course, 20).prevLesson?.id).toBe(11);
+  });
+
+  it("has no previous lesson at the start of the course", () => {
+    expect(getAdjacentLessons(course, 10).prevLesson).toBeNull();
+  });
+
+  it("has no next lesson at the end of the course", () => {
+    expect(getAdjacentLessons(course, 20).nextLesson).toBeNull();
   });
 });
