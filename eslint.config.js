@@ -180,26 +180,6 @@ export default tseslint.config(
       ],
     },
   },
-  // CODING_STANDARDS: max-lines grandfather list. These files were over 500
-  // lines when the rule arrived. A file leaves this list when it is split;
-  // never add one.
-  {
-    files: [
-      "app/lib/refund-eligibility.server.ts",
-      "app/modules/instructor-analytics/lib/analytics-page.server.ts",
-      "app/routes/admin.categories.tsx",
-      "app/routes/courses.$slug.lessons.$lessonId.tsx",
-      "app/routes/courses.$slug.tsx",
-      "app/routes/instructor.$courseId.lessons.$lessonId.quiz.tsx",
-      "app/routes/instructor.$courseId.tsx",
-      "app/routes/instructor.analytics.tsx",
-      "request-logger/agents.ts",
-      "request-logger/render.ts",
-    ],
-    rules: {
-      "max-lines": "off",
-    },
-  },
   // Accessibility: "Every image has alt text", "Every input has a label",
   // "Do not set a positive tabIndex", "Use semantic elements".
   {

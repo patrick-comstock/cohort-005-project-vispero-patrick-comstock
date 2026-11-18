@@ -4,6 +4,11 @@ The shared domain language for this course platform. Agents and human developers
 
 ## Language
 
+### Courses
+
+**Category**:
+A named grouping a course belongs to; each course has exactly one. Its slug comes from its name, and both must be unique. A Category can't be deleted while a course uses it.
+
 ### People and purchases
 
 **Student**:
