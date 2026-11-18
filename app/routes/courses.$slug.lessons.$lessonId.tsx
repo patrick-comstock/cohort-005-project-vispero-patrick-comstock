@@ -1,63 +1,41 @@
-import { and, asc, eq } from "drizzle-orm";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Circle,
-  Clock,
-  Github,
-  HelpCircle,
-  MapPin,
-  PlayCircle,
-  RotateCcw,
-  ShieldAlert,
-  Trophy,
-  XCircle,
-} from "lucide-react";
+import { eq } from "drizzle-orm";
+import { AlertTriangle, Clock, Github } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Link, useFetcher, useNavigate } from "react-router";
+import { Link, useFetcher } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
-import { toast } from "sonner";
 import { z } from "zod";
 
-import {
-  CommentThread,
-  type RenderedComment,
-} from "~/components/comment-thread";
+import { CommentThread } from "~/components/comment-thread";
+import { CurriculumSidebar } from "~/components/curriculum-sidebar";
+import { LessonCompletion } from "~/components/lesson-completion";
+import { LessonPager } from "~/components/lesson-pager";
+import { PppRestrictedScreen } from "~/components/ppp-restricted-screen";
+import { QuizSection } from "~/components/quiz-section";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { YouTubePlayer } from "~/components/youtube-player";
 import { db } from "~/db";
-import {
-  comments,
-  courses,
-  LessonProgressStatus,
-  lessons,
-  modules,
-  quizAnswers,
-  quizAttempts,
-  quizOptions,
-  quizQuestions,
-  quizzes,
-  UserRole,
-  users,
-} from "~/db/schema";
-import { renderComment } from "~/lib/comment-markdown.server";
-import { MAX_COMMENT_LENGTH, MIN_COMMENT_LENGTH } from "~/lib/comments";
+import { lessons, modules } from "~/db/schema";
 import {
   getCourseBySlug,
   getCourseWithDetails,
   getUserById,
 } from "~/lib/courses.server";
 import {
+  createComment,
+  deleteComment,
+  getCommentById,
+  getLessonComments,
+  updateComment,
+} from "~/lib/lesson-comments.server";
+import {
+  getAdjacentLessons,
   getCourseIdForLesson,
   loadLessonPage,
   markLessonComplete,
 } from "~/lib/lesson-page.server";
-import { COUNTRIES } from "~/lib/ppp";
-import { cn, formatDuration } from "~/lib/utils";
+import { getQuizById, gradeQuizAttempt } from "~/lib/quiz-attempt.server";
+import { formatDuration } from "~/lib/utils";
 import { parseFormData, parseParams } from "~/lib/validation";
 import { getAccess, requireContentAccess } from "~/modules/access/index.server";
 
@@ -66,10 +44,6 @@ import type { Route } from "./+types/courses.$slug.lessons.$lessonId";
 const lessonParamsSchema = z.object({
   slug: z.string().min(1),
   lessonId: z.coerce.number().int(),
-});
-
-const markCompleteSchema = z.object({
-  intent: z.literal("mark-complete"),
 });
 
 const createCommentSchema = z.object({
@@ -89,24 +63,6 @@ const deleteCommentSchema = z.object({
   commentId: z.coerce.number().int(),
 });
 
-type CommentAuthor = {
-  id: number;
-  name: string;
-  avatarUrl: string | null;
-  isInstructor: boolean;
-  isAdmin: boolean;
-};
-
-type ThreadComment = {
-  id: number;
-  body: string;
-  createdAt: string;
-  editedAt: string | null;
-  deleted: boolean;
-  author: CommentAuthor;
-  replies: ThreadComment[];
-};
-
 function getLessonById(id: number) {
   return db.select().from(lessons).where(eq(lessons.id, id)).get();
 }
@@ -115,362 +71,10 @@ function getModuleById(id: number) {
   return db.select().from(modules).where(eq(modules.id, id)).get();
 }
 
-function getCourseForLesson(lessonId: number) {
-  return db
-    .select({
-      courseId: courses.id,
-      courseTitle: courses.title,
-      courseSlug: courses.slug,
-      instructorId: courses.instructorId,
-    })
-    .from(lessons)
-    .innerJoin(modules, eq(lessons.moduleId, modules.id))
-    .innerJoin(courses, eq(modules.courseId, courses.id))
-    .where(eq(lessons.id, lessonId))
-    .get();
-}
-
-function getCommentById(commentId: number) {
-  return db.select().from(comments).where(eq(comments.id, commentId)).get();
-}
-
-function assertValidBody(body: string) {
-  const trimmed = body.trim();
-  if (trimmed.length < MIN_COMMENT_LENGTH) {
-    throw new Error("Comment cannot be empty");
-  }
-  if (trimmed.length > MAX_COMMENT_LENGTH) {
-    throw new Error(
-      `Comment must be ${MAX_COMMENT_LENGTH} characters or fewer`
-    );
-  }
-  return trimmed;
-}
-
-function getLessonThread(lessonId: number): ThreadComment[] {
-  const course = getCourseForLesson(lessonId);
-  if (!course) return [];
-
-  const rows = db
-    .select({
-      id: comments.id,
-      body: comments.body,
-      parentId: comments.parentId,
-      createdAt: comments.createdAt,
-      editedAt: comments.editedAt,
-      deletedAt: comments.deletedAt,
-      authorId: users.id,
-      authorName: users.name,
-      authorAvatarUrl: users.avatarUrl,
-      authorRole: users.role,
-    })
-    .from(comments)
-    .innerJoin(users, eq(comments.userId, users.id))
-    .where(eq(comments.lessonId, lessonId))
-    .orderBy(asc(comments.createdAt), asc(comments.id))
-    .all();
-
-  const toThreadComment = (row: (typeof rows)[number]): ThreadComment => {
-    const deleted = row.deletedAt !== null;
-    return {
-      id: row.id,
-      body: deleted ? "" : row.body,
-      createdAt: row.createdAt,
-      editedAt: deleted ? null : row.editedAt,
-      deleted,
-      author: {
-        id: row.authorId,
-        name: row.authorName,
-        avatarUrl: row.authorAvatarUrl,
-        isInstructor: row.authorId === course.instructorId,
-        isAdmin: row.authorRole === UserRole.Admin,
-      },
-      replies: [],
-    };
-  };
-
-  const topLevel: ThreadComment[] = [];
-  const byId = new Map<number, ThreadComment>();
-
-  for (const row of rows) {
-    if (row.parentId !== null) continue;
-    const comment = toThreadComment(row);
-    byId.set(comment.id, comment);
-    topLevel.push(comment);
-  }
-
-  for (const row of rows) {
-    if (row.parentId === null || row.deletedAt !== null) continue;
-    byId.get(row.parentId)?.replies.push(toThreadComment(row));
-  }
-
-  // A deleted question with no replies left has nothing worth showing.
-  return topLevel.filter((c) => !c.deleted || c.replies.length > 0);
-}
-
-function createComment(
-  userId: number,
-  lessonId: number,
-  parentId: number | null,
-  body: string
-) {
-  const trimmed = assertValidBody(body);
-
-  const course = getCourseForLesson(lessonId);
-  if (!course) {
-    throw new Error("Lesson not found");
-  }
-
-  if (parentId !== null) {
-    const parent = getCommentById(parentId);
-    if (!parent) {
-      throw new Error("Parent comment not found");
-    }
-    if (parent.lessonId !== lessonId) {
-      throw new Error("Parent comment belongs to a different lesson");
-    }
-    if (parent.parentId !== null) {
-      throw new Error("Replies can only be one level deep");
-    }
-  }
-
-  return db
-    .insert(comments)
-    .values({ userId, lessonId, parentId, body: trimmed })
-    .returning()
-    .get();
-}
-
-function updateComment(commentId: number, userId: number, body: string) {
-  const trimmed = assertValidBody(body);
-
-  const existing = getCommentById(commentId);
-  if (!existing) {
-    throw new Error("Comment not found");
-  }
-  if (existing.deletedAt !== null) {
-    throw new Error("Comment has been deleted");
-  }
-  if (existing.userId !== userId) {
-    throw new Error("You can only edit your own comments");
-  }
-
-  return db
-    .update(comments)
-    .set({ body: trimmed, editedAt: new Date().toISOString() })
-    .where(eq(comments.id, commentId))
-    .returning()
-    .get();
-}
-
-function deleteComment(
-  commentId: number,
-  userId: number,
-  isCourseManager: boolean
-) {
-  const existing = getCommentById(commentId);
-  if (!existing) {
-    throw new Error("Comment not found");
-  }
-  if (existing.userId !== userId && !isCourseManager) {
-    throw new Error("You can only delete your own comments");
-  }
-  if (existing.deletedAt !== null) {
-    return existing;
-  }
-
-  return db
-    .update(comments)
-    .set({ deletedAt: new Date().toISOString() })
-    .where(eq(comments.id, commentId))
-    .returning()
-    .get();
-}
-
-function getQuizById(quizId: number) {
-  return db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
-}
-
-function calculateGrade(score: number): string {
-  try {
-    if (score >= 0.9) return "A";
-    if (score >= 0.8) return "B";
-    if (score >= 0.7) return "C";
-    if (score >= 0.6) return "D";
-    return "F";
-  } catch (e) {
-    console.error(e);
-    return "F";
-  }
-}
-
-function computeResult(
-  userId: number,
-  quizId: number,
-  selectedAnswers: Record<number, number>
-) {
-  try {
-    const quiz = db.select().from(quizzes).where(eq(quizzes.id, quizId)).get();
-    if (!quiz) {
-      console.warn("quiz not found");
-      return null;
-    }
-
-    const questions = db
-      .select()
-      .from(quizQuestions)
-      .where(eq(quizQuestions.quizId, quizId))
-      .orderBy(quizQuestions.position)
-      .all();
-
-    let correct = 0;
-    const total = questions.length;
-    const questionResults: Array<{
-      questionId: number;
-      correct: boolean;
-      selectedOptionId: number | null;
-      correctOptionId: number | null;
-    }> = [];
-
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-      const selected = selectedAnswers[q.id];
-
-      if (!selected) {
-        questionResults.push({
-          questionId: q.id,
-          correct: false,
-          selectedOptionId: null,
-          correctOptionId: null,
-        });
-        continue;
-      }
-
-      let correctOptionId = null;
-      if (q.questionType === "multiple_choice") {
-        const opts = db
-          .select()
-          .from(quizOptions)
-          .where(eq(quizOptions.questionId, q.id))
-          .all();
-        const correctOpt = opts.find((o) => o.isCorrect === true);
-        correctOptionId = correctOpt ? correctOpt.id : null;
-      } else if (q.questionType === "true_false") {
-        const correctOpt = db
-          .select()
-          .from(quizOptions)
-          .where(
-            and(
-              eq(quizOptions.questionId, q.id),
-              eq(quizOptions.isCorrect, true)
-            )
-          )
-          .get();
-        correctOptionId = correctOpt ? correctOpt.id : null;
-      }
-
-      const isCorrect = selected === correctOptionId;
-      if (isCorrect) correct++;
-
-      questionResults.push({
-        questionId: q.id,
-        correct: isCorrect,
-        selectedOptionId: selected,
-        correctOptionId,
-      });
-    }
-
-    const scoreValue = total > 0 ? correct / total : 0;
-    const passed = scoreValue > 0.7;
-    const grade = calculateGrade(scoreValue);
-
-    const attempt = db
-      .insert(quizAttempts)
-      .values({
-        userId,
-        quizId,
-        score: scoreValue,
-        passed,
-      })
-      .returning()
-      .get();
-
-    for (const result of questionResults) {
-      if (result.selectedOptionId !== null) {
-        db.insert(quizAnswers)
-          .values({
-            attemptId: attempt.id,
-            questionId: result.questionId,
-            selectedOptionId: result.selectedOptionId,
-          })
-          .run();
-      }
-    }
-
-    return {
-      attemptId: attempt.id,
-      score: scoreValue,
-      passed,
-      grade,
-      totalCorrect: correct,
-      totalQuestions: total,
-      questionResults,
-    };
-  } catch (e) {
-    console.error(e);
-    return null;
-  }
-}
-
-/**
- * Renders every comment body to sanitised HTML, preserving the reply nesting.
- * Comments are untrusted input, so this must be renderComment — never
- * renderMarkdown, which lets raw HTML through for trusted lesson content.
- */
-async function renderThread(
-  nodes: ThreadComment[]
-): Promise<RenderedComment[]> {
-  return Promise.all(
-    nodes.map(async (node) => ({
-      ...node,
-      bodyHtml: node.deleted ? "" : await renderComment(node.body),
-      replies: await renderThread(node.replies),
-    }))
-  );
-}
-
 export function meta({ loaderData }: Route.MetaArgs) {
   const title = loaderData?.lesson?.title ?? "Lesson";
   const courseTitle = loaderData?.course?.title ?? "Course";
   return [{ title: `${title} — ${courseTitle} — Cadence` }];
-}
-
-type FlatLesson = {
-  id: number;
-  title: string;
-  moduleId: number;
-  moduleTitle: string;
-};
-
-function flattenCourseLessons(course: {
-  modules: Array<{
-    id: number;
-    title: string;
-    lessons: Array<{ id: number; title: string; moduleId: number }>;
-  }>;
-}): FlatLesson[] {
-  const flat: FlatLesson[] = [];
-  for (const mod of course.modules) {
-    for (const lesson of mod.lessons) {
-      flat.push({
-        id: lesson.id,
-        title: lesson.title,
-        moduleId: mod.id,
-        moduleTitle: mod.title,
-      });
-    }
-  }
-  return flat;
 }
 
 export async function loader({ params, request }: Route.LoaderArgs) {
@@ -522,16 +126,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   // Comments are confidential to the course: only people who can read the
   // lesson can read the discussion on it.
   const instructor = getUserById(db, course.instructorId);
-  const comments = canViewContent
-    ? await renderThread(getLessonThread(lessonId))
-    : [];
+  const comments = canViewContent ? await getLessonComments(db, lessonId) : [];
 
-  // Build prev/next navigation
-  const allLessons = flattenCourseLessons(courseWithDetails);
-  const currentIndex = allLessons.findIndex((l) => l.id === lessonId);
-  const prevLesson = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
-  const nextLesson =
-    currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
+  const { prevLesson, nextLesson } = getAdjacentLessons(
+    courseWithDetails,
+    lessonId
+  );
 
   return {
     course: {
@@ -617,7 +217,7 @@ export async function action({ params, request }: Route.ActionArgs) {
       throw data("Invalid quiz ID", { status: 400 });
     }
     // Scope the quiz to this lesson, which the access check above covers.
-    if (getQuizById(quizId)?.lessonId !== lessonId) {
+    if (getQuizById(db, quizId)?.lessonId !== lessonId) {
       throw data("Quiz not found", { status: 404 });
     }
 
@@ -632,7 +232,7 @@ export async function action({ params, request }: Route.ActionArgs) {
       }
     }
 
-    const result = computeResult(currentUserId, quizId, selectedAnswers);
+    const result = gradeQuizAttempt(db, currentUserId, quizId, selectedAnswers);
     if (!result) {
       throw data("Failed to score quiz", { status: 500 });
     }
@@ -659,6 +259,7 @@ function handleCommentIntent(
       );
     }
     createComment(
+      db,
       access.userId,
       lessonId,
       parsed.data.parentId ?? null,
@@ -674,11 +275,11 @@ function handleCommentIntent(
     }
     // Scope the id to this lesson so a comment elsewhere can't be reached
     // by posting its id to this route.
-    const existing = getCommentById(parsed.data.commentId);
+    const existing = getCommentById(db, parsed.data.commentId);
     if (!existing || existing.lessonId !== lessonId) {
       throw data("Comment not found", { status: 404 });
     }
-    updateComment(parsed.data.commentId, access.userId, parsed.data.body);
+    updateComment(db, parsed.data.commentId, access.userId, parsed.data.body);
     return { ok: true };
   }
 
@@ -686,11 +287,16 @@ function handleCommentIntent(
   if (!parsed.success) {
     return data({ error: "Could not delete that comment." }, { status: 400 });
   }
-  const existing = getCommentById(parsed.data.commentId);
+  const existing = getCommentById(db, parsed.data.commentId);
   if (!existing || existing.lessonId !== lessonId) {
     throw data("Comment not found", { status: 404 });
   }
-  deleteComment(parsed.data.commentId, access.userId, access.isCourseManager);
+  deleteComment(
+    db,
+    parsed.data.commentId,
+    access.userId,
+    access.isCourseManager
+  );
   return { ok: true };
 }
 
@@ -748,64 +354,18 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
     instructorName,
   } = loaderData;
   const [autoplay, toggleAutoplay] = useAutoplay();
-  const fetcher = useFetcher({ key: `mark-complete-${lesson.id}` });
   const quizFetcher = useFetcher({ key: `quiz-${lesson.id}` });
-  const navigate = useNavigate();
-
-  const isMarking =
-    fetcher.state !== "idle" &&
-    fetcher.formData?.get("intent") === "mark-complete";
-
-  const justCompleted = fetcher.data?.success;
-
-  const isCompleted =
-    lessonStatus === LessonProgressStatus.Completed || justCompleted;
-
-  // Navigate to next lesson after marking complete
-  useEffect(() => {
-    if (justCompleted && nextLesson) {
-      navigate(`/courses/${course.slug}/lessons/${nextLesson.id}`);
-    }
-  }, [justCompleted, nextLesson, course.slug, navigate]);
 
   const quizResult = quizFetcher.data?.quizResult ?? null;
   const isSubmittingQuiz = quizFetcher.state !== "idle";
 
   if (pppBlocked) {
-    const purchaseCountryName = pppPurchaseCountry
-      ? (COUNTRIES.find((c) => c.code === pppPurchaseCountry)?.name ??
-        pppPurchaseCountry)
-      : "your original country";
-    const currentCountryName = pppBlockedCountry
-      ? (COUNTRIES.find((c) => c.code === pppBlockedCountry)?.name ??
-        pppBlockedCountry)
-      : "a different country";
-
     return (
-      <div className="flex min-h-[60vh] items-center justify-center p-6">
-        <div className="max-w-md text-center">
-          <ShieldAlert className="mx-auto mb-4 size-16 text-amber-500" />
-          <h1 className="mb-3 text-2xl font-bold">Access Restricted</h1>
-          <p className="mb-4 text-muted-foreground">
-            You purchased this course with a Purchasing Power Parity discount
-            while in <strong>{purchaseCountryName}</strong>, but you're
-            currently accessing from <strong>{currentCountryName}</strong>.
-          </p>
-          <p className="mb-6 text-sm text-muted-foreground">
-            PPP-discounted courses can only be accessed from the country where
-            the purchase was made. This helps keep courses affordable for
-            students in lower-income regions.
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <Link to={`/courses/${course.slug}`}>
-              <Button variant="outline">
-                <MapPin className="mr-2 size-4" />
-                Back to Course
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
+      <PppRestrictedScreen
+        courseSlug={course.slug}
+        purchaseCountry={pppPurchaseCountry}
+        currentCountry={pppBlockedCountry}
+      />
     );
   }
 
@@ -927,48 +487,12 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
 
           {/* Mark Complete / Up Next */}
           {enrolled && currentUserId && (
-            <div className="mb-8">
-              {isCompleted ? (
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 text-green-600">
-                    <CheckCircle2 className="size-5" />
-                    <span className="font-medium">Lesson completed</span>
-                  </div>
-                  {nextLesson && (
-                    <Link
-                      to={`/courses/${course.slug}/lessons/${nextLesson.id}`}
-                    >
-                      <Button variant="outline" size="sm">
-                        Up next: {nextLesson.title}
-                        <ChevronRight className="ml-1 size-4" />
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              ) : nextLesson ? (
-                <fetcher.Form method="post">
-                  <input type="hidden" name="intent" value="mark-complete" />
-                  <Button disabled={isMarking}>
-                    {isMarking ? (
-                      "Completing..."
-                    ) : (
-                      <>
-                        Up next: {nextLesson.title}
-                        <ChevronRight className="ml-1 size-4" />
-                      </>
-                    )}
-                  </Button>
-                </fetcher.Form>
-              ) : (
-                <fetcher.Form method="post">
-                  <input type="hidden" name="intent" value="mark-complete" />
-                  <Button disabled={isMarking}>
-                    <CheckCircle2 className="mr-2 size-4" />
-                    {isMarking ? "Marking..." : "Mark as Complete"}
-                  </Button>
-                </fetcher.Form>
-              )}
-            </div>
+            <LessonCompletion
+              courseSlug={course.slug}
+              lessonId={lesson.id}
+              lessonStatus={lessonStatus}
+              nextLesson={nextLesson}
+            />
           )}
 
           {/* Questions & Discussion — confidential to people with access */}
@@ -983,424 +507,14 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
           )}
 
           {/* Prev/Next Navigation */}
-          <div className="flex items-center justify-between border-t pt-6">
-            {prevLesson ? (
-              <Link
-                to={`/courses/${course.slug}/lessons/${prevLesson.id}`}
-                className="flex items-center gap-2 text-sm hover:text-foreground text-muted-foreground"
-              >
-                <ChevronLeft className="size-4" />
-                <div>
-                  <div className="text-xs text-muted-foreground">Previous</div>
-                  <div className="font-medium text-foreground">
-                    {prevLesson.title}
-                  </div>
-                </div>
-              </Link>
-            ) : (
-              <div />
-            )}
-
-            {nextLesson ? (
-              <Link
-                to={`/courses/${course.slug}/lessons/${nextLesson.id}`}
-                className="flex items-center gap-2 text-right text-sm hover:text-foreground text-muted-foreground"
-              >
-                <div>
-                  <div className="text-xs text-muted-foreground">Next</div>
-                  <div className="font-medium text-foreground">
-                    {nextLesson.title}
-                  </div>
-                </div>
-                <ChevronRight className="size-4" />
-              </Link>
-            ) : (
-              <Link
-                to={`/courses/${course.slug}`}
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-              >
-                <div>
-                  <div className="text-xs text-muted-foreground">Back to</div>
-                  <div className="font-medium text-foreground">
-                    {course.title}
-                  </div>
-                </div>
-                <ChevronRight className="size-4" />
-              </Link>
-            )}
-          </div>
+          <LessonPager
+            course={course}
+            prevLesson={prevLesson}
+            nextLesson={nextLesson}
+          />
         </div>
       </div>
     </div>
-  );
-}
-
-function CurriculumSidebar({
-  course,
-  curriculum,
-  currentLessonId,
-  lessonProgressMap,
-  enrolled,
-}: {
-  course: { id: number; title: string; slug: string };
-  curriculum: Array<{
-    id: number;
-    title: string;
-    lessons: Array<{ id: number; title: string }>;
-  }>;
-  currentLessonId: number;
-  lessonProgressMap: Record<number, string>;
-  enrolled: boolean;
-}) {
-  // Find which module the current lesson belongs to
-  const currentModuleId = curriculum.find((m) =>
-    m.lessons.some((l) => l.id === currentLessonId)
-  )?.id;
-
-  const [expandedModules, setExpandedModules] = useState<Set<number>>(() => {
-    // Start with current module expanded
-    const initial = new Set<number>();
-    if (currentModuleId) initial.add(currentModuleId);
-    return initial;
-  });
-
-  function toggleModule(moduleId: number) {
-    setExpandedModules((prev) => {
-      const next = new Set(prev);
-      if (next.has(moduleId)) {
-        next.delete(moduleId);
-      } else {
-        next.add(moduleId);
-      }
-      return next;
-    });
-  }
-
-  return (
-    <aside className="hidden w-72 shrink-0 border-r border-border lg:block">
-      <div className="sticky top-0 flex h-screen flex-col overflow-y-auto">
-        <div className="border-b border-border p-4">
-          <Link
-            to={`/courses/${course.slug}`}
-            className="text-sm font-semibold hover:text-primary"
-          >
-            {course.title}
-          </Link>
-        </div>
-
-        <nav className="flex-1 p-2">
-          {curriculum.map((mod) => {
-            const isExpanded = expandedModules.has(mod.id);
-
-            return (
-              <div key={mod.id} className="mb-1">
-                <button
-                  onClick={() => toggleModule(mod.id)}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-foreground/80 hover:bg-muted"
-                >
-                  <ChevronDown
-                    className={cn(
-                      "size-4 shrink-0 transition-transform",
-                      !isExpanded && "-rotate-90"
-                    )}
-                  />
-                  <span className="flex-1 text-left">{mod.title}</span>
-                </button>
-
-                {isExpanded && (
-                  <ul className="ml-4 space-y-0.5 py-1">
-                    {mod.lessons.map((l) => {
-                      const isCurrent = l.id === currentLessonId;
-                      const status = lessonProgressMap[l.id];
-                      const isCompleted =
-                        status === LessonProgressStatus.Completed;
-                      const isInProgress =
-                        status === LessonProgressStatus.InProgress;
-
-                      return (
-                        <li key={l.id}>
-                          <Link
-                            to={`/courses/${course.slug}/lessons/${l.id}`}
-                            className={cn(
-                              "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors",
-                              isCurrent
-                                ? "bg-primary/10 font-medium text-primary"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                            )}
-                          >
-                            {enrolled ? (
-                              isCompleted ? (
-                                <CheckCircle2 className="size-3.5 shrink-0 text-green-500" />
-                              ) : isInProgress ? (
-                                <PlayCircle className="size-3.5 shrink-0 text-blue-500" />
-                              ) : (
-                                <Circle className="size-3.5 shrink-0" />
-                              )
-                            ) : (
-                              <Circle className="size-3.5 shrink-0" />
-                            )}
-                            <span className="truncate">{l.title}</span>
-                          </Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-      </div>
-    </aside>
-  );
-}
-
-function QuizSection({
-  quiz,
-  bestAttempt,
-  quizResult,
-  quizFetcher,
-  isSubmitting,
-}: {
-  quiz: {
-    id: number;
-    title: string;
-    passingScore: number;
-    questions: Array<{
-      id: number;
-      questionText: string;
-      questionType: string;
-      position: number;
-      options: Array<{ id: number; optionText: string }>;
-    }>;
-  };
-  bestAttempt: { score: number; passed: boolean } | null;
-  quizResult: {
-    attemptId: number;
-    score: number;
-    passed: boolean;
-    grade: string;
-    totalCorrect: number;
-    totalQuestions: number;
-    questionResults: Array<{
-      questionId: number;
-      correct: boolean;
-      selectedOptionId: number | null;
-      correctOptionId: number | null;
-    }>;
-  } | null;
-  quizFetcher: ReturnType<typeof useFetcher>;
-  isSubmitting: boolean;
-}) {
-  const [selectedAnswers, setSelectedAnswers] = useState<
-    Record<number, number>
-  >({});
-  const [showQuiz, setShowQuiz] = useState(!bestAttempt?.passed);
-  const [retaking, setRetaking] = useState(false);
-
-  useEffect(() => {
-    if (quizResult && !retaking) {
-      if (quizResult.passed) {
-        toast.success(
-          `Quiz passed! Score: ${Math.round(quizResult.score * 100)}%`
-        );
-      } else {
-        toast.error(
-          `Quiz not passed. Score: ${Math.round(quizResult.score * 100)}%`
-        );
-      }
-    }
-  }, [quizResult, retaking]);
-
-  const allAnswered = quiz.questions.every(
-    (q) => selectedAnswers[q.id] !== undefined
-  );
-  const showResult = quizResult && !retaking;
-
-  if (showResult) {
-    return (
-      <Card className="mb-8">
-        <CardContent className="p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <HelpCircle className="size-5 text-primary" />
-            <h2 className="text-xl font-semibold">{quiz.title}</h2>
-          </div>
-
-          {/* Results summary */}
-          <div
-            className={`mb-6 rounded-lg p-4 ${quizResult.passed ? "bg-green-50 dark:bg-green-950" : "bg-red-50 dark:bg-red-950"}`}
-          >
-            <div className="flex items-center gap-3">
-              {quizResult.passed ? (
-                <Trophy className="size-8 text-green-600" />
-              ) : (
-                <XCircle className="size-8 text-red-600" />
-              )}
-              <div>
-                <p
-                  className={`text-lg font-semibold ${quizResult.passed ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}
-                >
-                  {quizResult.passed ? "You passed!" : "Not quite — try again!"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Score: {quizResult.totalCorrect}/{quizResult.totalQuestions} (
-                  {Math.round(quizResult.score * 100)}%) — Grade:{" "}
-                  {quizResult.grade}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Per-question results */}
-          <div className="space-y-4">
-            {quiz.questions.map((question, qIndex) => {
-              const result = quizResult.questionResults.find(
-                (r) => r.questionId === question.id
-              );
-              return (
-                <div key={question.id} className="rounded-lg border p-4">
-                  <div className="mb-2 flex items-start gap-2">
-                    {result?.correct ? (
-                      <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-green-600" />
-                    ) : (
-                      <XCircle className="mt-0.5 size-5 shrink-0 text-red-600" />
-                    )}
-                    <p className="font-medium">
-                      {qIndex + 1}. {question.questionText}
-                    </p>
-                  </div>
-                  <div className="ml-7 space-y-1">
-                    {question.options.map((option) => {
-                      const isSelected = result?.selectedOptionId === option.id;
-                      const isCorrect = result?.correctOptionId === option.id;
-                      let className = "text-sm";
-                      if (isCorrect)
-                        className +=
-                          " font-medium text-green-700 dark:text-green-400";
-                      else if (isSelected && !result?.correct)
-                        className +=
-                          " text-red-600 dark:text-red-400 line-through";
-                      return (
-                        <p key={option.id} className={className}>
-                          {isCorrect ? "✓ " : isSelected ? "✗ " : "  "}
-                          {option.optionText}
-                        </p>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Retake button */}
-          {!quizResult.passed && (
-            <div className="mt-6">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSelectedAnswers({});
-                  setRetaking(true);
-                }}
-              >
-                <RotateCcw className="mr-2 size-4" />
-                Retake Quiz
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!showQuiz && bestAttempt?.passed) {
-    return (
-      <Card className="mb-8">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Trophy className="size-5 text-green-600" />
-              <span className="font-medium">{quiz.title}</span>
-              <span className="text-sm text-muted-foreground">
-                — Best score: {Math.round(bestAttempt.score * 100)}%
-              </span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowQuiz(true)}
-            >
-              <RotateCcw className="mr-2 size-4" />
-              Retake
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="mb-8">
-      <CardContent className="p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <HelpCircle className="size-5 text-primary" />
-          <h2 className="text-xl font-semibold">{quiz.title}</h2>
-        </div>
-        <p className="mb-6 text-sm text-muted-foreground">
-          Answer all questions and submit. Passing score:{" "}
-          {Math.round(quiz.passingScore * 100)}%.
-        </p>
-
-        <quizFetcher.Form method="post" onSubmit={() => setRetaking(false)}>
-          <input type="hidden" name="intent" value="submit-quiz" />
-          <input type="hidden" name="quizId" value={quiz.id} />
-
-          <div className="space-y-6">
-            {quiz.questions.map((question, qIndex) => (
-              <div key={question.id} className="rounded-lg border p-4">
-                <p className="mb-3 font-medium">
-                  {qIndex + 1}. {question.questionText}
-                </p>
-                <div className="space-y-2">
-                  {question.options.map((option) => (
-                    <label
-                      key={option.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 hover:bg-muted"
-                    >
-                      <input
-                        type="radio"
-                        name={`question-${question.id}`}
-                        value={option.id}
-                        checked={selectedAnswers[question.id] === option.id}
-                        onChange={() =>
-                          setSelectedAnswers((prev) => ({
-                            ...prev,
-                            [question.id]: option.id,
-                          }))
-                        }
-                        className="size-4 accent-primary"
-                      />
-                      <span className="text-sm">{option.optionText}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-6">
-            <Button type="submit" disabled={!allAnswered || isSubmitting}>
-              {isSubmitting ? "Submitting..." : "Submit Quiz"}
-            </Button>
-            {!allAnswered && (
-              <p className="mt-2 text-sm text-muted-foreground">
-                Please answer all questions before submitting.
-              </p>
-            )}
-          </div>
-        </quizFetcher.Form>
-      </CardContent>
-    </Card>
   );
 }
 
