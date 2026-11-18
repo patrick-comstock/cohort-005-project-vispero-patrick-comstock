@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 declare global {
   interface Window {
@@ -79,6 +79,7 @@ export function YouTubePlayer({
     null
   );
   const [progress, setProgress] = useState(initialProgress);
+  const autoplaySwitchId = useId();
   const [videoDuration, setVideoDuration] = useState(
     durationMinutes ? durationMinutes * 60 : 0
   );
@@ -239,9 +240,13 @@ export function YouTubePlayer({
       )}
       {onToggleAutoplay && (
         <div className="mt-2 flex items-center justify-end">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          <label
+            htmlFor={autoplaySwitchId}
+            className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground"
+          >
             Autoplay
             <button
+              id={autoplaySwitchId}
               type="button"
               role="switch"
               aria-checked={autoplay}

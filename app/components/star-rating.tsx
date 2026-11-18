@@ -102,6 +102,8 @@ export function StarRatingInput({
 
   return (
     <span
+      role="group"
+      aria-label="Rating"
       className={cn("flex items-center gap-0.5", className)}
       onMouseLeave={() => setHovered(null)}
     >

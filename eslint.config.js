@@ -1,5 +1,6 @@
 // Lint only the mechanical rules in CODING_STANDARDS.md. Judgement calls stay
 // with the reviewer; whole recommended presets are deliberately not enabled.
+import jsxA11y from "eslint-plugin-jsx-a11y";
 import simpleImportSort from "eslint-plugin-simple-import-sort";
 import tseslint from "typescript-eslint";
 
@@ -57,6 +58,19 @@ export default tseslint.config(
             "Do not cast form or search input with `as string`. Parse it with a zod schema via parseFormData from app/lib/validation.ts.",
         },
       ],
+    },
+  },
+  // Accessibility: "Every image has alt text", "Every input has a label",
+  // "Do not set a positive tabIndex", "Use semantic elements".
+  {
+    files: ["app/**/*.tsx"],
+    plugins: { "jsx-a11y": jsxA11y },
+    rules: {
+      "jsx-a11y/alt-text": "error",
+      "jsx-a11y/label-has-associated-control": "error",
+      "jsx-a11y/tabindex-no-positive": "error",
+      "jsx-a11y/no-static-element-interactions": "error",
+      "jsx-a11y/click-events-have-key-events": "error",
     },
   },
   // "Imports are sorted: packages, then aliases, then relative". The plugin's

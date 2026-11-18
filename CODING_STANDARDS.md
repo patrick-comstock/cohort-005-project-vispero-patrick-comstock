@@ -112,10 +112,6 @@ week anybody who was signed in could approve a refund by posting to
 
 `isPublished`, `hasSeats`, `canRefund`. Not `published`, `seats`, `refund`.
 
-## Every image has alt text
-
-Decorative images take `alt=""`, not no attribute.
-
 ## Avoid the N+1
 
 One query in a loop is N+1 queries. Use a join, or one query with an `IN`.
@@ -179,8 +175,6 @@ Anything the browser can read is public.
 ## Keep a function under fifty lines
 
 If it is longer, it is doing more than one thing.
-
-## Every input has a label
 
 ## Read lesson progress through `progressCache`
 
@@ -265,10 +259,6 @@ check it again.
 
 A shared fixture that every test bends is worse than a little duplication.
 
-## Use semantic elements
-
-A `div` with an `onClick` is a button that nobody can tab to.
-
 ## Index every foreign key
 
 A foreign key without an index is a table scan on every join. Add the index
@@ -292,7 +282,6 @@ Strip it before you commit.
 ## Also
 
 - Every file ends with a newline.
-- Do not set a positive `tabIndex`.
 - Squash before landing.
 - Throw `Error`, never a string.
 - Do not test the framework.
