@@ -18,12 +18,12 @@ import {
   teams,
 } from "~/db/schema";
 import { getCourseById, getUserById } from "~/lib/courses.server";
+import { formatCalendarDay } from "~/lib/refund-eligibility.server";
+import { getCurrentUserId } from "~/lib/session";
 import {
-  formatCalendarDay,
   listTeamPurchasesForBuyer,
   refusalReasonForTeamPurchaseBuyer,
-} from "~/lib/refund-eligibility.server";
-import { getCurrentUserId } from "~/lib/session";
+} from "~/lib/team-purchase-refund-eligibility.server";
 import { formatPrice } from "~/lib/utils";
 
 import type { Route } from "./+types/team";
