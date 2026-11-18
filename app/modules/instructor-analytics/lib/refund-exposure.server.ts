@@ -13,7 +13,7 @@ import { resolvedRefundRequest } from "~/lib/revenue.server";
 // ─── Refund exposure ───
 // Revenue is reported the moment a Purchase lands, but a Refund Request can be
 // made for fourteen days, so some of what this page calls Revenue is still the
-// learner's money. This panel says how much of it is. Purchases already
+// Student's money. This panel says how much of it is. Purchases already
 // Refunded are out of Revenue, so they are not exposed either. Nor are
 // Purchases whose Refund Request was Declined: a Resolution is final and a
 // Purchase has at most one Refund Request, so that money is kept. A Pending

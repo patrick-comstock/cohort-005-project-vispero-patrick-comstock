@@ -362,8 +362,8 @@ Be fair to the tool when you judge a failure.
 - **Windows is not tested end to end either.** WSL and Git Bash need no
   special handling — they are POSIX shells, so they use the same command as
   Mac and Linux. Native PowerShell gets its own `$env:NAME = 'value'` syntax
-  instead (see `withEnv` in `agent-command.ts`), verified by unit test but not by
-  running a real agent against it on Windows. Command Prompt (`cmd.exe`) is
+  instead (see `withEnv` in `agent-command.ts`), verified by unit test but not
+  by running a real agent against it on Windows. Command Prompt (`cmd.exe`) is
   not supported; use PowerShell, which is the default terminal in Windows
   Terminal and VS Code.
 
@@ -372,18 +372,19 @@ line in `agent-catalogue.ts`.
 
 ## Extending it
 
-- **Add an agent:** add one entry to the catalogue in `agent-catalogue.ts`, giving its
-  upstream host, its renderer, its base URL suffix, and its command. That is the
-  whole job. The wizard, the banner and the routing all read from there, so
-  nothing else needs to change.
+- **Add an agent:** add one entry to the catalogue in `agent-catalogue.ts`,
+  giving its upstream host, its renderer, its base URL suffix, and its command.
+  That is the whole job. The wizard, the banner and the routing all read from
+  there, so nothing else needs to change.
 - **Add an agent with no fixed upstream at all**, the way OMP has none: give it
   no upstream host, set `alwaysCustom: true`, and give its one provider entry a
   bin and a setup file. The wizard then skips the provider question for it
   entirely and asks the two custom-base-url questions directly. See the OMP
   entry in `agent-catalogue.ts` for the whole shape.
 - **Add a wire format:** add a renderer file beside `render-anthropic.ts`,
-  pick it by renderer id in `render.ts`, and name it on the catalogue entry. Unknown shapes already fall back to pretty-printed JSON, so
-  you can iterate safely.
+  pick it by renderer id in `render.ts`, and name it on the catalogue entry.
+  Unknown shapes already fall back to pretty-printed JSON, so you can iterate
+  safely.
 - **Watch the base URL suffix.** It is per-agent on purpose and never a global
   rule. Some agents append the whole path to what you give them and so must not
   have a `/v1`. Some append only the last part and so must have one. Getting it
