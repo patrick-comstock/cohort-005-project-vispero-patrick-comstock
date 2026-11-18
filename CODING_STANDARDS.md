@@ -253,11 +253,6 @@ check it again.
 
 A shared fixture that every test bends is worse than a little duplication.
 
-## Index every foreign key
-
-A foreign key without an index is a table scan on every join. Add the index
-in the same change that adds the key.
-
 ## Name a function for what it returns, not how it works
 
 `getPendingRefunds`, not `queryRefundsTableFilteredByStatus`.

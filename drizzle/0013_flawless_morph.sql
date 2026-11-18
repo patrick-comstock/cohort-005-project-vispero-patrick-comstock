@@ -1,0 +1,26 @@
+CREATE INDEX `comments_user_idx` ON `comments` (`user_id`);--> statement-breakpoint
+CREATE INDEX `coupons_team_idx` ON `coupons` (`team_id`);--> statement-breakpoint
+CREATE INDEX `coupons_course_idx` ON `coupons` (`course_id`);--> statement-breakpoint
+CREATE INDEX `coupons_purchase_idx` ON `coupons` (`purchase_id`);--> statement-breakpoint
+CREATE INDEX `coupons_redeemed_by_user_idx` ON `coupons` (`redeemed_by_user_id`);--> statement-breakpoint
+CREATE INDEX `course_ratings_course_idx` ON `course_ratings` (`course_id`);--> statement-breakpoint
+CREATE INDEX `courses_instructor_idx` ON `courses` (`instructor_id`);--> statement-breakpoint
+CREATE INDEX `courses_category_idx` ON `courses` (`category_id`);--> statement-breakpoint
+CREATE INDEX `enrollments_user_idx` ON `enrollments` (`user_id`);--> statement-breakpoint
+CREATE INDEX `lesson_progress_lesson_idx` ON `lesson_progress` (`lesson_id`);--> statement-breakpoint
+CREATE INDEX `lessons_module_idx` ON `lessons` (`module_id`);--> statement-breakpoint
+CREATE INDEX `modules_course_idx` ON `modules` (`course_id`);--> statement-breakpoint
+CREATE INDEX `purchases_user_idx` ON `purchases` (`user_id`);--> statement-breakpoint
+CREATE INDEX `quiz_answers_attempt_idx` ON `quiz_answers` (`attempt_id`);--> statement-breakpoint
+CREATE INDEX `quiz_answers_question_idx` ON `quiz_answers` (`question_id`);--> statement-breakpoint
+CREATE INDEX `quiz_answers_selected_option_idx` ON `quiz_answers` (`selected_option_id`);--> statement-breakpoint
+CREATE INDEX `quiz_attempts_user_idx` ON `quiz_attempts` (`user_id`);--> statement-breakpoint
+CREATE INDEX `quiz_attempts_quiz_idx` ON `quiz_attempts` (`quiz_id`);--> statement-breakpoint
+CREATE INDEX `quiz_options_question_idx` ON `quiz_options` (`question_id`);--> statement-breakpoint
+CREATE INDEX `quiz_questions_quiz_idx` ON `quiz_questions` (`quiz_id`);--> statement-breakpoint
+CREATE INDEX `quizzes_lesson_idx` ON `quizzes` (`lesson_id`);--> statement-breakpoint
+CREATE INDEX `refund_requests_resolved_by_user_idx` ON `refund_requests` (`resolved_by_user_id`);--> statement-breakpoint
+CREATE INDEX `team_members_team_idx` ON `team_members` (`team_id`);--> statement-breakpoint
+CREATE INDEX `team_members_user_idx` ON `team_members` (`user_id`);--> statement-breakpoint
+CREATE INDEX `video_watch_events_user_idx` ON `video_watch_events` (`user_id`);--> statement-breakpoint
+CREATE INDEX `video_watch_events_lesson_idx` ON `video_watch_events` (`lesson_id`);

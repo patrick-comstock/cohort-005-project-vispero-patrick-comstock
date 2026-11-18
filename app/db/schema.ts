@@ -67,61 +67,76 @@ export const categories = sqliteTable("categories", {
   slug: text("slug").notNull().unique(),
 });
 
-export const courses = sqliteTable("courses", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  title: text("title").notNull(),
-  slug: text("slug").notNull().unique(),
-  description: text("description").notNull(),
-  notes: text("notes"),
-  // Markdown, non-empty. Enforced on write.
-  salesCopy: text("sales_copy").notNull(),
-  instructorId: integer("instructor_id")
-    .notNull()
-    .references(() => users.id),
-  categoryId: integer("category_id")
-    .notNull()
-    .references(() => categories.id),
-  status: text("status").notNull().$type<CourseStatus>(),
-  coverImageUrl: text("cover_image_url"),
-  price: integer("price").notNull().default(0),
-  pppEnabled: integer("ppp_enabled", { mode: "boolean" })
-    .notNull()
-    .default(true),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-  updatedAt: text("updated_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+export const courses = sqliteTable(
+  "courses",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    title: text("title").notNull(),
+    slug: text("slug").notNull().unique(),
+    description: text("description").notNull(),
+    notes: text("notes"),
+    // Markdown, non-empty. Enforced on write.
+    salesCopy: text("sales_copy").notNull(),
+    instructorId: integer("instructor_id")
+      .notNull()
+      .references(() => users.id),
+    categoryId: integer("category_id")
+      .notNull()
+      .references(() => categories.id),
+    status: text("status").notNull().$type<CourseStatus>(),
+    coverImageUrl: text("cover_image_url"),
+    price: integer("price").notNull().default(0),
+    pppEnabled: integer("ppp_enabled", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index("courses_instructor_idx").on(table.instructorId),
+    index("courses_category_idx").on(table.categoryId),
+  ]
+);
 
-export const modules = sqliteTable("modules", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  courseId: integer("course_id")
-    .notNull()
-    .references(() => courses.id),
-  title: text("title").notNull(),
-  position: integer("position").notNull(),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+export const modules = sqliteTable(
+  "modules",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    courseId: integer("course_id")
+      .notNull()
+      .references(() => courses.id),
+    title: text("title").notNull(),
+    position: integer("position").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [index("modules_course_idx").on(table.courseId)]
+);
 
-export const lessons = sqliteTable("lessons", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  moduleId: integer("module_id")
-    .notNull()
-    .references(() => modules.id),
-  title: text("title").notNull(),
-  content: text("content"),
-  videoUrl: text("video_url"),
-  githubRepoUrl: text("github_repo_url"),
-  position: integer("position").notNull(),
-  durationMinutes: integer("duration_minutes"),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+export const lessons = sqliteTable(
+  "lessons",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    moduleId: integer("module_id")
+      .notNull()
+      .references(() => modules.id),
+    title: text("title").notNull(),
+    content: text("content"),
+    videoUrl: text("video_url"),
+    githubRepoUrl: text("github_repo_url"),
+    position: integer("position").notNull(),
+    durationMinutes: integer("duration_minutes"),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [index("lessons_module_idx").on(table.moduleId)]
+);
 
 export const enrollments = sqliteTable(
   "enrollments",
@@ -138,7 +153,10 @@ export const enrollments = sqliteTable(
       .$defaultFn(() => new Date().toISOString()),
     completedAt: text("completed_at"),
   },
-  (table) => [index("enrollments_course_idx").on(table.courseId)]
+  (table) => [
+    index("enrollments_user_idx").on(table.userId),
+    index("enrollments_course_idx").on(table.courseId),
+  ]
 );
 
 export const lessonProgress = sqliteTable(
@@ -156,64 +174,92 @@ export const lessonProgress = sqliteTable(
   },
   (table) => [
     index("lesson_progress_user_lesson_idx").on(table.userId, table.lessonId),
+    index("lesson_progress_lesson_idx").on(table.lessonId),
   ]
 );
 
-export const quizzes = sqliteTable("quizzes", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  lessonId: integer("lesson_id")
-    .notNull()
-    .references(() => lessons.id),
-  title: text("title").notNull(),
-  passingScore: real("passing_score").notNull(),
-});
+export const quizzes = sqliteTable(
+  "quizzes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    lessonId: integer("lesson_id")
+      .notNull()
+      .references(() => lessons.id),
+    title: text("title").notNull(),
+    passingScore: real("passing_score").notNull(),
+  },
+  (table) => [index("quizzes_lesson_idx").on(table.lessonId)]
+);
 
-export const quizQuestions = sqliteTable("quiz_questions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  quizId: integer("quiz_id")
-    .notNull()
-    .references(() => quizzes.id),
-  questionText: text("question_text").notNull(),
-  questionType: text("question_type").notNull().$type<QuestionType>(),
-  position: integer("position").notNull(),
-});
+export const quizQuestions = sqliteTable(
+  "quiz_questions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    quizId: integer("quiz_id")
+      .notNull()
+      .references(() => quizzes.id),
+    questionText: text("question_text").notNull(),
+    questionType: text("question_type").notNull().$type<QuestionType>(),
+    position: integer("position").notNull(),
+  },
+  (table) => [index("quiz_questions_quiz_idx").on(table.quizId)]
+);
 
-export const quizOptions = sqliteTable("quiz_options", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  questionId: integer("question_id")
-    .notNull()
-    .references(() => quizQuestions.id),
-  optionText: text("option_text").notNull(),
-  isCorrect: integer("is_correct", { mode: "boolean" }).notNull(),
-});
+export const quizOptions = sqliteTable(
+  "quiz_options",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    questionId: integer("question_id")
+      .notNull()
+      .references(() => quizQuestions.id),
+    optionText: text("option_text").notNull(),
+    isCorrect: integer("is_correct", { mode: "boolean" }).notNull(),
+  },
+  (table) => [index("quiz_options_question_idx").on(table.questionId)]
+);
 
-export const quizAttempts = sqliteTable("quiz_attempts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id),
-  quizId: integer("quiz_id")
-    .notNull()
-    .references(() => quizzes.id),
-  score: real("score").notNull(),
-  passed: integer("passed", { mode: "boolean" }).notNull(),
-  attemptedAt: text("attempted_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+export const quizAttempts = sqliteTable(
+  "quiz_attempts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    quizId: integer("quiz_id")
+      .notNull()
+      .references(() => quizzes.id),
+    score: real("score").notNull(),
+    passed: integer("passed", { mode: "boolean" }).notNull(),
+    attemptedAt: text("attempted_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index("quiz_attempts_user_idx").on(table.userId),
+    index("quiz_attempts_quiz_idx").on(table.quizId),
+  ]
+);
 
-export const quizAnswers = sqliteTable("quiz_answers", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  attemptId: integer("attempt_id")
-    .notNull()
-    .references(() => quizAttempts.id),
-  questionId: integer("question_id")
-    .notNull()
-    .references(() => quizQuestions.id),
-  selectedOptionId: integer("selected_option_id")
-    .notNull()
-    .references(() => quizOptions.id),
-});
+export const quizAnswers = sqliteTable(
+  "quiz_answers",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    attemptId: integer("attempt_id")
+      .notNull()
+      .references(() => quizAttempts.id),
+    questionId: integer("question_id")
+      .notNull()
+      .references(() => quizQuestions.id),
+    selectedOptionId: integer("selected_option_id")
+      .notNull()
+      .references(() => quizOptions.id),
+  },
+  (table) => [
+    index("quiz_answers_attempt_idx").on(table.attemptId),
+    index("quiz_answers_question_idx").on(table.questionId),
+    index("quiz_answers_selected_option_idx").on(table.selectedOptionId),
+  ]
+);
 
 export const purchases = sqliteTable(
   "purchases",
@@ -231,7 +277,10 @@ export const purchases = sqliteTable(
       .notNull()
       .$defaultFn(() => new Date().toISOString()),
   },
-  (table) => [index("purchases_course_idx").on(table.courseId)]
+  (table) => [
+    index("purchases_user_idx").on(table.userId),
+    index("purchases_course_idx").on(table.courseId),
+  ]
 );
 
 export const refundRequests = sqliteTable(
@@ -262,6 +311,7 @@ export const refundRequests = sqliteTable(
   // A Purchase can have at most one Refund Request, ever.
   (table) => [
     uniqueIndex("refund_requests_purchase_unique").on(table.purchaseId),
+    index("refund_requests_resolved_by_user_idx").on(table.resolvedByUserId),
   ]
 );
 
@@ -272,41 +322,57 @@ export const teams = sqliteTable("teams", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
-export const teamMembers = sqliteTable("team_members", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  teamId: integer("team_id")
-    .notNull()
-    .references(() => teams.id),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id),
-  role: text("role").notNull().$type<TeamMemberRole>(),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+export const teamMembers = sqliteTable(
+  "team_members",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    teamId: integer("team_id")
+      .notNull()
+      .references(() => teams.id),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    role: text("role").notNull().$type<TeamMemberRole>(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index("team_members_team_idx").on(table.teamId),
+    index("team_members_user_idx").on(table.userId),
+  ]
+);
 
-export const coupons = sqliteTable("coupons", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  teamId: integer("team_id")
-    .notNull()
-    .references(() => teams.id),
-  courseId: integer("course_id")
-    .notNull()
-    .references(() => courses.id),
-  code: text("code").notNull().unique(),
-  purchaseId: integer("purchase_id")
-    .notNull()
-    .references(() => purchases.id),
-  redeemedByUserId: integer("redeemed_by_user_id").references(() => users.id),
-  redeemedAt: text("redeemed_at"),
-  // Set when the Coupon's Team Purchase is Refunded. A Voided Coupon can no
-  // longer be Redeemed.
-  voidedAt: text("voided_at"),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+export const coupons = sqliteTable(
+  "coupons",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    teamId: integer("team_id")
+      .notNull()
+      .references(() => teams.id),
+    courseId: integer("course_id")
+      .notNull()
+      .references(() => courses.id),
+    code: text("code").notNull().unique(),
+    purchaseId: integer("purchase_id")
+      .notNull()
+      .references(() => purchases.id),
+    redeemedByUserId: integer("redeemed_by_user_id").references(() => users.id),
+    redeemedAt: text("redeemed_at"),
+    // Set when the Coupon's Team Purchase is Refunded. A Voided Coupon can no
+    // longer be Redeemed.
+    voidedAt: text("voided_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index("coupons_team_idx").on(table.teamId),
+    index("coupons_course_idx").on(table.courseId),
+    index("coupons_purchase_idx").on(table.purchaseId),
+    index("coupons_redeemed_by_user_idx").on(table.redeemedByUserId),
+  ]
+);
 
 export const courseRatings = sqliteTable(
   "course_ratings",
@@ -332,6 +398,7 @@ export const courseRatings = sqliteTable(
       table.userId,
       table.courseId
     ),
+    index("course_ratings_course_idx").on(table.courseId),
   ]
 );
 
@@ -365,24 +432,32 @@ export const comments = sqliteTable(
   },
   (table) => [
     index("comments_lesson_idx").on(table.lessonId),
+    index("comments_user_idx").on(table.userId),
     index("comments_parent_idx").on(table.parentId),
   ]
 );
 
-export const videoWatchEvents = sqliteTable("video_watch_events", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id),
-  lessonId: integer("lesson_id")
-    .notNull()
-    .references(() => lessons.id),
-  eventType: text("event_type").notNull(),
-  positionSeconds: real("position_seconds").notNull(),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+export const videoWatchEvents = sqliteTable(
+  "video_watch_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    lessonId: integer("lesson_id")
+      .notNull()
+      .references(() => lessons.id),
+    eventType: text("event_type").notNull(),
+    positionSeconds: real("position_seconds").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    index("video_watch_events_user_idx").on(table.userId),
+    index("video_watch_events_lesson_idx").on(table.lessonId),
+  ]
+);
 
 // A snapshot of what one person was told (ADR 0005): finished text, written
 // in the same transaction as its event, with no reference to its subject.
