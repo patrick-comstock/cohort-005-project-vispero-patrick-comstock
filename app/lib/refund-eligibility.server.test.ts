@@ -1,8 +1,11 @@
-import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
-import { createTestDb, seedBaseData } from "~/test/setup";
+import { beforeEach, describe, expect, it } from "vitest";
+
 import * as schema from "~/db/schema";
 import { NotificationKind, RefundRequestStatus, UserRole } from "~/db/schema";
+import { createTestDb, seedBaseData } from "~/test/setup";
+
+import { listNotifications } from "./notifications.server";
 import {
   formatCalendarDay,
   getRefundRequestOffer,
@@ -17,7 +20,6 @@ import {
   refusalReasonForStudent,
   refusalReasonForTeamPurchaseBuyer,
 } from "./refund-eligibility.server";
-import { listNotifications } from "./notifications.server";
 import {
   listRequesterRefundRequests,
   resolveRefundRequest,

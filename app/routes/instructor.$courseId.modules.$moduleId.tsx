@@ -1,15 +1,4 @@
-import { Link } from "react-router";
-import type { Route } from "./+types/instructor.$courseId.modules.$moduleId";
-import { requireCourseManager } from "~/modules/access/index.server";
-import { modules, lessons } from "~/db/schema";
-import { db } from "~/db";
-import { getCourseWithDetails } from "~/lib/courses.server";
-import { parseParams } from "~/lib/validation";
 import { eq } from "drizzle-orm";
-import { Card, CardContent } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Skeleton } from "~/components/ui/skeleton";
-import { UserAvatar } from "~/components/user-avatar";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -20,9 +9,22 @@ import {
   FileText,
   Video,
 } from "lucide-react";
+import { Link } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
-import { formatDuration } from "~/lib/utils";
 import { z } from "zod";
+
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
+import { Skeleton } from "~/components/ui/skeleton";
+import { UserAvatar } from "~/components/user-avatar";
+import { db } from "~/db";
+import { lessons, modules } from "~/db/schema";
+import { getCourseWithDetails } from "~/lib/courses.server";
+import { formatDuration } from "~/lib/utils";
+import { parseParams } from "~/lib/validation";
+import { requireCourseManager } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/instructor.$courseId.modules.$moduleId";
 
 const paramsSchema = z.object({
   courseId: z.coerce.number().int(),

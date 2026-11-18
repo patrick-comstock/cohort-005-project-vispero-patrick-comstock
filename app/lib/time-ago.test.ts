@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { formatTimeAgo } from "./time-ago";
 
 const now = new Date("2026-03-10T12:00:00.000Z");

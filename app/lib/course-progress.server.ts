@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+
 import type { Db } from "~/db";
 import {
   lessonProgress,

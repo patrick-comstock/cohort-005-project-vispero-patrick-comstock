@@ -1,14 +1,4 @@
-import { Link } from "react-router";
-import type { Route } from "./+types/instructor";
-import { requireInstructor } from "~/modules/access/index.server";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Skeleton } from "~/components/ui/skeleton";
+import { eq, sql } from "drizzle-orm";
 import {
   AlertTriangle,
   BookOpen,
@@ -16,13 +6,25 @@ import {
   Plus,
   Users,
 } from "lucide-react";
-import { CourseImage } from "~/components/course-image";
+import { Link } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
-import { CourseStatus } from "~/db/schema";
+
+import { CourseImage } from "~/components/course-image";
+import { Button } from "~/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "~/components/ui/card";
+import { Skeleton } from "~/components/ui/skeleton";
 import { db } from "~/db";
-import { getLessonCount } from "~/lib/courses.server";
+import { CourseStatus } from "~/db/schema";
 import { courses, enrollments } from "~/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { getLessonCount } from "~/lib/courses.server";
+import { requireInstructor } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/instructor";
 
 function getCoursesByInstructor(instructorId: number) {
   return db

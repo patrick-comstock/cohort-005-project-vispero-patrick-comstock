@@ -1,47 +1,49 @@
-import { Link, useFetcher, redirect, useSearchParams } from "react-router";
-import { useState, useEffect } from "react";
+import crypto from "crypto";
+import { and, eq, sql } from "drizzle-orm";
+import { ArrowLeft, BookOpen, Clock, Minus, Plus, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, redirect, useFetcher, useSearchParams } from "react-router";
+import { data } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Route } from "./+types/courses.$slug.purchase";
+
+import { CourseImage } from "~/components/course-image";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
 import {
-  getAccess,
-  isEnrolled,
-  requireUserId,
-} from "~/modules/access/index.server";
+  Tabs,
+  TabsContent,
+  TabsContentNoShift,
+  TabsList,
+  TabsTrigger,
+} from "~/components/ui/tabs";
+import { UserAvatar } from "~/components/user-avatar";
 import { db } from "~/db";
+import {
+  coupons,
+  CourseStatus,
+  enrollments,
+  purchases,
+  TeamMemberRole,
+  teamMembers,
+  teams,
+} from "~/db/schema";
+import { resolveCountry } from "~/lib/country.server";
 import {
   getCourseBySlug,
   getCourseOutline,
   getLessonCount,
 } from "~/lib/courses.server";
-import {
-  enrollments,
-  purchases,
-  teams,
-  teamMembers,
-  coupons,
-  CourseStatus,
-  TeamMemberRole,
-} from "~/db/schema";
-import { eq, and, sql } from "drizzle-orm";
-import crypto from "crypto";
-import { Card, CardContent } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-  TabsContentNoShift,
-} from "~/components/ui/tabs";
-import { BookOpen, Clock, Users, ArrowLeft, Minus, Plus } from "lucide-react";
-import { CourseImage } from "~/components/course-image";
-import { UserAvatar } from "~/components/user-avatar";
-import { data } from "react-router";
+import { calculatePppPrice, COUNTRIES, getCountryTierInfo } from "~/lib/ppp";
 import { formatDuration, formatPrice } from "~/lib/utils";
-import { resolveCountry } from "~/lib/country.server";
-import { calculatePppPrice, getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { parseFormData, parseParams } from "~/lib/validation";
+import {
+  getAccess,
+  isEnrolled,
+  requireUserId,
+} from "~/modules/access/index.server";
+
+import type { Route } from "./+types/courses.$slug.purchase";
 
 function getEnrollmentCountForCourse(courseId: number) {
   const result = db

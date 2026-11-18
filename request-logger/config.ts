@@ -20,8 +20,11 @@
 
 import fs from "node:fs";
 import { styleText } from "node:util";
-import { cancel, confirm, isCancel, intro, select, text } from "@clack/prompts";
+
+import { cancel, confirm, intro, isCancel, select, text } from "@clack/prompts";
+
 import {
+  type AgentChoice,
   agentProviders,
   CUSTOM_ID,
   CUSTOM_LABEL,
@@ -29,9 +32,8 @@ import {
   listAgents,
   OTHER_ID,
   OTHER_LABEL,
-  WIRE_FORMAT_OPTIONS,
-  type AgentChoice,
   type RendererId,
+  WIRE_FORMAT_OPTIONS,
 } from "./agents";
 import { discoverModelIds } from "./model-discovery";
 

@@ -10,6 +10,8 @@ import {
   sql,
   sum,
 } from "drizzle-orm";
+
+import type { Db } from "~/db";
 import {
   coupons,
   courses,
@@ -19,15 +21,14 @@ import {
   RefundRequestStatus,
   users,
 } from "~/db/schema";
-import { rangeStart, splitRevenue, type AnalyticsRange } from "~/lib/analytics";
+import { type AnalyticsRange, rangeStart, splitRevenue } from "~/lib/analytics";
 import {
+  type AnalyticsScope,
   ownedBy,
   scopeOn,
   sinceRange,
-  type AnalyticsScope,
 } from "~/lib/analytics-scope.server";
 import { getDiscountForCountry } from "~/lib/ppp";
-import type { Db } from "~/db";
 
 // ─── Revenue ───
 // What an instructor's sales brought in, and what they kept. Gross Sales is

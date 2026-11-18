@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, seedBaseData } from "~/test/setup";
+
 import * as schema from "~/db/schema";
 import { CourseStatus, RefundRequestStatus, UserRole } from "~/db/schema";
 import { ANALYTICS_RANGES } from "~/lib/analytics";
 import { makeRefundRequest } from "~/lib/refund-eligibility.server";
 import { resolveRefundRequest } from "~/lib/refund-request-resolve.server";
+import { createTestDb, seedBaseData } from "~/test/setup";
+
 import {
-  loadAnalyticsPage,
-  parseAnalyticsParams,
   type AnalyticsParams,
   type AnalyticsViewer,
+  loadAnalyticsPage,
+  parseAnalyticsParams,
 } from "../index.server";
 
 type TestDb = ReturnType<typeof createTestDb>;

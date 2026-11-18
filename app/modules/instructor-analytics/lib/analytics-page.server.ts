@@ -12,37 +12,42 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { z } from "zod";
-import { db, type Db } from "~/db";
+
+import { type Db, db } from "~/db";
 import {
-  CourseStatus,
-  LessonProgressStatus,
-  UserRole,
   comments,
   courseRatings,
   courses,
+  CourseStatus,
   enrollments,
   lessonProgress,
+  LessonProgressStatus,
   lessons,
   modules,
   purchases,
   quizAttempts,
   quizzes,
   refundRequests,
+  UserRole,
   users,
 } from "~/db/schema";
 import {
   ANALYTICS_RANGE_VALUES,
+  type AnalyticsRange,
   DEFAULT_ANALYTICS_RANGE,
   rangeStart,
   splitRevenue,
-  type AnalyticsRange,
 } from "~/lib/analytics";
 import {
+  type AnalyticsScope,
   ownedBy,
   scopeOn,
   sinceRange,
-  type AnalyticsScope,
 } from "~/lib/analytics-scope.server";
+import {
+  daysLeftInRefundWindow,
+  isWithinRefundWindow,
+} from "~/lib/refund-window";
 import {
   getBuyerCount,
   getCourseRevenueByCountry,
@@ -54,10 +59,6 @@ import {
   getTopBuyers,
   resolvedRefundRequest,
 } from "~/lib/revenue.server";
-import {
-  daysLeftInRefundWindow,
-  isWithinRefundWindow,
-} from "~/lib/refund-window";
 
 // ─── Instructor Analytics page ───
 // Everything the analytics page shows, for one viewer at one moment. The route

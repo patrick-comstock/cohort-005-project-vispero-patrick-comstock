@@ -1,14 +1,16 @@
 import { data } from "react-router";
 import { z } from "zod";
-import type { Route } from "./+types/api.video-tracking";
+
+import { db } from "~/db";
+import { videoWatchEvents } from "~/db/schema";
+import { getCourseIdForLesson } from "~/lib/lesson-page.server";
+import { parseJsonBody } from "~/lib/validation";
 import {
   requireContentAccess,
   requireUserId,
 } from "~/modules/access/index.server";
-import { getCourseIdForLesson } from "~/lib/lesson-page.server";
-import { parseJsonBody } from "~/lib/validation";
-import { db } from "~/db";
-import { videoWatchEvents } from "~/db/schema";
+
+import type { Route } from "./+types/api.video-tracking";
 
 const videoTrackingSchema = z.object({
   lessonId: z.number(),

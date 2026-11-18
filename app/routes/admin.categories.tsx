@@ -1,17 +1,4 @@
-import { useState, useRef, useEffect } from "react";
-import { useFetcher } from "react-router";
-import { toast } from "sonner";
-import { z } from "zod";
-import type { Route } from "./+types/admin.categories";
-import { requireAdmin } from "~/modules/access/index.server";
-import { parseFormData } from "~/lib/validation";
-import { categories, courses } from "~/db/schema";
-import { db } from "~/db";
 import { eq, sql } from "drizzle-orm";
-import { Card, CardContent } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
-import { Skeleton } from "~/components/ui/skeleton";
 import {
   AlertTriangle,
   BookOpen,
@@ -20,7 +7,22 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useFetcher } from "react-router";
 import { data, isRouteErrorResponse, Link } from "react-router";
+import { toast } from "sonner";
+import { z } from "zod";
+
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
+import { Input } from "~/components/ui/input";
+import { Skeleton } from "~/components/ui/skeleton";
+import { db } from "~/db";
+import { categories, courses } from "~/db/schema";
+import { parseFormData } from "~/lib/validation";
+import { requireAdmin } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/admin.categories";
 
 const adminCategoryActionSchema = z.discriminatedUnion("intent", [
   z.object({

@@ -1,34 +1,36 @@
+import { and, desc, eq, isNull, ne, notExists, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
+import { AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, data, isRouteErrorResponse, useFetcher } from "react-router";
+import { data, isRouteErrorResponse, Link, useFetcher } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Route } from "./+types/instructor.questions";
-import {
-  requireCourseManager,
-  requireInstructorOrAdmin,
-} from "~/modules/access/index.server";
-import { renderComment } from "~/lib/comment-markdown.server";
+
 import { Button } from "~/components/ui/button";
 import { Card, CardContent } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Textarea } from "~/components/ui/textarea";
 import { UserAvatar } from "~/components/user-avatar";
-import { AlertTriangle, CheckCircle2, ExternalLink } from "lucide-react";
-import { formatTimeAgo } from "~/lib/time-ago";
-import { cn, daysSince } from "~/lib/utils";
-import { MIN_COMMENT_LENGTH, MAX_COMMENT_LENGTH } from "~/lib/comments";
-import { parseFormData } from "~/lib/validation";
 import { db } from "~/db";
 import {
   comments,
   courses,
   lessons,
   modules,
-  users,
   UserRole,
+  users,
 } from "~/db/schema";
-import { eq, ne, or, and, isNull, notExists, sql, desc } from "drizzle-orm";
-import { alias } from "drizzle-orm/sqlite-core";
+import { renderComment } from "~/lib/comment-markdown.server";
+import { MAX_COMMENT_LENGTH, MIN_COMMENT_LENGTH } from "~/lib/comments";
+import { formatTimeAgo } from "~/lib/time-ago";
+import { cn, daysSince } from "~/lib/utils";
+import { parseFormData } from "~/lib/validation";
+import {
+  requireCourseManager,
+  requireInstructorOrAdmin,
+} from "~/modules/access/index.server";
+
+import type { Route } from "./+types/instructor.questions";
 
 type QueuedQuestion = {
   id: number;

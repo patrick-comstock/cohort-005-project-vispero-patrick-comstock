@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNotNull, notExists, sql } from "drizzle-orm";
+
 import type { Db } from "~/db";
 import {
   coupons,
@@ -15,12 +16,12 @@ import {
   videoWatchEvents,
 } from "~/db/schema";
 import { notifyAdmins } from "~/lib/notifications.server";
-import { formatPrice } from "~/lib/utils";
 import {
-  REFUND_WINDOW_DAYS,
   isWithinRefundWindow,
   lastDayOfRefundWindow,
+  REFUND_WINDOW_DAYS,
 } from "~/lib/refund-window";
+import { formatPrice } from "~/lib/utils";
 import { isEnrolled } from "~/modules/access/index.server";
 
 // Refund Eligibility = Refund Window + Watch-Time Limit + Completion Limit.

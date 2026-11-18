@@ -1,20 +1,22 @@
+import { eq } from "drizzle-orm";
 import { data, redirect } from "react-router";
 import { z } from "zod";
-import type { Route } from "./+types/team.purchases.$purchaseId.refund-request";
-import { getCurrentUserId } from "~/lib/session";
+
 import { db } from "~/db";
 import { courses, purchases, users } from "~/db/schema";
-import { eq } from "drizzle-orm";
-import { parseFormData, parseParams } from "~/lib/validation";
 import { makeTeamPurchaseRefundRequest } from "~/lib/refund-eligibility.server";
-import {
-  buildTeamPurchaseRefundRequestEmail,
-  logEmail,
-} from "~/lib/refund-request-emails.server";
 import {
   refundRequestSchema,
   refusalStatus,
 } from "~/lib/refund-request-action.server";
+import {
+  buildTeamPurchaseRefundRequestEmail,
+  logEmail,
+} from "~/lib/refund-request-emails.server";
+import { getCurrentUserId } from "~/lib/session";
+import { parseFormData, parseParams } from "~/lib/validation";
+
+import type { Route } from "./+types/team.purchases.$purchaseId.refund-request";
 
 const paramsSchema = z.object({
   purchaseId: z.coerce.number().int().positive(),

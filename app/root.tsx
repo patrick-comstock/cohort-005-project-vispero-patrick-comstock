@@ -1,3 +1,5 @@
+import "./app.css";
+
 import {
   isRouteErrorResponse,
   Links,
@@ -10,7 +12,6 @@ import {
 
 import type { Route } from "./+types/root";
 import { StatusRegionProvider } from "./components/status-region";
-import "./app.css";
 
 const darkModeScript = `
 (function() {

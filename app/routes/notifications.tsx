@@ -1,20 +1,22 @@
-import { useEffect } from "react";
-import { Form, data, isRouteErrorResponse, redirect } from "react-router";
 import { AlertTriangle } from "lucide-react";
+import { useEffect } from "react";
+import { data, Form, isRouteErrorResponse, redirect } from "react-router";
 import { z } from "zod";
-import type { Route } from "./+types/notifications";
+
+import { useAnnounce } from "~/components/status-region";
+import { Button } from "~/components/ui/button";
 import { db } from "~/db";
-import { requireUserId } from "~/modules/access/index.server";
 import {
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from "~/lib/notifications.server";
-import { parseFormData } from "~/lib/validation";
-import { useAnnounce } from "~/components/status-region";
-import { Button } from "~/components/ui/button";
 import { formatTimeAgo } from "~/lib/time-ago";
 import { cn } from "~/lib/utils";
+import { parseFormData } from "~/lib/validation";
+import { requireUserId } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/notifications";
 
 export function meta() {
   return [

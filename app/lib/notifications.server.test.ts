@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createTestDb, seedBaseData } from "~/test/setup";
+
 import * as schema from "~/db/schema";
 import { NotificationKind } from "~/db/schema";
+import { createTestDb, seedBaseData } from "~/test/setup";
+
 import {
+  countUnreadNotifications,
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
-  countUnreadNotifications,
 } from "./notifications.server";
 
 type TestDb = ReturnType<typeof createTestDb>;

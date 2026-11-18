@@ -1,13 +1,14 @@
 import { and, asc, eq, exists, type SQL } from "drizzle-orm";
+
+import type { Db } from "~/db";
 import {
   coupons,
   courses,
-  users,
   purchases,
   refundRequests,
   RefundRequestStatus,
+  users,
 } from "~/db/schema";
-import type { Db } from "~/db";
 
 /**
  * The read-only view of Refund Requests for the people who teach a course.

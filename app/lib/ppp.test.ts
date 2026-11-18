@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+
 import {
-  getTierForCountry,
-  getDiscountForCountry,
   calculatePppPrice,
-  getCountryTierInfo,
   checkPppAccess,
+  getCountryTierInfo,
+  getDiscountForCountry,
+  getTierForCountry,
 } from "./ppp";
 
 describe("PPP Config", () => {

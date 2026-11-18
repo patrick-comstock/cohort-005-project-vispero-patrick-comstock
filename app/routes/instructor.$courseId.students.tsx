@@ -1,21 +1,23 @@
+import { eq } from "drizzle-orm";
+import { AlertTriangle, ArrowLeft, Award, Users } from "lucide-react";
 import { Link } from "react-router";
-import type { Route } from "./+types/instructor.$courseId.students";
-import { requireCourseManager } from "~/modules/access/index.server";
-import { Card, CardContent } from "~/components/ui/card";
-import { Button } from "~/components/ui/button";
-import { AlertTriangle, ArrowLeft, Users, Award } from "lucide-react";
 import { data, isRouteErrorResponse } from "react-router";
+import { z } from "zod";
+
+import { Button } from "~/components/ui/button";
+import { Card, CardContent } from "~/components/ui/card";
 import { db } from "~/db";
+import { enrollments, lessons, modules } from "~/db/schema";
+import { getCourseProgress } from "~/lib/course-progress.server";
 import {
   getBestAttempt,
   getQuizByLessonId,
   getUserById,
 } from "~/lib/courses.server";
-import { getCourseProgress } from "~/lib/course-progress.server";
-import { modules, lessons, enrollments } from "~/db/schema";
-import { eq } from "drizzle-orm";
-import { z } from "zod";
 import { parseParams } from "~/lib/validation";
+import { requireCourseManager } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/instructor.$courseId.students";
 
 const studentsParamsSchema = z.object({
   courseId: z.coerce.number().int(),

@@ -1,10 +1,11 @@
 import { and, count, desc, eq, isNull } from "drizzle-orm";
+
 import type { Db } from "~/db";
 import {
-  notifications,
   type NotificationKind,
-  users,
+  notifications,
   UserRole,
+  users,
 } from "~/db/schema";
 
 /** A user's own Notifications, newest first, with no paging. */

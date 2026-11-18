@@ -1,24 +1,26 @@
-import { Link, useFetcher, redirect } from "react-router";
+import { eq } from "drizzle-orm";
+import { AlertCircle, CheckCircle2, Globe, Ticket } from "lucide-react";
 import { useEffect } from "react";
+import { Link, redirect, useFetcher } from "react-router";
+import { data } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Route } from "./+types/redeem.$code";
-import { resolveCountry } from "~/lib/country.server";
-import { parseParams, parseFormData } from "~/lib/validation";
-import { Card, CardContent } from "~/components/ui/card";
+
 import { Button } from "~/components/ui/button";
-import { Ticket, AlertCircle, CheckCircle2, Globe } from "lucide-react";
-import { data } from "react-router";
+import { Card, CardContent } from "~/components/ui/card";
 import { db } from "~/db";
-import { getCourseById } from "~/lib/courses.server";
-import { purchases, coupons } from "~/db/schema";
-import { getAccess, requireUserId } from "~/modules/access/index.server";
+import { coupons, purchases } from "~/db/schema";
+import { resolveCountry } from "~/lib/country.server";
 import {
-  REFUND_REQUEST_PENDING_MESSAGE,
   redeemCoupon,
+  REFUND_REQUEST_PENDING_MESSAGE,
 } from "~/lib/coupons.server";
+import { getCourseById } from "~/lib/courses.server";
 import { hasPendingRefundRequest } from "~/lib/refund-eligibility.server";
-import { eq } from "drizzle-orm";
+import { parseFormData, parseParams } from "~/lib/validation";
+import { getAccess, requireUserId } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/redeem.$code";
 
 function getCouponByCode(code: string) {
   return db.select().from(coupons).where(eq(coupons.code, code)).get();

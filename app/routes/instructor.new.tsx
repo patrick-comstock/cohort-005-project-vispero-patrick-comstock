@@ -1,18 +1,14 @@
-import { useState, useEffect } from "react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, redirect, useFetcher } from "react-router";
+import { data, isRouteErrorResponse } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Route } from "./+types/instructor.new";
-import { requireInstructor } from "~/modules/access/index.server";
-import { parseFormData } from "~/lib/validation";
-import { db } from "~/db";
-import { getCourseBySlug } from "~/lib/courses.server";
-import { categories, courses, CourseStatus } from "~/db/schema";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
+
 import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Textarea } from "~/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -20,8 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
-import { data, isRouteErrorResponse } from "react-router";
+import { Textarea } from "~/components/ui/textarea";
+import { db } from "~/db";
+import { categories, courses, CourseStatus } from "~/db/schema";
+import { getCourseBySlug } from "~/lib/courses.server";
+import { parseFormData } from "~/lib/validation";
+import { requireInstructor } from "~/modules/access/index.server";
+
+import type { Route } from "./+types/instructor.new";
 
 function getAllCategories() {
   return db.select().from(categories).orderBy(categories.name).all();

@@ -1,5 +1,5 @@
 import { marked, Renderer } from "marked";
-import { type Highlighter, createHighlighter } from "shiki";
+import { createHighlighter, type Highlighter } from "shiki";
 
 let highlighter: Highlighter | null = null;
 

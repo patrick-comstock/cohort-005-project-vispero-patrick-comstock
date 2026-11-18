@@ -1,7 +1,8 @@
 import { and, eq, gte } from "drizzle-orm";
 import type { SQLiteColumn } from "drizzle-orm/sqlite-core";
+
 import { courses } from "~/db/schema";
-import { rangeStart, type AnalyticsRange } from "~/lib/analytics";
+import { type AnalyticsRange, rangeStart } from "~/lib/analytics";
 
 // ─── Analytics Scope ───
 // The filters every analytics query shares: whose courses, and since when.

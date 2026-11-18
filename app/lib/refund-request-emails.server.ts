@@ -1,6 +1,6 @@
-import { formatPrice } from "~/lib/utils";
 import { RefundRequestStatus } from "~/db/schema";
 import type { Resolution } from "~/lib/refund-request-resolve.server";
+import { formatPrice } from "~/lib/utils";
 
 /**
  * The email that tells the Requester how their Refund Request was Resolved.

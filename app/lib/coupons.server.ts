@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
-import { coupons, enrollments, purchases } from "~/db/schema";
+
 import type { Db } from "~/db";
+import { coupons, enrollments, purchases } from "~/db/schema";
 import { hasPendingRefundRequest } from "~/lib/refund-eligibility.server";
 import { isEnrolled } from "~/modules/access/index.server";
 

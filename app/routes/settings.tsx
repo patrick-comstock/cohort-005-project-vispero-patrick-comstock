@@ -1,23 +1,25 @@
-import { useRef, useEffect } from "react";
+import { eq } from "drizzle-orm";
+import { AlertTriangle } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useFetcher } from "react-router";
+import { data, isRouteErrorResponse, Link } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import type { Route } from "./+types/settings";
-import { getCurrentUserId } from "~/lib/session";
-import { parseFormData } from "~/lib/validation";
-import { Card, CardContent, CardHeader } from "~/components/ui/card";
+
+import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
 import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
-import { UserRole, RefundRequestStatus, users } from "~/db/schema";
-import { AlertTriangle } from "lucide-react";
-import { data, isRouteErrorResponse, Link } from "react-router";
 import { db } from "~/db";
-import { eq } from "drizzle-orm";
-import { formatPrice } from "~/lib/utils";
+import { RefundRequestStatus, UserRole, users } from "~/db/schema";
 import { listRequesterRefundRequests } from "~/lib/refund-request-resolve.server";
-import { RefundRequestStatusBadge } from "~/components/refund-request-status-badge";
+import { getCurrentUserId } from "~/lib/session";
+import { formatPrice } from "~/lib/utils";
+import { parseFormData } from "~/lib/validation";
+
+import type { Route } from "./+types/settings";
 
 const settingsSchema = z.object({
   name: z.string().trim().min(1, "Name cannot be empty."),
