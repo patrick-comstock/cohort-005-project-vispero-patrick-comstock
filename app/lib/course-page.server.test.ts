@@ -4,7 +4,11 @@ import * as schema from "~/db/schema";
 import { LessonProgressStatus } from "~/db/schema";
 import { createTestDb, seedBaseData } from "~/test/setup";
 
-import { type CourseViewer, loadCourseProgress } from "./course-page.server";
+import {
+  type CourseViewer,
+  loadCourseProgress,
+  loadCoursePurchaseState,
+} from "./course-page.server";
 
 type TestDb = ReturnType<typeof createTestDb>;
 
@@ -121,5 +125,51 @@ describe("loadCourseProgress", () => {
 
     expect(page.progress).toBe(100);
     expect(page.nextLessonId).toBeNull();
+  });
+});
+
+describe("loadCoursePurchaseState", () => {
+  it("gives a signed-out visitor no Team Purchase and no Refund Request", () => {
+    expect(
+      loadCoursePurchaseState(testDb, base.course.id, {
+        userId: null,
+        enrolled: false,
+      })
+    ).toEqual({
+      hasTeamPurchase: false,
+      refundRequestOffer: null,
+      refundRequestRefusal: null,
+      refundRequest: null,
+    });
+  });
+
+  it("knows a buyer whose Purchase has Coupons made a Team Purchase", () => {
+    const team = testDb.insert(schema.teams).values({}).returning().get();
+    const purchase = testDb
+      .insert(schema.purchases)
+      .values({
+        userId: base.instructor.id,
+        courseId: base.course.id,
+        amountPaid: 9998,
+        country: "US",
+      })
+      .returning()
+      .get();
+    testDb
+      .insert(schema.coupons)
+      .values({
+        teamId: team.id,
+        courseId: base.course.id,
+        code: "TEAM-1",
+        purchaseId: purchase.id,
+      })
+      .run();
+
+    expect(
+      loadCoursePurchaseState(testDb, base.course.id, {
+        userId: base.instructor.id,
+        enrolled: false,
+      }).hasTeamPurchase
+    ).toBe(true);
   });
 });

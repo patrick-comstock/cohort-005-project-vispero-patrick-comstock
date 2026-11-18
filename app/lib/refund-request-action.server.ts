@@ -1,9 +1,7 @@
 import { z } from "zod";
 
-import type {
-  RefundRequestRefusalCode,
-  TeamPurchaseRefundRequestRefusalCode,
-} from "~/lib/refund-eligibility.server";
+import type { RefundRequestRefusalCode } from "~/lib/refund-eligibility.server";
+import type { TeamPurchaseRefundRequestRefusalCode } from "~/lib/team-purchase-refund-eligibility.server";
 
 /** The form a Requester submits to make a Refund Request. */
 export const refundRequestSchema = z.object({
