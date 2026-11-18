@@ -1,7 +1,6 @@
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
-import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -155,12 +154,9 @@ export function AddModuleForm() {
     if (fetcher.state === "idle" && fetcher.data?.success) {
       setTitle("");
       setIsAdding(false);
-      toast.success("Module added.");
-    }
-    if (fetcher.state === "idle" && fetcher.data?.error) {
-      toast.error(fetcher.data.error);
     }
   }, [fetcher.state, fetcher.data]);
+  useFetcherToast(fetcher, "Module added.");
 
   function handleSubmit() {
     const trimmed = title.trim();
