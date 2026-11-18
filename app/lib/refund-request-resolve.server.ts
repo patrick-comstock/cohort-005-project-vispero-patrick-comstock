@@ -22,10 +22,14 @@ import { formatPrice } from "~/lib/utils";
 type RefundRequest = typeof refundRequests.$inferSelect;
 
 export type Resolution =
-  RefundRequestStatus.Approved | RefundRequestStatus.Declined;
+  | RefundRequestStatus.Approved
+  | RefundRequestStatus.Declined;
 
 export type ResolveErrorCode =
-  "not-found" | "not-admin" | "already-resolved" | "note-required";
+  | "not-found"
+  | "not-admin"
+  | "already-resolved"
+  | "note-required";
 
 type ResolveResult =
   | { ok: true; refundRequest: RefundRequest }

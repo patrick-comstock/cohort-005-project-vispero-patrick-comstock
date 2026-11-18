@@ -88,7 +88,8 @@ type EditedCourse = { id: number; title: string; description: string };
 
 /** What the edit saved, or a refusal the editor shows as a toast. */
 type CourseEditResult =
-  { success: true; field: string } | { error: string; status: 400 | 404 };
+  | { success: true; field: string }
+  | { error: string; status: 400 | 404 };
 
 const MODULE_NOT_FOUND = {
   error: "Module not found in this course.",
