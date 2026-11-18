@@ -6,16 +6,14 @@ import { NotificationKind, RefundRequestStatus, UserRole } from "~/db/schema";
 import { createTestDb, seedBaseData } from "~/test/setup";
 
 import { listNotifications } from "./notifications.server";
-import {
-  makeRefundRequest,
-  makeTeamPurchaseRefundRequest,
-} from "./refund-eligibility.server";
+import { makeRefundRequest } from "./refund-eligibility.server";
 import {
   getRefundRequestDetail,
   listRefundRequests,
   listRequesterRefundRequests,
   resolveRefundRequest,
 } from "./refund-request-resolve.server";
+import { makeTeamPurchaseRefundRequest } from "./team-purchase-refund-eligibility.server";
 
 type TestDb = ReturnType<typeof createTestDb>;
 
