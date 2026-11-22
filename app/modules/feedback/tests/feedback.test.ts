@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createFeedback, type RunCommand } from "../index.server";
+import { createFeedback, feedback, type RunCommand } from "../index.server";
 
 const ISSUE_URL = "https://github.com/alice/cadence/issues/7";
 
@@ -75,8 +75,54 @@ describe("fileIssue", () => {
       .fileIssue(feedbackRequest(validFields))
       .catch((error) => error);
 
-    expect(thrown).toMatchObject({ init: { status: 404 } });
+    expect(thrown).toMatchObject({ init: { status: 404 }, data: "Not found" });
     expect(calls).toEqual([]);
+  });
+
+  it("names the page as / when the form does not say which page", async () => {
+    const { run, calls } = fakeRun("git@github.com:alice/cadence.git");
+    const { title, description } = validFields;
+
+    await createFeedback({ isDev: true, run }).fileIssue(
+      feedbackRequest({ title, description })
+    );
+
+    expect(calls[1].args.at(-1)).toBe(
+      "_Sent from the feedback button on `/`._\n\nI clicked Save and the note was gone.\n"
+    );
+  });
+
+  it("throws 400 for a blank description", async () => {
+    const { run } = fakeRun("git@github.com:alice/cadence.git");
+
+    const thrown = await createFeedback({ isDev: true, run })
+      .fileIssue(feedbackRequest({ ...validFields, description: " " }))
+      .catch((error) => error);
+
+    expect(thrown).toMatchObject({
+      init: { status: 400 },
+      data: "Say what happened.",
+    });
+  });
+
+  it("names every missing field when both are blank", async () => {
+    const { run } = fakeRun("git@github.com:alice/cadence.git");
+
+    const thrown = await createFeedback({ isDev: true, run })
+      .fileIssue(feedbackRequest({ title: "", description: "" }))
+      .catch((error) => error);
+
+    expect(thrown).toMatchObject({
+      data: "Give the feedback a title. Say what happened.",
+    });
+  });
+
+  it("is live in the app's own dev build", async () => {
+    const thrown = await feedback
+      .fileIssue(feedbackRequest({ title: "", description: "" }))
+      .catch((error) => error);
+
+    expect(thrown).toMatchObject({ init: { status: 400 } });
   });
 
   it("throws 400 and runs nothing for a blank title", async () => {
@@ -100,7 +146,10 @@ describe("fileIssue", () => {
       .fileIssue(feedbackRequest(validFields))
       .catch((error) => error);
 
-    expect(thrown).toMatchObject({ init: { status: 500 } });
+    expect(thrown).toMatchObject({
+      init: { status: 500 },
+      data: "origin is not a GitHub repo: https://gitlab.com/alice/cadence.git",
+    });
     expect(calls.map((call) => call.command)).toEqual(["git"]);
   });
 });
