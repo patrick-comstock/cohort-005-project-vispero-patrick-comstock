@@ -23,8 +23,10 @@
  * result.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { isSource, toPosix, walk } from "./source-files";
 
 /**
  * The top of the repository.
@@ -137,22 +139,8 @@ function isAncestorOfHead(sha: string): boolean {
   }
 }
 
-function isSource(file: string): boolean {
-  return /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file);
-}
-
 function isTested(file: string): boolean {
   return TESTED_ROOTS.some((root) => file.startsWith(root));
-}
-
-/** Every source file below a directory, as a path from the repository root. */
-function walk(dir: string): string[] {
-  const absolute = resolve(repoRoot, dir);
-  return readdirSync(absolute, { withFileTypes: true }).flatMap((entry) => {
-    const child = join(dir, entry.name);
-    if (entry.isDirectory()) return walk(child);
-    return isSource(child) ? [child] : [];
-  });
 }
 
 /** The files the arguments name, with a directory expanded to its contents. */
@@ -163,7 +151,9 @@ function namedFiles(args: string[]): string[] {
       console.error(`No such file or directory: ${arg}`);
       process.exit(1);
     }
-    return statSync(absolute).isDirectory() ? walk(arg) : [arg];
+    return statSync(absolute).isDirectory()
+      ? walk(repoRoot, arg)
+      : [toPosix(arg)];
   });
 }
 
