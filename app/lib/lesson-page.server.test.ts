@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import * as schema from "~/db/schema";
@@ -186,5 +187,21 @@ describe("getAdjacentLessons", () => {
 
   it("has no next lesson at the end of the course", () => {
     expect(getAdjacentLessons(course, 20).nextLesson).toBeNull();
+  });
+
+  it("leaves out a leading heading that repeats the lesson title", async () => {
+    testDb
+      .update(schema.lessons)
+      .set({ content: `## Lesson 1\n\n${LESSON_BODY_MARKER}` })
+      .where(eq(schema.lessons.id, lesson.id))
+      .run();
+
+    const page = await load({
+      userId: base.user.id,
+      enrolled: true,
+      canViewContent: true,
+    });
+
+    expect(page.lessonBody?.contentHtml).not.toContain("Lesson 1");
   });
 });

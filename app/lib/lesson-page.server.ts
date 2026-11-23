@@ -15,6 +15,7 @@ import {
 import { getLessonProgressMap } from "~/lib/course-progress.server";
 import { renderMarkdown } from "~/lib/markdown.server";
 import type { Access } from "~/modules/access/index.server";
+import { getLessonNotesMarkdown } from "~/modules/lesson-notes";
 
 /** The parts of Access that decide what the lesson page may send. */
 export type LessonViewer = Pick<
@@ -253,8 +254,9 @@ export async function loadLessonPage(
     };
   }
 
+  const notesMarkdown = getLessonNotesMarkdown(lesson.content, lesson.title);
   const lessonBody = {
-    contentHtml: lesson.content ? await renderMarkdown(lesson.content) : null,
+    contentHtml: notesMarkdown ? await renderMarkdown(notesMarkdown) : null,
     videoUrl: lesson.videoUrl,
     githubRepoUrl: lesson.githubRepoUrl,
   };
