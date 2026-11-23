@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { AlertTriangle, Clock, Github } from "lucide-react";
+import { AlertTriangle, Clock, Github, NotebookText } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useFetcher } from "react-router";
 import { data, isRouteErrorResponse } from "react-router";
@@ -457,13 +457,20 @@ export default function LessonViewer({ loaderData }: Route.ComponentProps) {
             />
           )}
 
-          {/* Lesson Content */}
           {lessonBody?.contentHtml && (
-            <div
-              className="prose prose-neutral dark:prose-invert mb-8 max-w-none"
-              // eslint-disable-next-line react/no-danger -- lesson content is Instructor-written markdown, trusted by design (app/lib/markdown.server.ts)
-              dangerouslySetInnerHTML={{ __html: lessonBody.contentHtml }}
-            />
+            <Card className="mb-8">
+              <CardContent className="p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <NotebookText className="size-5 text-primary" />
+                  <h2 className="text-xl font-semibold">Lesson notes</h2>
+                </div>
+                <div
+                  className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-h2:text-lg prose-h3:text-base"
+                  // eslint-disable-next-line react/no-danger -- lesson content is Instructor-written markdown, trusted by design (app/lib/markdown.server.ts)
+                  dangerouslySetInnerHTML={{ __html: lessonBody.contentHtml }}
+                />
+              </CardContent>
+            </Card>
           )}
 
           {lessonBody && !lessonBody.contentHtml && !lessonBody.videoUrl && (

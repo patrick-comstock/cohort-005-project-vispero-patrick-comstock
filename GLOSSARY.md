@@ -9,6 +9,10 @@ The shared domain language for this course platform. Agents and human developers
 **Category**:
 A named grouping a course belongs to; each course has exactly one. Its slug comes from its name, and both must be unique. A Category can't be deleted while a course uses it.
 
+**Lesson Notes**:
+The Instructor-written markdown shown under a lesson's video. A leading heading that only repeats the lesson's title is not shown, since the page already shows the title.
+_Avoid_: Lesson content, lesson body (in UI copy)
+
 ### People and purchases
 
 **Student**:
